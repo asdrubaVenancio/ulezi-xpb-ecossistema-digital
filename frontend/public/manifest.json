@@ -1,0 +1,9 @@
+{
+  "short_name": "ULEZI XPB",
+  "name": "ULEZI XPB — Ecossistema Digital de Angola",
+  "icons": [],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1FA7C9",
+  "background_color": "#080C10"
+}

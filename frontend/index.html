@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#00BCD4" />
+  <title>ULEZI XPB — Ecossistema Digital de Angola</title>
+  <meta name="description" content="Conectamos estudantes, empresas e investidores em Angola — formação profissional, investimentos e comunidade." />
+  <meta name="keywords" content="Angola, formação profissional, investimentos, cursos, emprego, negócios" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%2300BCD4'/><text y='24' x='6' font-size='20' font-weight='900' fill='white' font-family='sans-serif'>U</text></svg>" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <!-- Fontes carregadas no CSS global -->
+  <style>
+    /* Evitar flash de conteúdo não estilizado */
+    body {
+      margin: 0;
+      background: #F8FAFC;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    [data-theme="dark"] body,
+    body[data-theme="dark"] {
+      background: #0F172A;
+    }
+    #root { min-height: 100vh; }
+
+    /* Spinner de carregamento inicial */
+    #initial-loader {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: #F8FAFC; z-index: 9999;
+      transition: opacity 300ms;
+    }
+    #initial-loader.hidden { opacity: 0; pointer-events: none; }
+    .loader-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #00BCD4; margin: 0 4px;
+      animation: loaderBounce 0.8s ease-in-out infinite;
+    }
+    .loader-dot:nth-child(2) { animation-delay: 0.15s; }
+    .loader-dot:nth-child(3) { animation-delay: 0.3s; }
+    @keyframes loaderBounce {
+      0%, 100% { transform: translateY(0); opacity: 0.4; }
+      50%       { transform: translateY(-8px); opacity: 1; }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <noscript>O ULEZI XPB requer JavaScript para funcionar.</noscript>
+
+  <!-- Loader inicial enquanto o React carrega -->
+  <div id="initial-loader">
+    <div style="text-align:center">
+      <div style="display:flex;align-items:center;justify-content:center;gap:0;margin-bottom:16px">
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+        <div class="loader-dot"></div>
+      </div>
+      <p style="font-size:0.8rem;color:#94A3B8;letter-spacing:0.05em">ULEZI XPB</p>
+    </div>
+  </div>
+
+  <div id="root"></div>
+  <script type="module" src="/src/index.jsx"></script>
+  <script>
+    // Remover loader assim que o React montar
+    window.addEventListener('load', function() {
+      setTimeout(function() {
+        var loader = document.getElementById('initial-loader');
+        if (loader) { loader.classList.add('hidden'); setTimeout(function(){ loader.remove(); }, 350); }
+      }, 200);
+    });
+    // Aplicar tema guardado antes do React carregar (evita flash)
+    try {
+      var tema = localStorage.getItem('ulezi_tema') || 'light';
+      document.documentElement.setAttribute('data-theme', tema);
+      document.body.style.background = tema === 'dark' ? '#0F172A' : '#F8FAFC';
+    } catch(e) {}
+  </script>
+</body>
+</html>
