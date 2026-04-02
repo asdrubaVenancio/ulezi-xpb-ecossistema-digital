@@ -15,6 +15,7 @@ const fs = require('fs');
 const { testConnection } = require('./config/database');
 const { errorHandler, notFound } = require('./middlewares/error.middleware');
 const { ensureTrainingModuleSchema } = require('./utils/training-module-schema');
+const { ensureBusinessModuleSchema } = require('./utils/business-module-schema');
 
 // Importar rotas
 const authRoutes = require('./routes/auth.routes');
@@ -28,6 +29,14 @@ const jobsRoutes  = require('./routes/jobs.routes');
 const geographyRoutes = require('./routes/geography.routes');
 const notificationRoutes = require('./routes/notification.routes');
 const bankCoordinateRoutes = require('./routes/bank-coordinate.routes');
+
+// ── Rotas do Módulo 7: Negócios e Investimentos ────────────────────────────────
+const employeeRoutes = require('./routes/employee.routes');
+const visitRoutes = require('./routes/visit.routes');
+const mediationRoutes = require('./routes/mediation.routes');
+const subscriptionNotificationRoutes = require('./routes/subscription-notification.routes');
+const supportRoutes = require('./routes/support.routes');
+const consultationRoutes = require('./routes/consultation.routes');
 
 const app = express();
 
@@ -123,6 +132,7 @@ app.get('/health', (req, res) => {
 
 // ── Rotas da API ──────────────────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
+app.use('/api/admin', adminRoutes);
 app.use('/api/courses', courseRoutes);
 app.use('/api/cursos', courseRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
@@ -131,7 +141,6 @@ app.use('/api/pagamentos', paymentRoutes);
 app.use('/api', businessRoutes);
 app.use('/api/community', communityRoutes);
 app.use('/api/comunidade', communityRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/vagas-empresa', jobsRoutes);
 app.use('/api/geografia', geographyRoutes);
 app.use('/api/notificacoes', notificationRoutes);
@@ -151,6 +160,14 @@ app.use('/api/profile', profileRoutes);
 // ── Rotas de Coordenadas Bancárias ──────────────────────────────────────────────
 app.use('/api/bank-coordinates', bankCoordinateRoutes);
 
+// ── Rotas do Módulo 7: Negócios e Investimentos ────────────────────────────────
+app.use('/api/admin/employees', employeeRoutes);
+app.use('/api/admin/visits', visitRoutes);
+app.use('/api/admin/mediations', mediationRoutes);
+app.use('/api/admin/subscription-notifications', subscriptionNotificationRoutes);
+app.use('/api/support', supportRoutes);
+app.use('/api/consultations', consultationRoutes);
+
 // ── Tratamento de erros ───────────────────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
@@ -162,6 +179,7 @@ const start = async () => {
   try {
     await testConnection();
     await ensureTrainingModuleSchema();
+    await ensureBusinessModuleSchema();
     const server = app.listen(PORT, () => {
       console.log('\n╔════════════════════════════════════════╗');
       console.log('║       ULEZI XPB - API Server           ║');

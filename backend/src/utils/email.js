@@ -67,6 +67,38 @@ const sendWelcomeEmail = async (user) => {
 };
 
 /**
+ * Email de onboarding de funcionário com senha temporária
+ */
+const sendEmployeeOnboardingEmail = async ({ nome, email, passwordTemporaria }) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+      <div style="background:#1FA7C9;padding:30px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:28px">ULEZI XPB</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Conta de funcionário criada</p>
+      </div>
+      <div style="padding:30px">
+        <h2 style="color:#374151">Bem-vindo(a), ${nome}!</h2>
+        <p style="color:#6B7280;line-height:1.6">Foi criada uma conta de funcionário para si na plataforma Ulezi XPB.</p>
+        <div style="background:#F8FAFC;border-radius:8px;padding:20px;margin:20px 0">
+          <p style="margin:0 0 8px;color:#374151"><strong>Email:</strong> ${email}</p>
+          <p style="margin:0;color:#374151"><strong>Senha temporária:</strong> ${passwordTemporaria}</p>
+        </div>
+        <p style="color:#6B7280;line-height:1.6">No primeiro login será obrigatório alterar esta senha antes de aceder à área de trabalho.</p>
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/entrar" style="display:inline-block;background:#1FA7C9;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+          Entrar na plataforma
+        </a>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: 'Conta de funcionário criada - Ulezi XPB',
+    html,
+  });
+};
+
+/**
  * Email de confirmação de inscrição com recibo em PDF
  */
 const sendEnrollmentConfirmation = async (email, data, pdfBuffer) => {
@@ -155,4 +187,224 @@ const sendContractEmail = async (email, recipientName, contractData, pdfBuffer) 
   return sendEmail({ to: email, subject: `Contrato de Investimento - ${contractData.titulo}`, html, attachments });
 };
 
-module.exports = { sendEmail, sendWelcomeEmail, sendEnrollmentConfirmation, sendInvestorInterestNotification, sendContractEmail };
+/**
+ * Email de agendamento de reunião de mediação
+ */
+const sendMediationMeetingScheduledEmail = async ({
+  to,
+  nome,
+  titulo,
+  contraparte,
+  dataReuniao,
+  horaInicio,
+  tipoReuniao,
+  mediador,
+}) => {
+  if (!to) {
+    return { success: false, skipped: true };
+  }
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+      <div style="background:#0EA5E9;padding:28px;text-align:center">
+        <h1 style="color:#fff;margin:0">ULEZI XPB</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Reunião de mediação agendada</p>
+      </div>
+      <div style="padding:28px">
+        <p style="color:#374151">Olá <strong>${nome || 'utilizador'}</strong>,</p>
+        <p style="color:#6B7280;line-height:1.6">
+          Foi agendada uma reunião de mediação para dar seguimento à oportunidade
+          <strong>${titulo}</strong>.
+        </p>
+        <div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin:18px 0">
+          <p style="margin:6px 0;color:#374151"><strong>Data:</strong> ${dataReuniao}</p>
+          <p style="margin:6px 0;color:#374151"><strong>Hora:</strong> ${horaInicio}</p>
+          <p style="margin:6px 0;color:#374151"><strong>Tipo:</strong> ${tipoReuniao}</p>
+          <p style="margin:6px 0;color:#374151"><strong>Contraparte:</strong> ${contraparte}</p>
+          <p style="margin:6px 0;color:#374151"><strong>Mediador:</strong> ${mediador || 'Equipa Ulezi XPB'}</p>
+        </div>
+        <p style="color:#6B7280;line-height:1.6">
+          O contacto continuará a ser acompanhado pela equipa administrativa da plataforma.
+        </p>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Reunião de mediação agendada - ${titulo}`,
+    html,
+  });
+};
+
+/**
+ * Email de aprovação de empresa
+ */
+const sendCompanyApprovalEmail = async (email, empresaData) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+      <div style="background:#22C55E;padding:30px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:28px">ULEZI XPB</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Empresa Aprovada!</p>
+      </div>
+      <div style="padding:30px">
+        <h2 style="color:#374151">🎉 Parabéns, ${empresaData.nome_empresa}!</h2>
+        <p style="color:#6B7280;line-height:1.6">A sua empresa foi aprovada com sucesso na plataforma Ulezi XPB.</p>
+        <p style="color:#6B7280;line-height:1.6">Agora pode aceder a todas as funcionalidades disponíveis para empresas, incluindo:</p>
+        <ul style="color:#6B7280;line-height:1.8">
+          <li>Publicar oportunidades de investimento</li>
+          <li>Gerir vagas de emprego</li>
+          <li>Aceder ao módulo de consultoria</li>
+          <li>Conectar-se com investidores</li>
+        </ul>
+        <div style="background:#F8FAFC;border-radius:8px;padding:20px;margin:20px 0">
+          <p style="margin:0;color:#374151"><strong>Empresa:</strong> ${empresaData.nome_empresa}</p>
+          <p style="margin:8px 0 0;color:#374151"><strong>NIF:</strong> ${empresaData.nif || 'Não informado'}</p>
+          <p style="margin:8px 0 0;color:#374151"><strong>Data de aprovação:</strong> ${new Date().toLocaleDateString('pt-AO')}</p>
+        </div>
+        <a href="${process.env.FRONTEND_URL}/empresa/dashboard" style="display:inline-block;background:#22C55E;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+          Aceder ao Painel da Empresa
+        </a>
+        <p style="color:#9CA3AF;font-size:12px;margin-top:20px">
+          Nota: Para utilizar todas as funcionalidades, será necessário adquirir um plano de assinatura.
+        </p>
+      </div>
+      <div style="background:#F8FAFC;padding:20px;text-align:center">
+        <p style="color:#9CA3AF;font-size:12px;margin:0">© 2026 Ulezi XPB. Todos os direitos reservados.</p>
+      </div>
+    </div>
+  `;
+  return sendEmail({ to: email, subject: '🎉 Sua empresa foi aprovada na Ulezi XPB!', html });
+};
+
+/**
+ * Email de rejeição de empresa com motivo
+ */
+const sendCompanyRejectionEmail = async (email, empresaData) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+      <div style="background:#EF4444;padding:30px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:28px">ULEZI XPB</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Análise de Cadastro</p>
+      </div>
+      <div style="padding:30px">
+        <h2 style="color:#374151">Cadastro Rejeitado</h2>
+        <p style="color:#6B7280;line-height:1.6">Olá, <strong>${empresaData.nome_empresa}</strong>.</p>
+        <p style="color:#6B7280;line-height:1.6">Após análise da documentação enviada, informamos que o cadastro da sua empresa não pôde ser aprovado neste momento.</p>
+        
+        <div style="background:#FEF2F2;border-left:4px solid #EF4444;border-radius:8px;padding:20px;margin:20px 0">
+          <p style="margin:0 0 8px;color:#991B1B;font-weight:bold">Motivo da rejeição:</p>
+          <p style="margin:0;color:#374151;line-height:1.6">${empresaData.motivo}</p>
+        </div>
+
+        <p style="color:#6B7280;line-height:1.6">Você pode corrigir as informações e submeter novamente através da plataforma.</p>
+        
+        <div style="background:#F8FAFC;border-radius:8px;padding:20px;margin:20px 0">
+          <p style="margin:0;color:#374151"><strong>Empresa:</strong> ${empresaData.nome_empresa}</p>
+          <p style="margin:8px 0 0;color:#374151"><strong>NIF:</strong> ${empresaData.nif || 'Não informado'}</p>
+          <p style="margin:8px 0 0;color:#374151"><strong>Data de análise:</strong> ${new Date().toLocaleDateString('pt-AO')}</p>
+        </div>
+
+        <a href="${process.env.FRONTEND_URL}/empresa/perfil" style="display:inline-block;background:#374151;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+          Atualizar Cadastro
+        </a>
+        
+        <p style="color:#9CA3AF;font-size:12px;margin-top:20px">
+          Em caso de dúvidas, entre em contacto com o suporte através da plataforma.
+        </p>
+      </div>
+      <div style="background:#F8FAFC;padding:20px;text-align:center">
+        <p style="color:#9CA3AF;font-size:12px;margin:0">© 2026 Ulezi XPB. Todos os direitos reservados.</p>
+      </div>
+    </div>
+  `;
+  return sendEmail({ to: email, subject: 'Cadastro Rejeitado - Ulezi XPB', html });
+};
+
+/**
+ * Email de aprovação da assinatura com recibo em anexo.
+ */
+const sendSubscriptionApprovalEmail = async (email, dados, pdfBuffer) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+      <div style="background:#22C55E;padding:30px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:28px">ULEZI XPB</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Assinatura Aprovada</p>
+      </div>
+      <div style="padding:30px">
+        <h2 style="color:#374151">Pagamento confirmado com sucesso</h2>
+        <p style="color:#6B7280;line-height:1.6">Olá, <strong>${dados.nome_empresa}</strong>.</p>
+        <p style="color:#6B7280;line-height:1.6">A sua assinatura do plano <strong>${dados.pacote_nome}</strong> foi aprovada e já está activa na plataforma.</p>
+        <div style="background:#F8FAFC;border-radius:8px;padding:20px;margin:20px 0">
+          <p style="margin:4px 0;color:#374151"><strong>Referência:</strong> ${dados.referencia_pagamento || 'N/D'}</p>
+          <p style="margin:4px 0;color:#374151"><strong>Valor:</strong> ${dados.valor_pago} ${dados.moeda || 'AOA'}</p>
+          <p style="margin:4px 0;color:#374151"><strong>Validade:</strong> ${dados.data_inicio} até ${dados.data_fim}</p>
+        </div>
+        <p style="color:#6B7280;line-height:1.6">O recibo de pagamento segue em anexo neste email.</p>
+        <a href="${process.env.FRONTEND_URL}/empresa/assinatura" style="display:inline-block;background:#22C55E;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+          Ver assinatura
+        </a>
+      </div>
+    </div>
+  `;
+
+  const attachments = pdfBuffer ? [{
+    filename: `recibo_assinatura_${dados.numero_recibo || dados.id}.pdf`,
+    content: pdfBuffer,
+    contentType: 'application/pdf',
+  }] : [];
+
+  return sendEmail({
+    to: email,
+    subject: `Assinatura aprovada - ${dados.pacote_nome}`,
+    html,
+    attachments,
+  });
+};
+
+/**
+ * Email de rejeição da assinatura com motivo.
+ */
+const sendSubscriptionRejectionEmail = async (email, dados) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+      <div style="background:#EF4444;padding:30px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:28px">ULEZI XPB</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Solicitação de Assinatura Rejeitada</p>
+      </div>
+      <div style="padding:30px">
+        <h2 style="color:#374151">Não foi possível aprovar a assinatura</h2>
+        <p style="color:#6B7280;line-height:1.6">Olá, <strong>${dados.nome_empresa}</strong>.</p>
+        <p style="color:#6B7280;line-height:1.6">A sua solicitação do plano <strong>${dados.pacote_nome}</strong> foi analisada, mas não pôde ser aprovada neste momento.</p>
+        <div style="background:#FEF2F2;border-left:4px solid #EF4444;border-radius:8px;padding:20px;margin:20px 0">
+          <p style="margin:0 0 8px;color:#991B1B;font-weight:bold">Motivo da rejeição:</p>
+          <p style="margin:0;color:#374151;line-height:1.6">${dados.motivo_rejeicao}</p>
+        </div>
+        <p style="color:#6B7280;line-height:1.6">Pode corrigir o comprovativo ou actualizar os dados e submeter novamente a solicitação.</p>
+        <a href="${process.env.FRONTEND_URL}/empresa/assinatura" style="display:inline-block;background:#374151;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+          Rever solicitação
+        </a>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Solicitação de assinatura rejeitada - ${dados.pacote_nome}`,
+    html,
+  });
+};
+
+module.exports = {
+  sendEmail,
+  sendWelcomeEmail,
+  sendEmployeeOnboardingEmail,
+  sendEnrollmentConfirmation,
+  sendInvestorInterestNotification,
+  sendContractEmail,
+  sendMediationMeetingScheduledEmail,
+  sendCompanyApprovalEmail,
+  sendCompanyRejectionEmail,
+  sendSubscriptionApprovalEmail,
+  sendSubscriptionRejectionEmail,
+};

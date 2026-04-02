@@ -28,6 +28,7 @@ const {
   listAdminOpportunities,
   listAdminCompanies,
   getAdminCompany,
+  viewCompanyDocument,
   approveCompany,
   rejectCompany,
   createSubscription,
@@ -79,6 +80,7 @@ router.put('/courses/:id', updateAdminCourse);
 router.put('/cursos/:id', updateAdminCourse);
 
 router.get('/empresas', listAdminCompanies);
+router.get('/empresas/documentos/:documentId/visualizar', viewCompanyDocument);
 router.get('/empresas/:id', getAdminCompany);
 router.put('/empresas/:id/aprovar', authorize('admin'), approveCompany);
 router.put('/empresas/:id/rejeitar', authorize('admin'), rejectCompany);

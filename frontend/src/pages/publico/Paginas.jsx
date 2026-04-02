@@ -1,3 +1,6 @@
+ // @author AsdrubaDeveloper
+// @version 1.0.0
+
 import {
   AlertCircle,
   BookOpen,

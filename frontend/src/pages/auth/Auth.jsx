@@ -2,6 +2,9 @@
 // ULEZI XPB - Autenticacao: login e registo por perfil
 // Formularios separados por tipo de conta com validacao clara
 // ============================================================
+// 
+// @author AsdrubaDeveloper
+// @version 1.0.0
 
 import React, { useMemo, useState, useCallback } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
@@ -135,6 +138,11 @@ export function Login() {
     try {
       const utilizador = await login(email, password);
       toast.sucesso(`Bem-vindo, ${utilizador.nome?.split(' ')[0] || 'utilizador'}!`);
+      if (utilizador.password_change_required) {
+        toast.aviso('Altere a senha temporária para continuar a usar a plataforma.');
+        navigate('/perfil', { replace: true });
+        return;
+      }
       navigate(destino || ROLE_DASHBOARD[utilizador.role] || '/', { replace: true });
     } catch (e) {
       toast.erro(extrairErro(e));

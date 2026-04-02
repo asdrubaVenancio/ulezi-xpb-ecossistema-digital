@@ -7,6 +7,10 @@ const opportunitySchema = Joi.object({
   valor: Joi.number().positive().optional().allow(null),
   moeda: Joi.string().max(10).default('Kz'),
   dados_especificos: Joi.object().optional().allow(null),
+  termos: Joi.string().max(5000).optional().allow('', null),
+  retorno_percentual: Joi.alternatives().try(Joi.string().max(50), Joi.number()).optional().allow('', null),
+  prazo_pagamento: Joi.alternatives().try(Joi.string().max(255), Joi.number()).optional().allow('', null),
+  participacao_percentual: Joi.alternatives().try(Joi.string().max(50), Joi.number()).optional().allow('', null),
   imagem_url: Joi.string().uri().optional().allow('', null),
 });
 

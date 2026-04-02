@@ -5,7 +5,7 @@
  * incluindo preços, carga horária, exigências e especificações
  * definidas por cada centro de formação.
  * 
- * @author ULEZI XPB Team
+ * @author AsdrubaDeveloper
  * @version 1.0.0
  */
 

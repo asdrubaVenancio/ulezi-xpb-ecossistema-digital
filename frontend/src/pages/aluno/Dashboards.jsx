@@ -2,37 +2,40 @@
 // ULEZI XPB — Dashboards: Aluno, Empresa, Investidor
 // Dados reais do backend — validações — toast integrado
 // ============================================================
+// 
+// @author AsdrubaDeveloper
+// @version 1.0.0
 
 import {
-    AlertCircle,
-    BookOpen,
-    Briefcase,
-    CheckCircle, Clock,
-    CreditCard,
-    Download,
-    Edit,
-    FileText,
-    MapPin,
-    Plus,
-    Star,
-    Trash2,
-    TrendingUp,
-    Upload,
-    Users,
-    X
+  AlertCircle,
+  BookOpen,
+  Briefcase,
+  CheckCircle, Clock,
+  CreditCard,
+  Download,
+  Edit,
+  FileText,
+  MapPin,
+  Plus,
+  Star,
+  Trash2,
+  TrendingUp,
+  Upload,
+  Users,
+  X
 } from 'lucide-react';
 import React, { useCallback, useEffect, useState } from 'react';
 import { useToast } from '../../components/ui/Toast';
 import {
-    BadgeStatus,
-    EmptyState,
-    Modal, PageLoader,
+  BadgeStatus,
+  EmptyState,
+  Modal, PageLoader,
 } from '../../components/ui/index.jsx';
 import { useAuth } from '../../context/AuthContext';
 import {
-    cursosAPI, empresaAPI,
-    extrairErro,
-    investidorAPI
+  cursosAPI, empresaAPI,
+  extrairErro,
+  investidorAPI
 } from '../../services/api';
 import { formatAOA, formatData } from '../../utils/constants';
 
@@ -97,6 +100,7 @@ export function DashboardAluno() {
   const [modalAvaliar, setModalAvaliar] = useState(null);
   const [avalForm, setAvalForm] = useState({ nota: 5, comentario: '' });
   const [enviando, setEnviando] = useState(false);
+  const [agora] = useState(Date.now());
 
   const carregar = useCallback(async () => {
     try {
@@ -108,6 +112,48 @@ export function DashboardAluno() {
   }, [toast]);
 
   useEffect(() => { carregar(); }, [carregar]);
+  useEffect(() => {
+    const timer = window.setInterval(() => setAgora(Date.now()), 60000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  const formatarTempoRestanteAluno = (dataLimite) => {
+    if (!dataLimite) return 'Sem prazo definido';
+
+    const limite = new Date(dataLimite).getTime();
+    if (Number.isNaN(limite)) return 'Prazo inválido';
+
+    const diferenca = limite - agora;
+    if (diferenca <= 0) return 'Expirada';
+
+    const minutos = Math.floor(diferenca / 60000);
+    const dias = Math.floor(minutos / 1440);
+    const horas = Math.floor((minutos % 1440) / 60);
+    const mins = minutos % 60;
+
+    if (dias > 0) return `${dias}d ${horas}h restantes`;
+    if (horas > 0) return `${horas}h ${mins}min restantes`;
+    return `${mins}min restantes`;
+  };
+
+  const formatarTempoRestante = (dataLimite) => {
+    if (!dataLimite) return 'Sem prazo definido';
+
+    const limite = new Date(dataLimite).getTime();
+    if (Number.isNaN(limite)) return 'Prazo inválido';
+
+    const diferenca = limite - agora;
+    if (diferenca <= 0) return 'Expirada';
+
+    const minutos = Math.floor(diferenca / 60000);
+    const dias = Math.floor(minutos / 1440);
+    const horas = Math.floor((minutos % 1440) / 60);
+    const mins = minutos % 60;
+
+    if (dias > 0) return `${dias}d ${horas}h restantes`;
+    if (horas > 0) return `${horas}h ${mins}min restantes`;
+    return `${mins}min restantes`;
+  };
 
   const cancelarInscricao = async (id) => {
     // Verificar se a inscrição está aprovada/confirmada
@@ -462,6 +508,19 @@ export function DashboardAluno() {
         <div className="form-group">
           <label className="form-label">Comentário (opcional)</label>
           <textarea className="form-textarea" rows={3} value={avalForm.comentario} onChange={e=>setAvalForm(f=>({...f,comentario:e.target.value}))} placeholder="Partilhe a sua experiência..." />
+          <div className="form-group">
+            <label className="form-label">Data e hora limite *</label>
+            <input
+              type="datetime-local"
+              className="form-input"
+              value={formVaga.expires_at}
+              min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
+              onChange={e=>setFormVaga(p=>({...p,expires_at:e.target.value}))}
+            />
+            <p style={{ marginTop: 6, fontSize: '0.78rem', color: 'var(--txt-3)' }}>
+              Depois deste prazo a vaga deixa de aparecer publicamente e o contador é actualizado de forma dinâmica.
+            </p>
+          </div>
         </div>
       </Modal>
     </div>
@@ -478,6 +537,7 @@ export function DashboardEmpresa() {
   const [minhasVagas,   setMinhasVagas]   = useState([]);
   const [stats,         setStats]         = useState({});
   const [documentos,    setDocumentos]    = useState([]);
+  const [assinaturaInfo,setAssinaturaInfo]= useState(null);
   const [abaActiva,     setAbaActiva]     = useState('oportunidades');
   const [carregando,    setCarregando]    = useState(true);
   const [modalDoc,      setModalDoc]      = useState(false);
@@ -489,24 +549,48 @@ export function DashboardEmpresa() {
   const [vagaEdit,      setVagaEdit]      = useState(null); // null = criar, objeto = editar
   const [formVaga,      setFormVaga]      = useState({
     titulo: '', descricao: '', requisitos: '', localizacao: '',
-    tipo: 'efetivo', salario: '', contacto: '',
+    tipo: 'efetivo', salario: '', contacto: '', expires_at: '',
   });
   const [submVaga,      setSubmVaga]      = useState(false);
+  const [agora,         setAgora]         = useState(Date.now());
+  const [modalOportunidade, setModalOportunidade] = useState(false);
+  const [submOportunidade, setSubmOportunidade] = useState(false);
+  const [formOportunidade, setFormOportunidade] = useState({
+    tipo: 'investimento',
+    titulo: '',
+    descricao: '',
+    valor: '',
+    moeda: 'AOA',
+    termos: '',
+    retorno_percentual: '',
+    prazo_pagamento: '',
+    participacao_percentual: '',
+  });
   // Modal rejeição (mostrar motivo)
   const [modalMotivo,   setModalMotivo]   = useState(null);
 
+  const tiposOportunidade = [
+    { valor: 'venda_empresa', etiqueta: 'Venda total da empresa' },
+    { valor: 'participacao', etiqueta: 'Venda de participação societária' },
+    { valor: 'licenciamento', etiqueta: 'Licenciamento de marcas' },
+    { valor: 'franquia', etiqueta: 'Expansão por franquia' },
+    { valor: 'investimento', etiqueta: 'Busca de financiamento ou investimento' },
+  ];
+
   const carregar = useCallback(async () => {
     try {
-      const [st, op, vg, dc] = await Promise.all([
+      const [st, op, vg, dc, sub] = await Promise.all([
         empresaAPI.stats().catch(() => ({ data: { dados: {} } })),
         empresaAPI.oportunidades().catch(() => ({ data: { dados: [] } })),
         empresaAPI.minhasVagas().catch(() => ({ data: { dados: { vagas: [] } } })),
         empresaAPI.documentos().catch(() => ({ data: { dados: [] } })),
+        empresaAPI.minhaAssinatura().catch(() => ({ data: { dados: null } })),
       ]);
       setStats(st.data.dados || {});
       setOportunidades(op.data.dados?.oportunidades || op.data.dados || []);
       setMinhasVagas(vg.data.dados?.vagas || vg.data.dados || []);
       setDocumentos(dc.data.dados?.documentos || dc.data.dados || []);
+      setAssinaturaInfo(sub.data.dados || null);
     } catch (e) {
       toast.erro('Erro ao carregar dados: ' + extrairErro(e));
     } finally { setCarregando(false); }
@@ -521,7 +605,7 @@ export function DashboardEmpresa() {
     try {
       const fd = new FormData();
       fd.append('documento', ficheiroDoc);
-      fd.append('tipo_documento', tipoDoc);
+      fd.append('tipo', tipoDoc); // Backend espera 'tipo', não 'tipo_documento'
       await empresaAPI.enviarDoc(fd);
       toast.sucesso('Documento enviado para análise!');
       setModalDoc(false); setFicheiroDoc(null);
@@ -536,9 +620,43 @@ export function DashboardEmpresa() {
     setFormVaga(vaga ? {
       titulo: vaga.titulo, descricao: vaga.descricao, requisitos: vaga.requisitos || '',
       localizacao: vaga.localizacao || '', tipo: vaga.tipo || 'efetivo',
-      salario: vaga.salario || '', contacto: vaga.contacto || '',
-    } : { titulo: '', descricao: '', requisitos: '', localizacao: '', tipo: 'efetivo', salario: '', contacto: '' });
+      salario: vaga.salario || '', contacto: vaga.contacto || '', expires_at: vaga.expires_at ? String(vaga.expires_at).slice(0, 16) : '',
+    } : { titulo: '', descricao: '', requisitos: '', localizacao: '', tipo: 'efetivo', salario: '', contacto: '', expires_at: '' });
     setModalVaga(true);
+  };
+
+  const abrirModalOportunidade = () => {
+    setFormOportunidade({
+      tipo: 'investimento',
+      titulo: '',
+      descricao: '',
+      valor: '',
+      moeda: 'AOA',
+      termos: '',
+      retorno_percentual: '',
+      prazo_pagamento: '',
+      participacao_percentual: '',
+    });
+    setModalOportunidade(true);
+  };
+
+  const submeterOportunidade = async () => {
+    if (!formOportunidade.titulo.trim()) return toast.aviso('O título da oportunidade é obrigatório.');
+    if (!formOportunidade.descricao.trim()) return toast.aviso('A descrição da oportunidade é obrigatória.');
+    if (!formOportunidade.valor) return toast.aviso('Informe o valor pretendido para a oportunidade.');
+    if (!formOportunidade.termos.trim()) return toast.aviso('Descreva os termos da operação.');
+
+    setSubmOportunidade(true);
+    try {
+      await empresaAPI.criarOportunidade(formOportunidade);
+      toast.sucesso('Oportunidade publicada com sucesso.');
+      setModalOportunidade(false);
+      carregar();
+    } catch (e) {
+      toast.erro(extrairErro(e));
+    } finally {
+      setSubmOportunidade(false);
+    }
   };
 
   const submeterVaga = async () => {
@@ -548,10 +666,10 @@ export function DashboardEmpresa() {
     try {
       if (vagaEdit) {
         await empresaAPI.editarVaga(vagaEdit.id, formVaga);
-        toast.sucesso('Vaga actualizada! Será reanalisada pela equipa.');
+        toast.sucesso('Vaga actualizada com sucesso.');
       } else {
         await empresaAPI.criarVaga(formVaga);
-        toast.sucesso('Vaga submetida! Aguarda aprovação da equipa administrativa.');
+        toast.sucesso('Vaga publicada com sucesso.');
       }
       setModalVaga(false);
       carregar();
@@ -583,6 +701,11 @@ export function DashboardEmpresa() {
 
   if (carregando) return <PageLoader />;
 
+  const temAssinaturaAtiva = Boolean(assinaturaInfo?.tem_assinatura_ativa);
+  const assinaturaAtual = assinaturaInfo?.assinatura || null;
+  const empresaAprovada = Boolean(assinaturaInfo?.empresa?.is_approved);
+  const podePublicar = temAssinaturaAtiva && empresaAprovada;
+
   return (
     <div className="dashboard">
       <div className="page-header">
@@ -592,14 +715,95 @@ export function DashboardEmpresa() {
         </div>
       </div>
 
-      <div className="stats-grid">
+      {!temAssinaturaAtiva && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.16), rgba(251, 191, 36, 0.1))',
+          border: '1px solid rgba(245, 158, 11, 0.32)',
+          borderRadius: 'var(--r-xl)',
+          padding: '18px 20px',
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <AlertCircle size={18} color="var(--amarelo)" style={{ marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Assinatura pendente para desbloquear a plataforma</div>
+              <div style={{ color: 'var(--txt-2)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                Enquanto a empresa não tiver uma assinatura activa, o sistema permite apenas actualizar o perfil e os documentos.
+              </div>
+            </div>
+          </div>
+          <a href="/empresa/assinatura" className="btn btn--primary btn--sm">
+            <CreditCard size={14}/> Ver planos
+          </a>
+        </div>
+      )}
+
+      {temAssinaturaAtiva && !empresaAprovada && (
+        <div style={{
+          background: 'linear-gradient(135deg, rgba(34, 211, 238, 0.16), rgba(14, 165, 233, 0.08))',
+          border: '1px solid rgba(34, 211, 238, 0.32)',
+          borderRadius: 'var(--r-xl)',
+          padding: '18px 20px',
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}>
+          <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+            <AlertCircle size={18} color="var(--ciano)" style={{ marginTop: 2, flexShrink: 0 }} />
+            <div>
+              <div style={{ fontWeight: 700, marginBottom: 4 }}>Assinatura activa, aprovação da empresa pendente</div>
+              <div style={{ color: 'var(--txt-2)', fontSize: '0.9rem', lineHeight: 1.5 }}>
+                A assinatura já foi confirmada, mas a equipa administrativa ainda precisa concluir a aprovação final da empresa antes de liberar vagas e oportunidades.
+              </div>
+            </div>
+          </div>
+          <a href="/perfil" className="btn btn--secondary btn--sm">
+            <FileText size={14}/> Rever perfil
+          </a>
+        </div>
+      )}
+
+      {temAssinaturaAtiva && assinaturaAtual && (
+        <div style={{
+          background: 'var(--bg-card)',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--r-xl)',
+          padding: '16px 20px',
+          marginBottom: 24,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 16,
+          flexWrap: 'wrap',
+        }}>
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 4 }}>Plano activo: {assinaturaAtual.package_name || assinaturaAtual.tipo_plano || 'Assinatura empresarial'}</div>
+            <div style={{ color: 'var(--txt-3)', fontSize: '0.86rem' }}>
+              Válido até {formatData(assinaturaAtual.data_fim)}.
+            </div>
+          </div>
+          <a href="/empresa/assinatura" className="btn btn--secondary btn--sm">
+            <CreditCard size={14}/> Gerir assinatura
+          </a>
+        </div>
+      )}
+
+      <div className="stats-grid" style={{ marginBottom: 24 }}>
         <StatCard icone={<TrendingUp size={20} color="var(--ciano)"/>}  label="Oportunidades" valor={stats.total_oportunidades || 0} cor="var(--ciano-100)" />
         <StatCard icone={<Users size={20} color="var(--verde)"/>}       label="Interessados"  valor={stats.total_interessados  || 0} cor="var(--verde-100)" />
         <StatCard icone={<Briefcase size={20} color="var(--laranja)"/>} label="Vagas Activas" valor={minhasVagas.filter(v=>v.status==='aprovada').length} cor="var(--laranja-100)" />
         <StatCard icone={<FileText size={20} color="var(--roxo)"/>}     label="Documentos"    valor={documentos.length} cor="var(--roxo-100)" />
       </div>
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card" style={{ padding: 0, marginTop: 0 }}>
         <div style={{ padding: '20px 24px 0', borderBottom: '1px solid var(--border)' }}>
           <div className="tabs" style={{ margin: 0, borderBottom: 'none' }}>
             <button className={`tab-btn${abaActiva==='oportunidades'?' active':''}`} onClick={()=>setAbaActiva('oportunidades')}>
@@ -620,16 +824,28 @@ export function DashboardEmpresa() {
           {abaActiva === 'oportunidades' && (
             oportunidades.length === 0 ? (
               <EmptyState icone={<TrendingUp size={28}/>} titulo="Sem oportunidades"
-                descricao="Publique a sua primeira oportunidade de investimento." />
+                descricao={podePublicar
+                  ? 'Publique a sua primeira oportunidade de investimento.'
+                  : 'As oportunidades serão liberadas assim que a empresa estiver aprovada e com assinatura activa.'}
+                acao={<button className="btn btn--primary btn--sm" onClick={abrirModalOportunidade} disabled={!podePublicar}><Plus size={14}/> Nova oportunidade</button>} />
             ) : (
               <div className="table-container">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, paddingBottom: 16, flexWrap: 'wrap' }}>
+                  <div style={{ color: 'var(--txt-3)', fontSize: '0.84rem', lineHeight: 1.6 }}>
+                    Publique oportunidades como venda total da empresa, participação societária, licenciamento de marcas, franquia e busca de financiamento.
+                  </div>
+                  <button className="btn btn--primary btn--sm" onClick={abrirModalOportunidade} disabled={!podePublicar}>
+                    <Plus size={14}/> Nova oportunidade
+                  </button>
+                </div>
                 <table>
-                  <thead><tr><th>Título</th><th>Tipo</th><th>Interessados</th><th>Estado</th><th>Data</th></tr></thead>
+                  <thead><tr><th>Título</th><th>Tipo</th><th>Valor</th><th>Interessados</th><th>Estado</th><th>Data</th></tr></thead>
                   <tbody>
-                    {oportunidades.map(o => (
+                    {[...oportunidades].sort((a, b) => new Date(b.criado_em || b.created_at || 0) - new Date(a.criado_em || a.created_at || 0)).map(o => (
                       <tr key={o.id}>
                         <td style={{ fontWeight: 500 }}>{o.titulo}</td>
-                        <td style={{ color: 'var(--txt-3)', fontSize: '0.85rem' }}>{o.tipo_servico || o.tipo}</td>
+                        <td style={{ color: 'var(--txt-3)', fontSize: '0.85rem' }}>{tiposOportunidade.find((tipo) => tipo.valor === (o.tipo_servico || o.tipo))?.etiqueta || o.tipo_servico || o.tipo}</td>
+                        <td style={{ fontWeight: 700 }}>{formatAOA(o.valor || 0)}</td>
                         <td><span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={14} color="var(--txt-3)"/>{o.num_interessados || 0}</span></td>
                         <td><BadgeStatus status={o.status}/></td>
                         <td style={{ color: 'var(--txt-3)', fontSize: '0.8rem' }}>{formatData(o.criado_em || o.created_at)}</td>
@@ -648,23 +864,25 @@ export function DashboardEmpresa() {
               <div style={{ background: 'var(--ciano-100)', border: '1px solid var(--ciano-400)', borderRadius: 'var(--r-md)', padding: '12px 16px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
                 <AlertCircle size={16} color="var(--ciano)" style={{ marginTop: 2, flexShrink: 0 }} />
                 <p style={{ fontSize: '0.82rem', color: 'var(--ciano-600)', lineHeight: 1.5 }}>
-                  As vagas publicadas passam por revisão antes de ficarem visíveis ao público. O processo demora normalmente até 24 horas.
+                  Defina sempre a data e hora limite da vaga. O sistema mostra a contagem do tempo restante e remove automaticamente as vagas expiradas da área pública.
                 </p>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 16 }}>
-                <button className="btn btn--primary btn--sm" onClick={() => abrirModalVaga(null)}>
+                <button className="btn btn--primary btn--sm" onClick={() => abrirModalVaga(null)} disabled={!podePublicar}>
                   <Plus size={14}/> Nova Vaga
                 </button>
               </div>
 
               {minhasVagas.length === 0 ? (
                 <EmptyState icone={<Briefcase size={28}/>} titulo="Sem vagas"
-                  descricao="Publique a sua primeira vaga de emprego para encontrar talentos."
-                  acao={<button className="btn btn--primary btn--sm" onClick={()=>abrirModalVaga(null)}><Plus size={14}/> Criar Vaga</button>} />
+                  descricao={podePublicar
+                    ? 'Publique a sua primeira vaga de emprego para encontrar talentos.'
+                    : 'A publicação de vagas será liberada assim que a empresa estiver aprovada pela equipa administrativa.'}
+                  acao={<button className="btn btn--primary btn--sm" onClick={()=>abrirModalVaga(null)} disabled={!podePublicar}><Plus size={14}/> Criar Vaga</button>} />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {minhasVagas.map(v => {
+                  {[...minhasVagas].sort((a, b) => new Date(b.aprovado_at || b.created_at || 0) - new Date(a.aprovado_at || a.created_at || 0)).map(v => {
                     const ev = estadoVaga[v.status] || estadoVaga.pendente;
                     return (
                       <div key={v.id} className="card" style={{ padding: '16px 20px', display: 'flex', gap: 16, alignItems: 'flex-start' }}>
@@ -686,6 +904,8 @@ export function DashboardEmpresa() {
                           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
                             {v.localizacao && <span style={{ fontSize: '0.75rem', color: 'var(--txt-3)' }}>📍 {v.localizacao}</span>}
                             {v.salario    && <span style={{ fontSize: '0.75rem', color: 'var(--verde)', fontWeight: 600 }}>💰 {v.salario}</span>}
+                            {v.expires_at && <span style={{ fontSize: '0.75rem', color: v.status === 'encerrada' ? 'var(--txt-4)' : 'var(--amarelo)', fontWeight: 600 }}>Tempo restante: {formatarTempoRestante(v.expires_at)}</span>}
+                            {v.expires_at && <span style={{ fontSize: '0.75rem', color: 'var(--txt-4)' }}>Expira em {formatData(v.expires_at)}</span>}
                             <span style={{ fontSize: '0.75rem', color: 'var(--txt-4)' }}>{formatData(v.created_at)}</span>
                           </div>
                           {/* Motivo de rejeição */}
@@ -795,6 +1015,60 @@ export function DashboardEmpresa() {
               <label className="form-label">Contacto para candidaturas</label>
               <input className="form-input" placeholder="Email ou WhatsApp" value={formVaga.contacto} onChange={e=>setFormVaga(p=>({...p,contacto:e.target.value}))}/>
             </div>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: nova oportunidade */}
+      <Modal aberto={modalOportunidade} onFechar={()=>setModalOportunidade(false)}
+        titulo="Nova Oportunidade de Investimento"
+        acoes={<>
+          <button className="btn btn--secondary" onClick={()=>setModalOportunidade(false)}>Cancelar</button>
+          <button className={`btn btn--primary${submOportunidade?' btn--loading':''}`} onClick={submeterOportunidade} disabled={submOportunidade}>
+            {!submOportunidade && <><Plus size={14}/> Publicar</>}
+          </button>
+        </>}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+              <label className="form-label">Tipo de oportunidade *</label>
+              <select className="form-select" value={formOportunidade.tipo} onChange={e=>setFormOportunidade(p=>({...p,tipo:e.target.value}))}>
+                {tiposOportunidade.map((tipo) => (
+                  <option key={tipo.valor} value={tipo.valor}>{tipo.etiqueta}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Valor pretendido *</label>
+              <input className="form-input" placeholder="Ex: 10.000.000 Kz" value={formOportunidade.valor} onChange={e=>setFormOportunidade(p=>({...p,valor:e.target.value}))}/>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Título *</label>
+            <input className="form-input" placeholder="Ex: Venda de participação na empresa" value={formOportunidade.titulo} onChange={e=>setFormOportunidade(p=>({...p,titulo:e.target.value}))}/>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Descrição *</label>
+            <textarea className="form-textarea" rows={4} placeholder="Explique claramente o contexto da oportunidade, objectivos e condições gerais." value={formOportunidade.descricao} onChange={e=>setFormOportunidade(p=>({...p,descricao:e.target.value}))}/>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-group">
+              <label className="form-label">Retorno percentual</label>
+              <input className="form-input" placeholder="Ex: 18" value={formOportunidade.retorno_percentual} onChange={e=>setFormOportunidade(p=>({...p,retorno_percentual:e.target.value}))}/>
+            </div>
+            <div className="form-group">
+              <label className="form-label">Participação percentual</label>
+              <input className="form-input" placeholder="Ex: 30" value={formOportunidade.participacao_percentual} onChange={e=>setFormOportunidade(p=>({...p,participacao_percentual:e.target.value}))}/>
+            </div>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Prazo / condições de pagamento</label>
+            <input className="form-input" placeholder="Ex: 12 meses para liquidação" value={formOportunidade.prazo_pagamento} onChange={e=>setFormOportunidade(p=>({...p,prazo_pagamento:e.target.value}))}/>
+          </div>
+          <div className="form-group">
+            <label className="form-label">Termos da operação *</label>
+            <textarea className="form-textarea" rows={4} placeholder="Detalhe obrigações, limites, percentagens, forma de retorno e cláusulas principais." value={formOportunidade.termos} onChange={e=>setFormOportunidade(p=>({...p,termos:e.target.value}))}/>
           </div>
         </div>
       </Modal>

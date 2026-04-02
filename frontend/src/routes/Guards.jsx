@@ -31,6 +31,10 @@ export function RotaPrivada({ papeis, children }) {
     return <Navigate to="/entrar" state={{ from: location }} replace />;
   }
 
+  if (utilizador?.password_change_required && location.pathname !== '/perfil') {
+    return <Navigate to="/perfil" replace />;
+  }
+
   // Verificar papel — aceita tanto inglês como português
   if (papeis) {
     const roleActual = utilizador?.role;
@@ -66,7 +70,7 @@ export function RotaPublica({ children }) {
   if (carregando) return <PageLoader />;
 
   if (estaAutenticado) {
-    const destino = DESTINOS[utilizador?.role] || '/';
+    const destino = utilizador?.password_change_required ? '/perfil' : (DESTINOS[utilizador?.role] || '/');
     return <Navigate to={destino} replace />;
   }
 

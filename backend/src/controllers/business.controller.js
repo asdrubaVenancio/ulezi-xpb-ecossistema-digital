@@ -1,10 +1,13 @@
 /**
- * Controller de Negócios / Investimentos
+ * Controller de NegÃ³cios / Investimentos
  */
 const { pool } = require('../config/database');
 const { success, created, error, notFound, badRequest } = require('../utils/response');
 const { gerarContratoPDF } = require('../utils/pdf');
-const { sendContractEmail, sendInvestorInterestNotification } = require('../utils/email');
+const {
+  sendContractEmail,
+  sendInvestorInterestNotification,
+} = require('../utils/email');
 const { sendWhatsApp } = require('../utils/whatsapp');
 const { log } = require('../utils/audit');
 
@@ -12,6 +15,17 @@ const normalizeCompanyStatus = (status) => ({
   pendente: 'pending',
   aprovado: 'approved',
 }[status] || status);
+
+const ensureMediationRuntimeSchema = async (connection) => {
+  const executor = connection || pool;
+  const [mediationCols] = await executor.execute(`SHOW COLUMNS FROM mediations LIKE 'mediator_user_id'`);
+  if (!mediationCols.length) {
+    await executor.execute(`ALTER TABLE mediations ADD COLUMN mediator_user_id INT UNSIGNED NULL AFTER employee_id`);
+  }
+  try {
+    await executor.execute('ALTER TABLE mediations MODIFY COLUMN employee_id INT UNSIGNED NULL');
+  } catch (_) {}
+};
 
 /** POST /api/companies/documents - Upload de documentos */
 const uploadDocument = async (req, res) => {
@@ -21,20 +35,39 @@ const uploadDocument = async (req, res) => {
     const file = req.file;
 
     if (!file) return badRequest(res, 'Nenhum ficheiro enviado.');
-    if (!tipo) return badRequest(res, 'O tipo de documento é obrigatório.');
+    if (!tipo) return badRequest(res, 'O tipo de documento Ã© obrigatÃ³rio.');
 
     const [company] = await pool.execute('SELECT id FROM company_profiles WHERE user_id=?', [userId]);
-    if (!company.length) return notFound(res, 'Perfil de empresa não encontrado.');
+    if (!company.length) return notFound(res, 'Perfil de empresa nÃ£o encontrado.');
 
+    const companyId = company[0].id;
     const url = `/uploads/documents/${file.filename}`;
-    await pool.execute(
-      'INSERT INTO company_documents (company_id, tipo, nome_ficheiro, url_ficheiro) VALUES (?,?,?,?)',
-      [company[0].id, tipo, file.originalname, url]
+
+    // Verificar se jÃ¡ existe documento do mesmo tipo
+    const [existing] = await pool.execute(
+      'SELECT id, url_ficheiro FROM company_documents WHERE company_id=? AND tipo=?',
+      [companyId, tipo]
     );
-    await log(userId, 'UPLOAD_DOCUMENT', 'company_documents', company[0].id, { tipo }, req);
-    return created(res, { url }, 'Documento enviado. Aguarde verificação.');
+
+    if (existing.length > 0) {
+      // Substituir documento existente
+      await pool.execute(
+        'UPDATE company_documents SET nome_ficheiro=?, url_ficheiro=?, status_verificacao=? WHERE id=?',
+        [file.originalname, url, 'pendente', existing[0].id]
+      );
+      await log(userId, 'UPDATE_DOCUMENT', 'company_documents', existing[0].id, { tipo }, req);
+      return success(res, { url }, 'Documento actualizado. Aguarde verificaÃ§Ã£o.');
+    } else {
+      // Inserir novo documento
+      await pool.execute(
+        'INSERT INTO company_documents (company_id, tipo, nome_ficheiro, url_ficheiro) VALUES (?,?,?,?)',
+        [companyId, tipo, file.originalname, url]
+      );
+      await log(userId, 'UPLOAD_DOCUMENT', 'company_documents', companyId, { tipo }, req);
+      return created(res, { url }, 'Documento enviado. Aguarde verificaÃ§Ã£o.');
+    }
   } catch (err) {
-    return error(res, 'Erro ao enviar documento.', 500);
+    return error(res, 'Erro ao enviar documento: ' + err.message, 500);
   }
 };
 
@@ -46,7 +79,7 @@ const getMyCompany = async (req, res) => {
        LEFT JOIN users u ON u.id=cp.user_id WHERE cp.user_id=?`,
       [req.user.id]
     );
-    if (!company.length) return notFound(res, 'Perfil não encontrado.');
+    if (!company.length) return notFound(res, 'Perfil nÃ£o encontrado.');
 
     const [docs] = await pool.execute('SELECT * FROM company_documents WHERE company_id=?', [company[0].id]);
     const [sub] = await pool.execute(
@@ -85,7 +118,20 @@ const saveCompanyProfile = async (req, res) => {
     } = req.body;
 
     if (!nome_empresa?.trim()) {
-      return badRequest(res, 'O nome da empresa é obrigatório.');
+      return badRequest(res, 'O nome da empresa Ã© obrigatÃ³rio.');
+    }
+
+    // Verificar se NIF jÃ¡ existe (exceto para o prÃ³prio registro em caso de update)
+    if (nif?.trim()) {
+      const nifLimpo = nif.trim();
+      const [nifExistente] = await pool.execute(
+        `SELECT id FROM company_profiles 
+         WHERE nif = ? AND user_id != ?`,
+        [nifLimpo, userId]
+      );
+      if (nifExistente.length > 0) {
+        return badRequest(res, 'JÃ¡ existe uma empresa cadastrada com este NIF.');
+      }
     }
 
     const [[existing]] = await pool.execute(
@@ -189,9 +235,9 @@ const getOpportunity = async (req, res) => {
        WHERE io.id=? AND io.status="ativa"`,
       [id]
     );
-    if (!rows.length) return notFound(res, 'Oportunidade não encontrada.');
+    if (!rows.length) return notFound(res, 'Oportunidade nÃ£o encontrada.');
 
-    // Incrementar visualizações
+    // Incrementar visualizaÃ§Ãµes
     await pool.execute('UPDATE investment_opportunities SET views_count=views_count+1 WHERE id=?', [id]);
 
     return success(res, rows[0]);
@@ -205,28 +251,51 @@ const createOpportunity = async (req, res) => {
   try {
     const userId = req.user.id;
     const [company] = await pool.execute('SELECT id, is_approved FROM company_profiles WHERE user_id=?', [userId]);
-    if (!company.length) return badRequest(res, 'Perfil de empresa não encontrado.');
-    if (!company[0].is_approved) return badRequest(res, 'A sua empresa ainda não foi aprovada.');
+    if (!company.length) return badRequest(res, 'Perfil de empresa nÃ£o encontrado.');
+    if (!company[0].is_approved) return badRequest(res, 'A sua empresa ainda nÃ£o foi aprovada.');
 
     // Verificar assinatura ativa
     const [sub] = await pool.execute(
       'SELECT id FROM subscriptions WHERE company_id=? AND status="ativa" AND data_fim >= CURDATE()',
       [company[0].id]
     );
-    if (!sub.length) return badRequest(res, 'A sua assinatura está inativa. Renove para publicar oportunidades.');
+    if (!sub.length) return badRequest(res, 'A sua assinatura estÃ¡ inativa. Renove para publicar oportunidades.');
 
-    // Verificar duplicação
+    // Verificar duplicaÃ§Ã£o
     const { tipo, titulo } = req.body;
     const [dup] = await pool.execute(
       'SELECT id FROM investment_opportunities WHERE company_id=? AND titulo=? AND status="ativa"',
       [company[0].id, titulo]
     );
-    if (dup.length) return badRequest(res, 'Já existe uma oportunidade activa com este título.');
+    if (dup.length) return badRequest(res, 'JÃ¡ existe uma oportunidade activa com este tÃ­tulo.');
 
-    const { descricao, valor, moeda, dados_especificos, imagem_url } = req.body;
+    const {
+      descricao,
+      valor,
+      moeda,
+      dados_especificos,
+      imagem_url,
+      termos,
+      retorno_percentual,
+      prazo_pagamento,
+      participacao_percentual,
+    } = req.body;
+
+    const detalhesOportunidade = {
+      ...(dados_especificos && typeof dados_especificos === 'object' ? dados_especificos : {}),
+      termos: termos || null,
+      retorno_percentual: retorno_percentual || null,
+      prazo_pagamento: prazo_pagamento || null,
+      participacao_percentual: participacao_percentual || null,
+    };
+
+    const dadosEspecificosNormalizados = Object.values(detalhesOportunidade).some((valorCampo) => valorCampo !== null && valorCampo !== '')
+      ? JSON.stringify(detalhesOportunidade)
+      : null;
+
     const [result] = await pool.execute(
       'INSERT INTO investment_opportunities (company_id, tipo, titulo, descricao, valor, moeda, dados_especificos, imagem_url) VALUES (?,?,?,?,?,?,?,?)',
-      [company[0].id, tipo, titulo, descricao, valor||null, moeda||'Kz', dados_especificos ? JSON.stringify(dados_especificos) : null, imagem_url||null]
+      [company[0].id, tipo, titulo, descricao, valor||null, moeda||'Kz', dadosEspecificosNormalizados, imagem_url||null]
     );
 
     await log(userId, 'CREATE_OPPORTUNITY', 'investment_opportunities', result.insertId, { tipo, titulo }, req);
@@ -238,36 +307,59 @@ const createOpportunity = async (req, res) => {
 
 /** POST /api/opportunities/:id/interest - Demonstrar interesse */
 const expressInterest = async (req, res) => {
+  const connection = await pool.getConnection();
+
   try {
     const investorId = req.user.id;
     const { id: opportunityId } = req.params;
     const { mensagem } = req.body;
 
-    const [opp] = await pool.execute(
+    await connection.beginTransaction();
+    await ensureMediationRuntimeSchema(connection);
+
+    const [opp] = await connection.execute(
       `SELECT io.*, cp.nome_empresa, cp.user_id as company_user_id, u.email as email_empresa, u.telefone as tel_empresa
        FROM investment_opportunities io
        LEFT JOIN company_profiles cp ON cp.id=io.company_id
        LEFT JOIN users u ON u.id=cp.user_id
-       WHERE io.id=? AND io.status="ativa"`,
+      WHERE io.id=? AND io.status="ativa"`,
       [opportunityId]
     );
-    if (!opp.length) return notFound(res, 'Oportunidade não encontrada.');
+    if (!opp.length) {
+      await connection.rollback();
+      return notFound(res, 'Oportunidade nÃ£o encontrada.');
+    }
 
-    // Verificar se já demonstrou interesse
-    const [existing] = await pool.execute(
+    // Verificar se jÃ¡ demonstrou interesse
+    const [existing] = await connection.execute(
       'SELECT id FROM investor_interests WHERE investor_id=? AND opportunity_id=?',
       [investorId, opportunityId]
     );
-    if (existing.length) return badRequest(res, 'Já demonstrou interesse nesta oportunidade.');
+    if (existing.length) {
+      await connection.rollback();
+      return badRequest(res, 'JÃ¡ demonstrou interesse nesta oportunidade.');
+    }
 
-    const [result] = await pool.execute(
+    const [result] = await connection.execute(
       'INSERT INTO investor_interests (investor_id, opportunity_id, mensagem) VALUES (?,?,?)',
       [investorId, opportunityId, mensagem||null]
     );
 
-    // Notificar admins
-    const [admins] = await pool.execute('SELECT email FROM users WHERE role="admin" AND status="ativo"');
-    const [investor] = await pool.execute('SELECT nome, email FROM users WHERE id=?', [investorId]);
+    const interestId = result.insertId;
+
+    // Notificar admins e equipa de mediacao, sem disparar contacto direto com a empresa
+    const [admins] = await connection.execute('SELECT id, email FROM users WHERE role="admin" AND status="ativo"');
+    const [investor] = await connection.execute('SELECT nome, email FROM users WHERE id=?', [investorId]);
+    const [mediators] = await connection.execute(
+      `SELECT u.id, u.email
+       FROM employees e
+       INNER JOIN users u ON u.id = e.user_id
+       INNER JOIN employee_responsibilities er ON er.employee_id = e.id
+       WHERE e.is_active = 1
+         AND u.status = "ativo"
+         AND er.tipo_responsabilidade = "mediacao_negocios"
+         AND er.is_active = 1`
+    );
 
     const notifData = {
       nome_investidor: investor[0].nome,
@@ -276,20 +368,138 @@ const expressInterest = async (req, res) => {
       titulo_oportunidade: opp[0].titulo,
     };
 
-    admins.forEach(admin => {
-      sendInvestorInterestNotification(admin.email, notifData).catch(e => console.error('[NOTIF]', e));
-    });
+    const usersToNotify = [...new Set([...admins, ...mediators].map((item) => item.id).filter(Boolean))];
+    if (usersToNotify.length > 0) {
+      await Promise.all(usersToNotify.map((userId) => connection.execute(
+        'INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)',
+        [
+          userId,
+          'interest',
+          'Novo interesse de investidor',
+          `${investor[0].nome} manifestou interesse em "${opp[0].titulo}". Faca a triagem e inicie a mediacao antes de qualquer contacto com a empresa.`,
+        ]
+      )));
+    }
 
-    // Criar notificação interna
-    await pool.execute(
-      'INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)',
-      [opp[0].company_user_id, 'interest', 'Novo interesse de investidor!', `${investor[0].nome} demonstrou interesse em "${opp[0].titulo}".`]
+    const [selectedMediatorRows] = await connection.execute(
+      `SELECT
+         e.id,
+         e.user_id,
+         u.nome,
+         u.email,
+         COUNT(DISTINCT CASE WHEN m.status IN ('pendente', 'em_analise', 'agendada', 'em_andamento') THEN m.id END) as mediacoes_ativas
+       FROM employees e
+       INNER JOIN users u ON u.id = e.user_id
+       INNER JOIN employee_responsibilities er ON er.employee_id = e.id
+       LEFT JOIN mediations m ON m.employee_id = e.id
+       WHERE e.is_active = 1
+         AND u.status = "ativo"
+         AND er.tipo_responsabilidade = "mediacao_negocios"
+         AND er.is_active = 1
+       GROUP BY e.id, e.user_id, u.nome, u.email
+       ORDER BY mediacoes_ativas ASC, e.created_at ASC
+       LIMIT 1`
     );
 
-    await log(investorId, 'EXPRESS_INTEREST', 'investor_interests', result.insertId, { opportunityId }, req);
-    return created(res, { interest_id: result.insertId }, 'Interesse registado! A nossa equipa irá contactá-lo em breve.');
+    const [fallbackAdmins] = await connection.execute(
+      `SELECT id, nome, email
+       FROM users
+       WHERE role = "admin" AND status = "ativo"
+       ORDER BY id ASC
+       LIMIT 1`
+    );
+
+    let responsePayload = { interest_id: interestId, status: 'pendente_triagem' };
+    let responseMessage = 'Interesse registado. A equipa administrativa fara a mediacao do contacto com a empresa.';
+
+    const mediator = selectedMediatorRows[0]
+      ? {
+          employee_id: selectedMediatorRows[0].id,
+          mediator_user_id: selectedMediatorRows[0].user_id,
+          nome: selectedMediatorRows[0].nome,
+          email: selectedMediatorRows[0].email,
+          tipo: 'funcionario',
+        }
+      : fallbackAdmins[0]
+        ? {
+            employee_id: null,
+            mediator_user_id: fallbackAdmins[0].id,
+            nome: fallbackAdmins[0].nome,
+            email: fallbackAdmins[0].email,
+            tipo: 'admin',
+          }
+        : null;
+
+    if (mediator) {
+      const [mediationResult] = await connection.execute(
+        `INSERT INTO mediations
+         (interest_id, employee_id, mediator_user_id, company_id, investor_id, prioridade, status, etapa_atual)
+         VALUES (?, ?, ?, ?, ?, 'media', 'pendente', 'triagem')`,
+        [interestId, mediator.employee_id, mediator.mediator_user_id, opp[0].company_id, investorId]
+      );
+
+      await connection.execute(
+        'UPDATE investor_interests SET status = "em_mediacao" WHERE id = ?',
+        [interestId]
+      );
+
+      const notificationEntries = [
+        [
+          investorId,
+          'mediacao_iniciada',
+          'Processo de mediacao iniciado',
+          `O seu interesse em "${opp[0].titulo}" entrou em mediacao. O mediador responsavel sera ${mediator.nome}.`,
+        ],
+        [
+          opp[0].company_user_id,
+          'novo_interesse',
+          'Novo interesse em sua oportunidade',
+          `O investidor ${investor[0].nome} demonstrou interesse em "${opp[0].titulo}". A equipa da plataforma iniciou a mediacao.`,
+        ],
+        [
+          mediator.mediator_user_id,
+          'nova_mediacao',
+          'Nova mediacao atribuida',
+          `Foi-lhe atribuida a mediacao da oportunidade "${opp[0].titulo}" entre ${investor[0].nome} e ${opp[0].nome_empresa}.`,
+        ],
+      ].filter((item) => item[0]);
+
+      if (notificationEntries.length > 0) {
+        await Promise.all(notificationEntries.map(([userId, tipo, titulo, texto]) => connection.execute(
+          'INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)',
+          [userId, tipo, titulo, texto]
+        )));
+      }
+
+      responsePayload = {
+        interest_id: interestId,
+        status: 'em_mediacao',
+        mediation_id: mediationResult.insertId,
+        mediador: {
+          nome: mediator.nome,
+          tipo: mediator.tipo,
+        },
+      };
+      responseMessage = mediator.tipo === 'admin'
+        ? 'Interesse registado. Um administrador assumiu a mediação inicial e poderá indicar um funcionário mais tarde.'
+        : 'Interesse registado. O processo entrou em mediação e o mediador fará o contacto com as partes para definir a reunião.';
+    }
+
+    await connection.commit();
+
+    await Promise.all(admins.map((admin) =>
+      sendInvestorInterestNotification(admin.email, notifData).catch((e) => console.error('[NOTIF]', e))
+    ));
+
+    await log(investorId, 'EXPRESS_INTEREST', 'investor_interests', interestId, { opportunityId }, req);
+    return created(res, responsePayload, responseMessage);
   } catch (err) {
+    try {
+      await connection.rollback();
+    } catch (_) {}
     return error(res, 'Erro ao registar interesse.', 500);
+  } finally {
+    connection.release();
   }
 };
 
@@ -331,12 +541,12 @@ const generateContract = async (req, res) => {
       [interestId]
     );
 
-    if (!interests.length) return notFound(res, 'Interesse não encontrado.');
+    if (!interests.length) return notFound(res, 'Interesse nÃ£o encontrado.');
     const data = interests[0];
 
-    // Verificar se contrato já existe
+    // Verificar se contrato jÃ¡ existe
     const [existing] = await pool.execute('SELECT id FROM contracts WHERE interest_id=?', [interestId]);
-    if (existing.length) return badRequest(res, 'Contrato já gerado para este interesse.');
+    if (existing.length) return badRequest(res, 'Contrato jÃ¡ gerado para este interesse.');
 
     // Gerar PDF
     const contractData = {
@@ -396,7 +606,7 @@ const downloadContract = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id=c.company_id WHERE c.id=?`,
       [id]
     );
-    if (!rows.length) return notFound(res, 'Contrato não encontrado.');
+    if (!rows.length) return notFound(res, 'Contrato nÃ£o encontrado.');
 
     const contract = rows[0];
     const canAccess = ['admin','employee'].includes(role) ||
@@ -410,7 +620,7 @@ const downloadContract = async (req, res) => {
       res.setHeader('Content-Disposition', `attachment; filename="contrato_${id}.pdf"`);
       return res.send(contract.pdf_data);
     }
-    return notFound(res, 'PDF não disponível.');
+    return notFound(res, 'PDF nÃ£o disponÃ­vel.');
   } catch (err) {
     return error(res, 'Erro ao obter contrato.', 500);
   }
@@ -428,7 +638,7 @@ const signContract = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id=c.company_id WHERE c.id=?`,
       [id]
     );
-    if (!rows.length) return notFound(res, 'Contrato não encontrado.');
+    if (!rows.length) return notFound(res, 'Contrato nÃ£o encontrado.');
     const contract = rows[0];
 
     let updateField = '';
@@ -437,7 +647,7 @@ const signContract = async (req, res) => {
     } else if (role === 'company' && contract.company_user_id === userId && !contract.assinado_empresa) {
       updateField = 'assinado_empresa=1, assinado_empresa_at=NOW()';
     } else {
-      return badRequest(res, 'Não pode assinar este contrato ou já foi assinado.');
+      return badRequest(res, 'NÃ£o pode assinar este contrato ou jÃ¡ foi assinado.');
     }
 
     await pool.execute(`UPDATE contracts SET ${updateField} WHERE id=?`, [id]);
@@ -507,7 +717,7 @@ const createSubscription = async (req, res) => {
   try {
     const { company_id, plano, valor, data_inicio, data_fim } = req.body;
     if (!company_id || !plano || !valor || !data_inicio || !data_fim) {
-      return badRequest(res, 'Todos os campos são obrigatórios.');
+      return badRequest(res, 'Todos os campos sÃ£o obrigatÃ³rios.');
     }
 
     // Desativar assinaturas antigas
@@ -525,23 +735,23 @@ const createSubscription = async (req, res) => {
   }
 };
 
-/** POST /api/companies/services - Adicionar serviço à empresa */
+/** POST /api/companies/services - Adicionar serviÃ§o Ã  empresa */
 const addCompanyService = async (req, res) => {
   try {
     const userId = req.user.id;
     const { category_id, descricao } = req.body;
 
     const [company] = await pool.execute('SELECT id FROM company_profiles WHERE user_id=?', [userId]);
-    if (!company.length) return notFound(res, 'Empresa não encontrada.');
+    if (!company.length) return notFound(res, 'Empresa nÃ£o encontrada.');
 
     const [result] = await pool.execute(
       'INSERT INTO company_services (company_id, category_id, descricao) VALUES (?,?,?) ON DUPLICATE KEY UPDATE descricao=VALUES(descricao), ativo=1',
       [company[0].id, category_id, descricao||null]
     );
 
-    return created(res, null, 'Serviço adicionado com sucesso.');
+    return created(res, null, 'ServiÃ§o adicionado com sucesso.');
   } catch (err) {
-    return error(res, 'Erro ao adicionar serviço.', 500);
+    return error(res, 'Erro ao adicionar serviÃ§o.', 500);
   }
 };
 
@@ -552,7 +762,7 @@ module.exports = {
   createSubscription, addCompanyService,
 };
 
-// ── Dashboard de Empresa ──────────────────────────────────────────────────────
+// â”€â”€ Dashboard de Empresa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * GET /api/empresa/perfil
@@ -567,7 +777,7 @@ const getEmpresaPerfil = async (req, res) => {
        WHERE cp.user_id = ?`,
       [req.user.id]
     );
-    if (!cp) return notFound(res, 'Perfil de empresa não encontrado. Complete o registo.');
+    if (!cp) return notFound(res, 'Perfil de empresa nÃ£o encontrado. Complete o registo.');
     return success(res, { perfil: cp });
   } catch (err) {
     return error(res, 'Erro ao obter perfil.', 500);
@@ -576,7 +786,7 @@ const getEmpresaPerfil = async (req, res) => {
 
 /**
  * GET /api/empresa/stats
- * Estatísticas do dashboard da empresa
+ * EstatÃ­sticas do dashboard da empresa
  */
 const getEmpresaStats = async (req, res) => {
   try {
@@ -597,7 +807,7 @@ const getEmpresaStats = async (req, res) => {
       total_documentos:    docs.t,
     });
   } catch (err) {
-    return error(res, 'Erro ao obter estatísticas.', 500);
+    return error(res, 'Erro ao obter estatÃ­sticas.', 500);
   }
 };
 
@@ -645,7 +855,7 @@ const getEmpresaOpportunityInterests = async (req, res) => {
       'SELECT id, titulo FROM investment_opportunities WHERE id = ? AND company_id = ?',
       [id, cp.id]
     );
-    if (!opportunity) return notFound(res, 'Oportunidade não encontrada.');
+    if (!opportunity) return notFound(res, 'Oportunidade nÃ£o encontrada.');
 
     const [rows] = await pool.execute(
       `SELECT ii.id, ii.mensagem, ii.status, ii.created_at,
@@ -721,7 +931,7 @@ Object.assign(module.exports, {
   getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaOpportunityInterests,
 });
 
-// ── Dashboard de Investidor ───────────────────────────────────────────────────
+// â”€â”€ Dashboard de Investidor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /**
  * GET /api/investidor/interesses
@@ -828,7 +1038,7 @@ const cancelarInteresse = async (req, res) => {
       [id, req.user.id]
     );
     if (result.affectedRows === 0)
-      return error(res, 'Interesse não encontrado ou não pode ser cancelado.', 404);
+      return error(res, 'Interesse nÃ£o encontrado ou nÃ£o pode ser cancelado.', 404);
     return success(res, {}, 'Interesse cancelado.');
   } catch (err) {
     return error(res, 'Erro ao cancelar interesse.', 500);
@@ -839,3 +1049,4 @@ Object.assign(module.exports, {
   getInvestidorInteresses, getInvestidorContratos,
   getInvestidorPerfil, updateInvestidorPerfil, cancelarInteresse,
 });
+

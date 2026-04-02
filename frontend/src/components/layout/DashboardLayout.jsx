@@ -6,7 +6,7 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, BookOpen, CreditCard, User, LogOut,
-  Bell, Sun, Moon, Menu, TrendingUp, FileText, Building2, Users,
+  Bell, Sun, Moon, Menu, TrendingUp, Users,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -20,9 +20,10 @@ const NAV_POR_PAPEL = {
     { path: '/perfil',          icon: User,            label: 'Perfil' },
   ],
   empresa: [
-    { path: '/painel/empresa',      icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/empresa/oportunidade/nova', icon: TrendingUp, label: 'Nova Oportunidade' },
-    { path: '/empresa/vaga/nova',   icon: Users,       label: 'Nova Vaga' },
+    { path: '/empresa/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/negocios',            icon: TrendingUp,      label: 'Negócios' },
+    { path: '/comunidade',          icon: Users,           label: 'Comunidade' },
+    { path: '/empresa/assinatura',  icon: CreditCard,  label: 'Assinatura' },
     { path: '/perfil',              icon: User,        label: 'Perfil' },
   ],
   investidor: [
@@ -36,9 +37,10 @@ const NAV_POR_PAPEL = {
     { path: '/perfil',          icon: User,            label: 'Perfil' },
   ],
   company: [
-    { path: '/painel/empresa',      icon: LayoutDashboard, label: 'Dashboard' },
-    { path: '/empresa/oportunidade/nova', icon: TrendingUp, label: 'Nova Oportunidade' },
-    { path: '/empresa/vaga/nova',   icon: Users,       label: 'Nova Vaga' },
+    { path: '/empresa/dashboard',   icon: LayoutDashboard, label: 'Dashboard' },
+    { path: '/negocios',            icon: TrendingUp,      label: 'Negócios' },
+    { path: '/comunidade',          icon: Users,           label: 'Comunidade' },
+    { path: '/empresa/assinatura',  icon: CreditCard,  label: 'Assinatura' },
     { path: '/perfil',              icon: User,        label: 'Perfil' },
   ],
   investor: [

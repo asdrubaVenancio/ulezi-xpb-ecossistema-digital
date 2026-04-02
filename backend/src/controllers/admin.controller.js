@@ -4,6 +4,7 @@
 const { pool } = require('../config/database');
 const { success, error, notFound } = require('../utils/response');
 const { log } = require('../utils/audit');
+const { sendCompanyApprovalEmail, sendCompanyRejectionEmail } = require('../utils/email');
 
 const normalizeRole = (role) => ({
   estudante: 'student',
@@ -366,13 +367,28 @@ const listAdminCompanies = async (req, res) => {
 
     const [rows] = await pool.execute(
       `SELECT cp.id, cp.nome_empresa, cp.nif, cp.sector, cp.provincia, cp.municipio,
-              cp.is_approved, cp.motivo_rejeicao, cp.created_at,
-              u.nome as representante, u.email, u.telefone,
-              (SELECT COUNT(*) FROM company_documents cd WHERE cd.company_id = cp.id) as total_docs,
-              s.status as sub_status, s.data_fim as sub_data_fim
+              cp.is_approved, cp.motivo_rejeicao, cp.created_at, cp.status_verificacao,
+              COALESCE(NULLIF(u.nome, ''), cp.nome_empresa) as representante,
+              u.email, u.telefone,
+              (
+                SELECT COUNT(*)
+                FROM company_documents cd
+                WHERE cd.company_id = cp.id
+              ) as total_docs,
+              s.status as sub_status,
+              s.data_fim as sub_data_fim,
+              s.tipo_plano as sub_plano
        FROM company_profiles cp
        LEFT JOIN users u ON u.id = cp.user_id
-       LEFT JOIN subscriptions s ON s.company_id = cp.id AND s.status = 'ativa'
+       LEFT JOIN subscriptions s ON s.id = (
+         SELECT s2.id
+         FROM subscriptions s2
+         WHERE s2.company_id = cp.id
+           AND s2.status = 'ativa'
+           AND s2.data_fim >= CURDATE()
+         ORDER BY s2.data_fim DESC, s2.id DESC
+         LIMIT 1
+       )
        ${where}
        ORDER BY cp.created_at DESC`,
       params
@@ -387,6 +403,8 @@ const listAdminCompanies = async (req, res) => {
          COUNT(*) as total
        FROM company_profiles`
     );
+
+    res.set('Cache-Control', 'no-store');
 
     return success(res, {
       empresas: rows.map(r => ({
@@ -422,7 +440,9 @@ const getAdminCompany = async (req, res) => {
     if (!cp) return notFound(res, 'Empresa não encontrada.');
 
     const [docs] = await pool.execute(
-      'SELECT id, tipo, nome_ficheiro, url_ficheiro, status_verificacao, created_at FROM company_documents WHERE company_id = ?',
+      `SELECT id, tipo, nome_ficheiro, url_ficheiro, status_verificacao, created_at,
+              visualizado_at, visualizado_by, verificado_at, verificado_by
+       FROM company_documents WHERE company_id = ?`,
       [id]
     );
 
@@ -431,6 +451,8 @@ const getAdminCompany = async (req, res) => {
       [id]
     );
 
+    res.set('Cache-Control', 'no-store');
+
     return success(res, {
       empresa: { ...cp, estado: cp.is_approved ? 'aprovada' : (cp.motivo_rejeicao ? 'rejeitada' : 'pendente') },
       documentos: docs,
@@ -438,6 +460,40 @@ const getAdminCompany = async (req, res) => {
     });
   } catch (err) {
     return error(res, 'Erro ao obter empresa.', 500);
+  }
+};
+
+/**
+ * GET /api/admin/empresas/documentos/:documentId/visualizar
+ * Marca documento da empresa como visualizado e devolve a respetiva URL.
+ */
+const viewCompanyDocument = async (req, res) => {
+  try {
+    const { documentId } = req.params;
+    const userId = req.user.id;
+
+    const [[doc]] = await pool.execute(
+      `SELECT id, url_ficheiro, visualizado_at
+       FROM company_documents
+       WHERE id = ?`,
+      [documentId]
+    );
+    if (!doc) return notFound(res, 'Documento não encontrado.');
+
+    await pool.execute(
+      `UPDATE company_documents
+       SET visualizado_at = COALESCE(visualizado_at, NOW()),
+           visualizado_by = COALESCE(visualizado_by, ?)
+       WHERE id = ?`,
+      [userId, documentId]
+    );
+
+    return success(res, {
+      url: doc.url_ficheiro,
+      visualizado_em: doc.visualizado_at || new Date().toISOString(),
+    });
+  } catch (err) {
+    return error(res, 'Erro ao abrir documento.', 500);
   }
 };
 
@@ -451,12 +507,36 @@ const approveCompany = async (req, res) => {
     const adminId = req.user.id;
 
     const [[cp]] = await pool.execute(
-      'SELECT id, user_id FROM company_profiles WHERE id = ?', [id]
+      'SELECT id, user_id, nome_empresa, nif FROM company_profiles WHERE id = ?', [id]
     );
     if (!cp) return notFound(res, 'Empresa não encontrada.');
 
+    const [[docsResumo]] = await pool.execute(
+      `SELECT COUNT(*) as total,
+              SUM(CASE WHEN visualizado_at IS NOT NULL THEN 1 ELSE 0 END) as visualizados
+       FROM company_documents
+       WHERE company_id = ?`,
+      [id]
+    );
+    if (!docsResumo.total) return error(res, 'NÃ£o Ã© possÃ­vel aprovar sem documentos submetidos.', 422);
+    if ((docsResumo.visualizados || 0) < docsResumo.total) {
+      return error(res, 'Abra todos os documentos da empresa antes da aprovaÃ§Ã£o.', 422);
+    }
+
     await pool.execute(
       'UPDATE company_profiles SET is_approved=1, approved_by=?, approved_at=NOW(), motivo_rejeicao=NULL WHERE id=?',
+      [adminId, id]
+    );
+    await pool.execute(
+      `UPDATE company_profiles
+       SET status_verificacao='aprovado_visita'
+       WHERE id=?`,
+      [id]
+    );
+    await pool.execute(
+      `UPDATE company_documents
+       SET status_verificacao='aprovado', verificado_by=?, verificado_at=NOW()
+       WHERE company_id=?`,
       [adminId, id]
     );
     await pool.execute('UPDATE users SET status="ativo" WHERE id=?', [cp.user_id]);
@@ -468,6 +548,19 @@ const approveCompany = async (req, res) => {
        'A sua empresa foi verificada e aprovada. Já pode publicar oportunidades de investimento.')`,
       [cp.user_id]
     );
+
+    // Enviar email de aprovação
+    try {
+      const [[user]] = await pool.execute('SELECT email FROM users WHERE id = ?', [cp.user_id]);
+      if (user?.email) {
+        await sendCompanyApprovalEmail(user.email, {
+          nome_empresa: cp.nome_empresa,
+          nif: cp.nif
+        });
+      }
+    } catch (emailErr) {
+      console.error('Erro ao enviar email de aprovação:', emailErr);
+    }
 
     await log(adminId, 'APPROVE_COMPANY', 'company_profiles', id, {}, req);
     return success(res, {}, 'Empresa aprovada com sucesso.');
@@ -489,13 +582,37 @@ const rejectCompany = async (req, res) => {
     if (!motivo?.trim()) return error(res, 'Motivo de rejeição é obrigatório.', 422);
 
     const [[cp]] = await pool.execute(
-      'SELECT id, user_id FROM company_profiles WHERE id = ?', [id]
+      'SELECT id, user_id, nome_empresa, nif FROM company_profiles WHERE id = ?', [id]
     );
     if (!cp) return notFound(res, 'Empresa não encontrada.');
+
+    const [[docsResumo]] = await pool.execute(
+      `SELECT COUNT(*) as total,
+              SUM(CASE WHEN visualizado_at IS NOT NULL THEN 1 ELSE 0 END) as visualizados
+       FROM company_documents
+       WHERE company_id = ?`,
+      [id]
+    );
+    if (!docsResumo.total) return error(res, 'NÃ£o Ã© possÃ­vel rejeitar sem documentos submetidos.', 422);
+    if ((docsResumo.visualizados || 0) < docsResumo.total) {
+      return error(res, 'Abra todos os documentos da empresa antes da rejeiÃ§Ã£o.', 422);
+    }
 
     await pool.execute(
       'UPDATE company_profiles SET is_approved=0, motivo_rejeicao=?, approved_by=?, approved_at=NOW() WHERE id=?',
       [motivo, adminId, id]
+    );
+    await pool.execute(
+      `UPDATE company_profiles
+       SET status_verificacao='reprovado_visita'
+       WHERE id=?`,
+      [id]
+    );
+    await pool.execute(
+      `UPDATE company_documents
+       SET status_verificacao='rejeitado', verificado_by=?, verificado_at=NOW()
+       WHERE company_id=?`,
+      [adminId, id]
     );
 
     await pool.execute(
@@ -504,6 +621,20 @@ const rejectCompany = async (req, res) => {
        CONCAT('O seu perfil de empresa não foi aprovado. Motivo: ', ?))`,
       [cp.user_id, motivo]
     );
+
+    // Enviar email de rejeição
+    try {
+      const [[user]] = await pool.execute('SELECT email FROM users WHERE id = ?', [cp.user_id]);
+      if (user?.email) {
+        await sendCompanyRejectionEmail(user.email, {
+          nome_empresa: cp.nome_empresa,
+          nif: cp.nif,
+          motivo: motivo
+        });
+      }
+    } catch (emailErr) {
+      console.error('Erro ao enviar email de rejeição:', emailErr);
+    }
 
     await log(adminId, 'REJECT_COMPANY', 'company_profiles', id, { motivo }, req);
     return success(res, {}, 'Empresa rejeitada.');
@@ -857,7 +988,7 @@ const deleteCenterCourseOffering = async (req, res) => {
 
 // Actualizar exports
 Object.assign(module.exports, {
-  listAdminCompanies, getAdminCompany, approveCompany, rejectCompany,
+  listAdminCompanies, getAdminCompany, viewCompanyDocument, approveCompany, rejectCompany,
   createSubscription, listAdminContracts, listAdminPayments, confirmPayment,
   listCompanyJobsAdmin, approveCompanyJob, rejectCompanyJob,
   getSettings, updateSettings,

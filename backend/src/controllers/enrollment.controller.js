@@ -713,11 +713,86 @@ const assignCenter = async (req, res) => {
 const adminListPayments = async (req, res) => {
   try {
     const status = req.query.status;
-    const page = parseInt(req.query.page || req.query.pagina || 1, 10);
-    const limit = parseInt(req.query.limit || req.query.limite || 50, 10);
-    const offset = (page - 1) * limit;
+    const metodo = req.query.metodo;
+    const pesquisa = String(req.query.pesquisa || req.query.search || '').trim();
+    const courseIdParam = parseInt(req.query.course_id || req.query.curso_id, 10);
+    const dataInicio = req.query.data_inicio || req.query.dataInicio;
+    const dataFim = req.query.data_fim || req.query.dataFim;
+    const valorMinParam = req.query.valor_min ?? req.query.valorMin;
+    const valorMaxParam = req.query.valor_max ?? req.query.valorMax;
+    const comprovativo = req.query.comprovativo;
+    const pageParam = parseInt(req.query.page || req.query.pagina || 1, 10);
+    const limitParam = parseInt(req.query.limit || req.query.limite || 50, 10);
+    const page = Number.isFinite(pageParam) && pageParam > 0 ? pageParam : 1;
+    const limit = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 200) : 50;
+    const offset = Math.max(0, (page - 1) * limit);
 
-    let query = `
+    const valorMin = valorMinParam !== undefined && valorMinParam !== ''
+      ? Number.parseFloat(valorMinParam)
+      : null;
+    const valorMax = valorMaxParam !== undefined && valorMaxParam !== ''
+      ? Number.parseFloat(valorMaxParam)
+      : null;
+
+    const baseFrom = `
+      FROM payments p
+      LEFT JOIN enrollments e ON e.id = p.enrollment_id
+      LEFT JOIN users u ON u.id = e.student_id
+      LEFT JOIN courses c ON c.id = e.course_id
+      WHERE 1 = 1
+    `;
+
+    let where = '';
+    const params = [];
+
+    if (status) {
+      where += ' AND p.status = ?';
+      params.push(status);
+    }
+
+    if (metodo) {
+      where += ' AND p.metodo = ?';
+      params.push(metodo);
+    }
+
+    if (pesquisa) {
+      const termo = `%${pesquisa}%`;
+      where += ' AND (p.referencia LIKE ? OR u.nome LIKE ? OR c.nome LIKE ? OR CAST(p.id AS CHAR) LIKE ?)';
+      params.push(termo, termo, termo, termo);
+    }
+
+    if (Number.isFinite(courseIdParam) && courseIdParam > 0) {
+      where += ' AND e.course_id = ?';
+      params.push(courseIdParam);
+    }
+
+    if (dataInicio) {
+      where += ' AND DATE(p.created_at) >= ?';
+      params.push(dataInicio);
+    }
+
+    if (dataFim) {
+      where += ' AND DATE(p.created_at) <= ?';
+      params.push(dataFim);
+    }
+
+    if (Number.isFinite(valorMin)) {
+      where += ' AND p.valor >= ?';
+      params.push(valorMin);
+    }
+
+    if (Number.isFinite(valorMax)) {
+      where += ' AND p.valor <= ?';
+      params.push(valorMax);
+    }
+
+    if (comprovativo === 'com') {
+      where += " AND p.comprovativo_url IS NOT NULL AND p.comprovativo_url <> ''";
+    } else if (comprovativo === 'sem') {
+      where += " AND (p.comprovativo_url IS NULL OR p.comprovativo_url = '')";
+    }
+
+    const listQuery = `
       SELECT
         p.id,
         p.enrollment_id,
@@ -729,32 +804,44 @@ const adminListPayments = async (req, res) => {
         p.comprovativo_url,
         u.nome AS nome_utilizador,
         c.nome AS nome_curso
-      FROM payments p
-      LEFT JOIN enrollments e ON e.id = p.enrollment_id
-      LEFT JOIN users u ON u.id = e.student_id
-      LEFT JOIN courses c ON c.id = e.course_id
-      WHERE 1 = 1
+      ${baseFrom}
+      ${where}
+      ORDER BY p.created_at DESC
+      LIMIT ${limit} OFFSET ${offset}
     `;
-    const params = [];
 
-    if (status) {
-      query += ' AND p.status = ?';
-      params.push(status);
-    }
+    const countQuery = `SELECT COUNT(*) AS total ${baseFrom} ${where}`;
+    const summaryQuery = `
+      SELECT
+        COUNT(*) AS total,
+        COALESCE(SUM(CASE WHEN p.status = 'confirmado' THEN p.valor ELSE 0 END), 0) AS receita_confirmada,
+        SUM(CASE WHEN p.status IN ('pendente', 'aguardando_validacao') THEN 1 ELSE 0 END) AS pendentes,
+        SUM(CASE WHEN p.status = 'confirmado' THEN 1 ELSE 0 END) AS confirmados
+      ${baseFrom}
+      ${where}
+    `;
 
-    query += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    const [rows] = await pool.query(listQuery, params);
+    const [[countRow]] = await pool.query(countQuery, params);
+    const [[summaryRow]] = await pool.query(summaryQuery, params);
+    const total = countRow?.total || 0;
 
-    const [rows] = await pool.execute(query, params);
     return success(res, {
       pagamentos: rows.map((row) => ({
         ...row,
         criado_em: row.created_at,
         data: row.created_at,
       })),
-      total: rows.length,
+      resumo: {
+        total,
+        receita_confirmada: Number(summaryRow?.receita_confirmada || 0),
+        pendentes: Number(summaryRow?.pendentes || 0),
+        confirmados: Number(summaryRow?.confirmados || 0),
+      },
+      total,
       pagina: page,
       limite: limit,
+      total_paginas: Math.max(1, Math.ceil(total / limit)),
     });
   } catch (err) {
     console.error('[PAYMENT_ADMIN_LIST]', err);

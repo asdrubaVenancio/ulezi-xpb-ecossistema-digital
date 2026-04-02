@@ -934,6 +934,10 @@ tbody td { padding: 14px 16px; color: var(--txt-2); vertical-align: middle; }
   .auth-card--wide { max-height: calc(100vh - 72px); }
   .cta-section { padding: 40px 20px; margin: 0 16px 60px; }
   .perfil-header { flex-direction: column; text-align: center; }
+  .module-toolbar,
+  .module-toolbar--compact,
+  .module-grid-2,
+  .module-grid-3 { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {
@@ -978,6 +982,41 @@ tbody td { padding: 14px 16px; color: var(--txt-2); vertical-align: middle; }
 .section-desc {
   font-size: 0.83rem;
   color: var(--txt-3);
+}
+
+.module-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1.6fr) repeat(3, minmax(160px, 0.8fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.module-toolbar--compact {
+  grid-template-columns: minmax(240px, 1.4fr) repeat(2, minmax(180px, 0.7fr));
+}
+
+.module-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.module-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.module-stack {
+  display: grid;
+  gap: 16px;
 }
 
 /* ── Vagas / Cards de lista ──────────────────────────────── */

@@ -50,6 +50,21 @@ const buildResetLink = (token) => {
   return `${frontendUrl}/nova-senha/${token}`;
 };
 
+const ensurePasswordChangeColumn = async () => {
+  try {
+    const [rows] = await pool.execute(`SHOW COLUMNS FROM users LIKE 'password_change_required'`);
+    if (!rows.length) {
+      await pool.execute(
+        `ALTER TABLE users ADD COLUMN password_change_required TINYINT(1) NOT NULL DEFAULT 0`
+      );
+    }
+  } catch (err) {
+    if (!String(err.message || '').includes('Duplicate column name')) {
+      throw err;
+    }
+  }
+};
+
 /**
  * POST /api/auth/register
  * Regista um novo utilizador
@@ -160,12 +175,13 @@ const register = async (req, res) => {
  */
 const login = async (req, res) => {
   try {
+    await ensurePasswordChangeColumn();
     const { email, password } = req.body;
     const normalizedEmail = email.trim().toLowerCase();
 
     // Buscar utilizador
     const [rows] = await pool.execute(
-      'SELECT id, nome, email, password_hash, role, status, foto_perfil FROM users WHERE email = ?',
+      'SELECT id, nome, email, password_hash, role, status, foto_perfil, password_change_required FROM users WHERE email = ?',
       [normalizedEmail]
     );
 
@@ -217,6 +233,7 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
         foto_perfil: user.foto_perfil,
+        password_change_required: !!user.password_change_required,
         profile: profileData,
       },
       // Alias para compatibilidade com frontend
@@ -226,6 +243,7 @@ const login = async (req, res) => {
         email: user.email,
         role: user.role,
         foto_perfil: user.foto_perfil,
+        password_change_required: !!user.password_change_required,
         profile: profileData,
       },
     }, 'Login realizado com sucesso!');
@@ -241,11 +259,12 @@ const login = async (req, res) => {
  */
 const getMe = async (req, res) => {
   try {
+    await ensurePasswordChangeColumn();
     const userId = req.user.id;
     const role = req.user.role;
 
     const [rows] = await pool.execute(
-      'SELECT id, nome, email, telefone, role, status, foto_perfil, created_at FROM users WHERE id=?',
+      'SELECT id, nome, email, telefone, role, status, foto_perfil, created_at, password_change_required FROM users WHERE id=?',
       [userId]
     );
     if (!rows.length) return badRequest(res, 'Utilizador não encontrado.');
@@ -329,6 +348,7 @@ const updateProfile = async (req, res) => {
  */
 const changePassword = async (req, res) => {
   try {
+    await ensurePasswordChangeColumn();
     const userId = req.user.id;
     const current_password =
       req.body.current_password ||
@@ -351,10 +371,10 @@ const changePassword = async (req, res) => {
 
     const rounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
     const newHash = await bcrypt.hash(new_password, rounds);
-    await pool.execute('UPDATE users SET password_hash=? WHERE id=?', [newHash, userId]);
+    await pool.execute('UPDATE users SET password_hash=?, password_change_required = 0 WHERE id=?', [newHash, userId]);
 
     await log(userId, 'CHANGE_PASSWORD', 'users', userId, null, req);
-    return success(res, null, 'Senha alterada com sucesso.');
+    return success(res, { password_change_required: false }, 'Senha alterada com sucesso.');
   } catch (err) {
     return error(res, 'Erro ao alterar senha.', 500);
   }

@@ -6,6 +6,7 @@ const router = express.Router();
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const { uploadPayment } = require('../middlewares/upload.middleware');
 const {
   uploadDocument, getMyCompany, listOpportunities, getOpportunity,
   saveCompanyProfile, createOpportunity, expressInterest, adminListInterests, generateContract,
@@ -13,6 +14,7 @@ const {
   createSubscription, addCompanyService,
 } = require('../controllers/business.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
+const { requireActiveSubscription, requirePrivilege } = require('../middlewares/subscription.middleware');
 const { validate, opportunitySchema } = require('../validations/opportunity.validation');
 
 // Pasta para documentos de empresas
@@ -54,11 +56,11 @@ router.post('/empresas/servicos', authenticate, authorize('company'), addCompany
 // ── Oportunidades ─────────────────────────────────────────────────────────────
 router.get('/opportunities', listOpportunities);
 router.get('/opportunities/:id', getOpportunity);
-router.post('/opportunities', authenticate, authorize('company'), validate(opportunitySchema), createOpportunity);
+router.post('/opportunities', authenticate, authorize('company'), requireActiveSubscription, requirePrivilege('oportunidades'), validate(opportunitySchema), createOpportunity);
 router.post('/opportunities/:id/interest', authenticate, authorize('investor'), expressInterest);
 router.get('/oportunidades', listOpportunities);
 router.get('/oportunidades/:id', getOpportunity);
-router.post('/oportunidades', authenticate, authorize('company'), validate(opportunitySchema), createOpportunity);
+router.post('/oportunidades', authenticate, authorize('company'), requireActiveSubscription, requirePrivilege('oportunidades'), validate(opportunitySchema), createOpportunity);
 router.post('/oportunidades/:id/interesse', authenticate, authorize('investor'), expressInterest);
 
 // ── Contratos ─────────────────────────────────────────────────────────────────
@@ -68,6 +70,10 @@ router.get('/contratos/:id/download', authenticate, downloadContract);
 router.post('/contratos/:id/sign', authenticate, authorize('company', 'investor'), signContract);
 
 // ── Admin ─────────────────────────────────────────────────────────────────────
+const {
+  listPackages, getPackage, createPackage, updatePackage, approvePackage, deletePackage
+} = require('../controllers/subscription-package.controller');
+
 router.get('/admin/companies', authenticate, authorize('admin', 'employee'), adminListCompanies);
 router.put('/admin/companies/:id/approve', authenticate, authorize('admin', 'employee'), approveCompany);
 router.post('/admin/subscriptions', authenticate, authorize('admin', 'employee'), createSubscription);
@@ -79,6 +85,14 @@ router.post('/admin/assinaturas', authenticate, authorize('admin', 'employee'), 
 router.get('/admin/investimentos', authenticate, authorize('admin', 'employee'), adminListInterests);
 router.post('/admin/investimentos/:id/contrato', authenticate, authorize('admin', 'employee'), generateContract);
 
+// Rotas de gestão de pacotes de assinatura
+router.get('/admin/subscription-packages', authenticate, authorize('admin', 'employee'), listPackages);
+router.post('/admin/subscription-packages', authenticate, authorize('admin', 'employee'), createPackage);
+router.get('/admin/subscription-packages/:id', authenticate, authorize('admin', 'employee'), getPackage);
+router.put('/admin/subscription-packages/:id', authenticate, authorize('admin', 'employee'), updatePackage);
+router.put('/admin/subscription-packages/:id/approve', authenticate, authorize('admin'), approvePackage);
+router.delete('/admin/subscription-packages/:id', authenticate, authorize('admin'), deletePackage);
+
 module.exports = router;
 
 // ── Dashboard empresa (/api/empresa/*) ────────────────────────────────────────
@@ -86,14 +100,36 @@ const {
   getEmpresaPerfil, getEmpresaStats, getEmpresaOportunidades,
   getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaOpportunityInterests,
 } = require('../controllers/business.controller');
+const {
+  listActivePackages
+} = require('../controllers/subscription-package.controller');
+const {
+  getMySubscription, subscribe, renewSubscription, getSubscriptionHistory,
+  listAdminSubscriptions, approveSubscription, rejectSubscription, subscribeWithProof, viewSubscriptionProof,
+} = require('../controllers/company-subscription.controller');
 
+// Rotas públicas (perfil pode ser atualizado sem assinatura)
 router.get('/empresa/perfil',        authenticate, authorize('company'), getEmpresaPerfil);
-router.get('/empresa/stats',         authenticate, authorize('company'), getEmpresaStats);
-router.get('/empresa/oportunidades', authenticate, authorize('company'), getEmpresaOportunidades);
-router.get('/empresa/oportunidades/:id/interessados', authenticate, authorize('company'), getEmpresaOpportunityInterests);
+router.get('/empresa/stats',         authenticate, authorize('company'), requireActiveSubscription, getEmpresaStats);
+router.get('/empresa/oportunidades', authenticate, authorize('company'), requireActiveSubscription, getEmpresaOportunidades);
+router.get('/empresa/oportunidades/:id/interessados', authenticate, authorize('company'), requireActiveSubscription, getEmpresaOpportunityInterests);
 router.get('/empresa/documentos',    authenticate, authorize('company'), getEmpresaDocumentos);
 router.post('/empresa/documentos',   authenticate, authorize('company'), uploadDoc.single('documento'), uploadDocument);
 router.get('/empresa/assinatura',    authenticate, authorize('company'), getEmpresaAssinatura);
+
+// Rotas de assinatura (acessíveis sem assinatura ativa)
+router.get('/empresa/minha-assinatura', authenticate, authorize('company'), getMySubscription);
+router.get('/empresa/historico-assinaturas', authenticate, authorize('company'), getSubscriptionHistory);
+router.get('/subscription-packages', authenticate, authorize('company'), listActivePackages);
+router.post('/empresa/assinar', authenticate, authorize('company'), subscribe);
+router.post('/empresa/assinar-com-comprovativo', authenticate, authorize('company'), uploadPayment.single('comprovativo'), subscribeWithProof);
+router.post('/empresa/renovar', authenticate, authorize('company'), renewSubscription);
+
+// Gestão administrativa de assinaturas empresariais
+router.get('/admin/company-subscriptions', authenticate, authorize('admin', 'employee'), listAdminSubscriptions);
+router.get('/admin/company-subscriptions/:id/proof', authenticate, authorize('admin', 'employee'), viewSubscriptionProof);
+router.put('/admin/company-subscriptions/:id/approve', authenticate, authorize('admin', 'employee'), approveSubscription);
+router.put('/admin/company-subscriptions/:id/reject', authenticate, authorize('admin', 'employee'), rejectSubscription);
 
 // ── Dashboard investidor (/api/investidor/*) ──────────────────────────────────
 const {

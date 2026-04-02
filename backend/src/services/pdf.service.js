@@ -1,6 +1,6 @@
 /**
  * ULEZI XPB — Serviço de Geração de PDFs
- * Gera recibos de inscrição e contratos de investimento
+ * Gera recibos de inscrição, recibos de assinatura e contratos de investimento
  */
 
 const PDFDocument = require('pdfkit');
@@ -17,6 +17,79 @@ const { pool } = require('../config/database');
 const AZUL = '#1FA7C9';
 const CINZA = '#374151';
 const VERDE = '#22C55E';
+
+/**
+ * Gera um PDF em memória para recibo de assinatura empresarial.
+ */
+const generateSubscriptionReceiptBuffer = async (data) => {
+  const {
+    numero_recibo,
+    nome_empresa,
+    representante_nome,
+    representante_email,
+    pacote_nome,
+    valor_pago,
+    moeda = 'AOA',
+    data_inicio,
+    data_fim,
+    referencia_pagamento,
+  } = data;
+
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+    doc.on('data', (chunk) => chunks.push(chunk));
+    doc.on('end', () => resolve(Buffer.concat(chunks)));
+    doc.on('error', reject);
+
+    doc.rect(0, 0, doc.page.width, 100).fill(AZUL);
+    doc.fillColor('white').fontSize(28).font('Helvetica-Bold').text('ULEZI XPB', 50, 30);
+    doc.fontSize(12).font('Helvetica').text('Recibo de Pagamento da Assinatura Empresarial', 50, 65);
+    doc.fillColor(CINZA);
+
+    doc.rect(0, 100, doc.page.width, 50).fill('#F8FAFC');
+    doc.fillColor(AZUL).fontSize(18).font('Helvetica-Bold').text('RECIBO DE ASSINATURA', 50, 115, {
+      align: 'center',
+      width: doc.page.width - 100,
+    });
+
+    doc.fillColor(CINZA).fontSize(11).font('Helvetica')
+      .text(`Número: ${numero_recibo}`, 50, 175)
+      .text(`Data: ${new Date().toLocaleDateString('pt-AO')}`, 400, 175);
+
+    doc.moveTo(50, 200).lineTo(doc.page.width - 50, 200).stroke('#CCCCCC');
+
+    doc.fillColor(AZUL).fontSize(13).font('Helvetica-Bold').text('DADOS DA EMPRESA', 50, 220);
+    doc.fillColor(CINZA).fontSize(11).font('Helvetica')
+      .text(`Empresa: ${nome_empresa}`, 70, 245)
+      .text(`Representante: ${representante_nome}`, 70, 265)
+      .text(`Email: ${representante_email}`, 70, 285);
+
+    doc.fillColor(AZUL).fontSize(13).font('Helvetica-Bold').text('DADOS DO PLANO', 50, 325);
+    doc.fillColor(CINZA).fontSize(11).font('Helvetica')
+      .text(`Plano: ${pacote_nome}`, 70, 350)
+      .text(`Referência do pagamento: ${referencia_pagamento || 'N/D'}`, 70, 370)
+      .text(`Período da assinatura: ${new Date(data_inicio).toLocaleDateString('pt-AO')} até ${new Date(data_fim).toLocaleDateString('pt-AO')}`, 70, 390);
+
+    doc.rect(50, 430, doc.page.width - 100, 65).fill('#F0FDF4');
+    doc.fillColor(VERDE).fontSize(16).font('Helvetica-Bold')
+      .text(`VALOR CONFIRMADO: ${Number(valor_pago || 0).toLocaleString('pt-AO', { minimumFractionDigits: 2 })} ${moeda}`, 70, 452);
+
+    doc.moveTo(50, doc.page.height - 100).lineTo(doc.page.width - 50, doc.page.height - 100).stroke('#CCCCCC');
+    doc.fillColor(CINZA).fontSize(9).font('Helvetica')
+      .text('Este documento é válido como comprovativo de pagamento da assinatura empresarial.', 50, doc.page.height - 85, {
+        align: 'center',
+        width: doc.page.width - 100,
+      })
+      .text('ULEZI XPB — suporte@ulezixpb.com', 50, doc.page.height - 65, {
+        align: 'center',
+        width: doc.page.width - 100,
+      });
+
+    doc.end();
+  });
+};
 
 /**
  * Gera recibo PDF após confirmação de pagamento
@@ -196,4 +269,4 @@ const generateContract = async (data) => {
   });
 };
 
-module.exports = { generateReceipt, generateContract };
+module.exports = { generateReceipt, generateContract, generateSubscriptionReceiptBuffer };

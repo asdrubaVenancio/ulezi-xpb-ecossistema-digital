@@ -28,8 +28,8 @@ export const ROLE_LABELS = {
 export const ROLE_DASHBOARD = {
   estudante:   '/painel/aluno',
   student:     '/painel/aluno',
-  empresa:     '/painel/empresa',
-  company:     '/painel/empresa',
+  empresa:     '/empresa/dashboard',
+  company:     '/empresa/dashboard',
   investidor:  '/painel/investidor',
   investor:    '/painel/investidor',
   admin:       '/painel/admin',

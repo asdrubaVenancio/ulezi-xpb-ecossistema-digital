@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useNavigate } from 'react-router-dom';
 import {
   Briefcase,
   Globe,
@@ -17,7 +18,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { authAPI, empresaAPI, investidorAPI, extrairErro } from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
-import { iniciais, ROLE_LABELS } from '../../utils/constants';
+import { iniciais, ROLE_DASHBOARD, ROLE_LABELS } from '../../utils/constants';
 
 const schemaPerfilBase = z.object({
   nome: z.string().min(3, 'Informe o nome completo.'),
@@ -55,8 +56,15 @@ const roleColor = {
 
 export default function Perfil() {
   const { utilizador, atualizarUtilizador } = useAuth();
+  const navigate = useNavigate();
   const toast = useToast();
   const [aba, setAba] = useState('dados');
+
+  useEffect(() => {
+    if (utilizador?.password_change_required) {
+      setAba('seguranca');
+    }
+  }, [utilizador?.password_change_required]);
 
   const cor = roleColor[utilizador?.role] || 'var(--ciano)';
   const tabs = useMemo(() => {
@@ -95,6 +103,11 @@ export default function Perfil() {
       </section>
 
       <section style={{ ...secaoCard, paddingBottom: 12 }}>
+        {utilizador?.password_change_required ? (
+          <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 'var(--r-lg)', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.28)', color: 'var(--txt)' }}>
+            A sua conta foi criada com uma senha temporária. Para continuar, altere a palavra-passe nesta página.
+          </div>
+        ) : null}
         <div className="tabs" style={{ marginBottom: 0 }}>
           {tabs.map((tab) => (
             <button key={tab.id} className={`tab-btn${aba === tab.id ? ' active' : ''}`} onClick={() => setAba(tab.id)}>
@@ -117,7 +130,11 @@ export default function Perfil() {
 
       {aba === 'seguranca' && (
         <Seguranca
-          onSucesso={() => toast.sucesso('Palavra-passe actualizada com sucesso.')}
+          onSucesso={() => {
+            atualizarUtilizador({ password_change_required: false });
+            toast.sucesso('Palavra-passe actualizada com sucesso.');
+            navigate(ROLE_DASHBOARD[utilizador?.role] || '/', { replace: true });
+          }}
           onErro={(mensagem) => toast.erro(mensagem)}
         />
       )}

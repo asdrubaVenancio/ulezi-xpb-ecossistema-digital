@@ -1,10 +1,13 @@
+﻿// ============================================================
+// ULEZI XPB â€” Mercado de Investimentos (NegÃ³cios)
+// Dados reais do backend â€” modal de interesse â€” validaÃ§Ã£o
 // ============================================================
-// ULEZI XPB — Mercado de Investimentos (Negócios)
-// Dados reais do backend — modal de interesse — validação
-// ============================================================
+// 
+// @author AsdrubaDeveloper
+// @version 1.0.0
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { Search, Building2, CheckCircle, TrendingUp, ArrowRight, X, AlertCircle } from 'lucide-react';
+import { Search, Building2, CheckCircle, TrendingUp, ArrowRight, X, AlertCircle, ShieldCheck } from 'lucide-react';
 import { negociosAPI, extrairErro } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../components/ui/Toast';
@@ -15,8 +18,8 @@ import Footer from '../../components/layout/Footer.jsx';
 
 const FILTROS = [
   { id: '',                   label: 'Todos' },
-  { id: 'venda_participacao', label: 'Participação Societária' },
-  { id: 'emprestimo',         label: 'Empréstimo' },
+  { id: 'venda_participacao', label: 'ParticipaÃ§Ã£o SocietÃ¡ria' },
+  { id: 'emprestimo',         label: 'EmprÃ©stimo' },
   { id: 'franquia',           label: 'Franquia' },
   { id: 'venda_empresa',      label: 'Venda da Empresa' },
   { id: 'licenciamento_marca',label: 'Licenciamento' },
@@ -30,7 +33,6 @@ export default function Negocios() {
   const [pesquisa,      setPesquisa]      = useState('');
   const [filtro,        setFiltro]        = useState('');
   const [modalInt,      setModalInt]      = useState(null); // oportunidade seleccionada
-  const [formInt,       setFormInt]       = useState({ mensagem: '', valor_pretendido: '' });
   const [enviandoInt,   setEnviandoInt]   = useState(false);
   const timer = useRef(null);
 
@@ -65,19 +67,11 @@ export default function Negocios() {
       toast.aviso('Apenas investidores podem demonstrar interesse nas oportunidades.');
       return;
     }
-    if (!formInt.valor_pretendido || isNaN(formInt.valor_pretendido) || parseFloat(formInt.valor_pretendido) <= 0) {
-      toast.aviso('Introduza um valor de investimento válido');
-      return;
-    }
     setEnviandoInt(true);
     try {
-      await negociosAPI.interesse(modalInt.id, {
-        mensagem:         formInt.mensagem,
-        valor_pretendido: parseFloat(formInt.valor_pretendido),
-      });
+      await negociosAPI.interesse(modalInt.id, {});
       setModalInt(null);
-      setFormInt({ mensagem: '', valor_pretendido: '' });
-      toast.sucesso('Interesse demonstrado! A empresa será notificada.');
+      toast.sucesso('Interesse registado. A equipa administrativa fara a mediacao do processo.');
     } catch (e) { toast.erro(extrairErro(e)); }
     finally { setEnviandoInt(false); }
   };
@@ -87,7 +81,7 @@ export default function Negocios() {
       <Navbar />
       <main style={{ flex: 1, padding: '40px 24px', maxWidth: 1100, margin: '0 auto', width: '100%', background: 'var(--bg)' }}>
 
-        {/* Cabeçalho */}
+        {/* CabeÃ§alho */}
         <div style={{ marginBottom: 28 }}>
           <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: 800, marginBottom: 6 }}>
             Mercado de Investimentos
@@ -122,7 +116,7 @@ export default function Negocios() {
           </div>
         </div>
 
-        {/* Conteúdo */}
+        {/* ConteÃºdo */}
         {carregando ? (
           <PageLoader />
         ) : oportunidades.length === 0 ? (
@@ -139,7 +133,6 @@ export default function Negocios() {
                 {...o}
                 onInteresse={() => {
                   setModalInt(o);
-                  setFormInt({ mensagem: '', valor_pretendido: '' });
                 }}
               />
             ))}
@@ -152,7 +145,7 @@ export default function Negocios() {
       <Modal
         aberto={!!modalInt}
         onFechar={() => setModalInt(null)}
-        titulo="Demonstrar Interesse"
+        titulo="Solicitar Mediação"
         acoes={<>
           <button className="btn btn--secondary" onClick={() => setModalInt(null)}>Cancelar</button>
           <button
@@ -160,7 +153,7 @@ export default function Negocios() {
             onClick={demonstrarInteresse}
             disabled={enviandoInt}
           >
-            {!enviandoInt && <><TrendingUp size={14} /> Enviar Interesse</>}
+            {!enviandoInt && <><ShieldCheck size={14} /> Solicitar mediação</>}
           </button>
         </>}
       >
@@ -173,42 +166,22 @@ export default function Negocios() {
                 <span style={{ fontWeight: 700 }}>{modalInt.nome_empresa || modalInt.empresa}</span>
               </div>
               <p style={{ fontSize: '0.85rem', color: 'var(--txt-3)' }}>
-                {TIPO_OPORTUNIDADE[modalInt.tipo_servico] || modalInt.tipo_servico} · {formatAOA(modalInt.valor_solicitado || modalInt.valor_pedido)}
+                {TIPO_OPORTUNIDADE[modalInt.tipo_servico] || modalInt.tipo_servico} Â· {formatAOA(modalInt.valor_solicitado || modalInt.valor_pedido)}
               </p>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Valor que pretende investir */}
-              <div className="form-group">
-                <label className="form-label">Valor que pretende investir (Kz) *</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  placeholder="Ex: 5000000"
-                  min="1"
-                  value={formInt.valor_pretendido}
-                  onChange={e => setFormInt(f => ({ ...f, valor_pretendido: e.target.value }))}
-                />
-                <span className="form-hint">Indique o montante que está disposto a investir</span>
+              <div className="alert alert--info">
+                <ShieldCheck size={16} style={{ flexShrink: 0 }} />
+                <span style={{ fontSize: '0.84rem' }}>
+                  O seu interesse sera encaminhado primeiro para a equipa administrativa da plataforma.
+                </span>
               </div>
 
-              {/* Mensagem */}
-              <div className="form-group">
-                <label className="form-label">Mensagem para a empresa (opcional)</label>
-                <textarea
-                  className="form-textarea"
-                  rows={3}
-                  placeholder="Apresente-se e explique o seu interesse nesta oportunidade..."
-                  value={formInt.mensagem}
-                  onChange={e => setFormInt(f => ({ ...f, mensagem: e.target.value }))}
-                />
-              </div>
-
-              {/* Aviso de privacidade */}
               <div className="alert alert--info">
                 <AlertCircle size={16} style={{ flexShrink: 0 }} />
                 <span style={{ fontSize: '0.8rem' }}>
-                  Os seus dados de contacto serão partilhados com a empresa apenas após aprovação mútua.
+                  A empresa nao recebera os seus contactos nesta fase. Um administrador ou funcionario responsavel fara a triagem, coordenara a mediacao e agendara a reuniao quando houver avancos.
                 </span>
               </div>
             </div>
@@ -219,9 +192,9 @@ export default function Negocios() {
   );
 }
 
-// ── Card de oportunidade ──────────────────────────────────────
+// â”€â”€ Card de oportunidade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function OportunidadeCard({ tipo_servico, nome_empresa, titulo, descricao, valor_solicitado, valor_pedido, retorno_estimado, verificada, status, onInteresse }) {
-  const labelTipo = TIPO_OPORTUNIDADE[tipo_servico] || tipo_servico || '—';
+  const labelTipo = TIPO_OPORTUNIDADE[tipo_servico] || tipo_servico || 'â€”';
 
   // Cor por tipo
   const COR_TIPO = {
@@ -253,19 +226,19 @@ function OportunidadeCard({ tipo_servico, nome_empresa, titulo, descricao, valor
           <Building2 size={14} color="var(--txt-3)" />
         </div>
         <span style={{ fontWeight: 700, color: 'var(--txt-1)', fontSize: '0.95rem' }}>
-          {nome_empresa || '—'}
+          {nome_empresa || 'â€”'}
         </span>
       </div>
 
-      {/* Título */}
+      {/* TÃ­tulo */}
       {titulo && <p style={{ fontWeight: 600, fontSize: '0.9rem', marginBottom: 6 }}>{titulo}</p>}
 
-      {/* Descrição */}
+      {/* DescriÃ§Ã£o */}
       <p style={{ fontSize: '0.83rem', color: 'var(--txt-3)', marginBottom: 16, lineHeight: 1.6 }}>
-        {descricao || 'Sem descrição disponível.'}
+        {descricao || 'Sem descriÃ§Ã£o disponÃ­vel.'}
       </p>
 
-      {/* Rodapé */}
+      {/* RodapÃ© */}
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
         <div>
           <p style={{ fontSize: '0.7rem', color: 'var(--txt-3)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>
@@ -276,14 +249,14 @@ function OportunidadeCard({ tipo_servico, nome_empresa, titulo, descricao, valor
           </div>
           {retorno_estimado && (
             <div style={{ fontSize: '0.75rem', color: 'var(--verde)', fontWeight: 600, marginTop: 2 }}>
-              → {retorno_estimado}
+              â†’ {retorno_estimado}
             </div>
           )}
         </div>
         <button
           className="btn btn--laranja btn--sm"
           onClick={onInteresse}
-          disabled={status && status !== 'publicada' && status !== 'em_analise'}
+          disabled={status && !['ativa', 'publicada', 'em_analise'].includes(status)}
         >
           Analisar <ArrowRight size={13} />
         </button>
@@ -291,3 +264,4 @@ function OportunidadeCard({ tipo_servico, nome_empresa, titulo, descricao, valor
     </div>
   );
 }
+

@@ -40,6 +40,14 @@ const NAV_ITEMS = [
       { id: 'inscricoes',    label: 'Inscrições',      icon: ClipboardCheck },
       { id: 'empresas',      label: 'Empresas',        icon: Building2 },
       { id: 'investimentos', label: 'Investimentos',   icon: TrendingUp },
+      { id: 'funcionarios',  label: 'Funcionários',    icon: Users },
+      { id: 'mediacao',     label: 'Mediação',        icon: TrendingUp },
+      { id: 'consultoria',  label: 'Consultoria',     icon: Briefcase },
+      { id: 'assinaturas',  label: 'Assinaturas',     icon: FileText },
+      { id: 'visitas',      label: 'Visitas',         icon: Building2 },
+      { id: 'suporte',      label: 'Suporte',         icon: Bell },
+      { id: 'interesses',   label: 'Interesses',      icon: TrendingUp },
+      { id: 'notificacoes-assinatura', label: 'Notif. Assinatura', icon: Bell },
     ],
   },
   {
@@ -48,6 +56,7 @@ const NAV_ITEMS = [
       { id: 'pagamentos',    label: 'Pagamentos',      icon: CreditCard },
       { id: 'contratos',     label: 'Contratos',       icon: FileText },
       { id: 'vagas',         label: 'Vagas Empresas',  icon: Briefcase },
+      { id: 'oportunidades', label: 'Oportunidades',   icon: TrendingUp },
     ],
   },
   {

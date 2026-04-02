@@ -2,28 +2,37 @@
 // ULEZI XPB — App.jsx — Roteamento principal
 // ============================================================
 
-import React from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { AuthProvider }        from './context/AuthContext';
-import { ToastProvider }       from './components/ui/Toast';
+import { Toaster } from 'react-hot-toast';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { ToastProvider } from './components/ui/Toast';
+import { AuthProvider } from './context/AuthContext';
 import { RotaPrivada, RotaPublica } from './routes/Guards';
 
 // Páginas públicas
-import Home     from './pages/publico/Home';
+import Home from './pages/publico/Home';
 import Negocios from './pages/publico/Negocios';
 import {
-  Cursos, CursoDetalhe, Comunidade, Termos, Privacidade,
-  NotFound, EsqueciPassword, NovaPassword,
+    Comunidade,
+    CursoDetalhe,
+    Cursos,
+    EsqueciPassword,
+    NotFound,
+    NovaPassword,
+    Privacidade,
+    Termos,
 } from './pages/publico/Paginas';
 
 // Auth
 import { Login, Registar } from './pages/auth/Auth';
 
 // Dashboards
+import DashboardLayout from './components/layout/DashboardLayout';
 import DashboardAdmin from './pages/admin/DashboardAdmin';
 import { DashboardAluno, DashboardEmpresa, DashboardInvestidor } from './pages/aluno/Dashboards';
-import Perfil          from './pages/perfil/Perfil';
-import DashboardLayout from './components/layout/DashboardLayout';
+import Perfil from './pages/perfil/Perfil';
+
+// Páginas da Empresa
+import { AssinaturaPage } from './pages/empresa/Assinatura';
 
 /** Wrapper com layout de dashboard */
 function ComLayout({ children }) {
@@ -53,6 +62,11 @@ export default function App() {
   const adminRoute = (
     <RotaPrivada papeis={['admin', 'funcionario', 'employee']}>
       <DashboardAdmin />
+    </RotaPrivada>
+  );
+  const adminSecaoRoute = (secaoInicial) => (
+    <RotaPrivada papeis={['admin', 'funcionario', 'employee']}>
+      <DashboardAdmin secaoInicial={secaoInicial} />
     </RotaPrivada>
   );
 
@@ -96,6 +110,12 @@ export default function App() {
             {/* ── Empresa ──────────────────────────────────── */}
             <Route path="/painel/empresa"     element={empresaRoute} />
             <Route path="/empresa/dashboard"  element={empresaRoute} />
+            <Route path="/empresa/operacoes"  element={<Navigate to="/empresa/dashboard" replace />} />
+            <Route path="/empresa/assinatura" element={
+              <RotaPrivada papeis={['empresa', 'company']}>
+                <ComLayout><AssinaturaPage /></ComLayout>
+              </RotaPrivada>
+            } />
 
             {/* ── Investidor ───────────────────────────────── */}
             <Route path="/painel/investidor"      element={investidorRoute} />
@@ -104,12 +124,48 @@ export default function App() {
             {/* ── Admin / Funcionário ──────────────────────── */}
             <Route path="/painel/admin"       element={adminRoute} />
             <Route path="/admin/dashboard"    element={adminRoute} />
+            
+            {/* ── Módulo 7: Negócios e Investimentos ─────────── */}
+            <Route path="/admin/empresas" element={
+              adminSecaoRoute('empresas')
+            } />
+            <Route path="/admin/oportunidades" element={
+              adminSecaoRoute('oportunidades')
+            } />
+            <Route path="/admin/interesses" element={
+              adminSecaoRoute('interesses')
+            } />
+            <Route path="/admin/contratos" element={
+              adminSecaoRoute('contratos')
+            } />
+            <Route path="/admin/assinaturas" element={
+              adminSecaoRoute('assinaturas')
+            } />
+            <Route path="/admin/funcionarios" element={
+              adminSecaoRoute('funcionarios')
+            } />
+            <Route path="/admin/visitas" element={
+              adminSecaoRoute('visitas')
+            } />
+            <Route path="/admin/mediacoes" element={
+              adminSecaoRoute('mediacao')
+            } />
+            <Route path="/admin/suporte" element={
+              adminSecaoRoute('suporte')
+            } />
+            <Route path="/admin/consultoria" element={
+              adminSecaoRoute('consultoria')
+            } />
+            <Route path="/admin/notificacoes-assinatura" element={
+              adminSecaoRoute('notificacoes-assinatura')
+            } />
 
             {/* ── 404 ──────────────────────────────────────── */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>
+      <Toaster position="top-right" />
     </AuthProvider>
   );
 }

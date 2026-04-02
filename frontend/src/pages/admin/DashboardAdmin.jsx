@@ -1,7 +1,10 @@
+﻿// ============================================================
+// ULEZI XPB â€” Dashboard Administrativo
+// Dados 100% do backend real â€” toast integrado â€” validaÃ§Ãµes
 // ============================================================
-// ULEZI XPB — Dashboard Administrativo
-// Dados 100% do backend real — toast integrado — validações
-// ============================================================
+// 
+// @author AsdrubaDeveloper
+// @version 1.0.0
 
 import {
     Bell,
@@ -38,13 +41,35 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { adminAPI, authAPI, extrairErro, pagamentosAPI } from '../../services/api';
 import { formatAOA, formatData, iniciais } from '../../utils/constants';
+import Assinaturas from './Assinaturas.jsx';
 import CentrosFormacao from './CentrosFormacao.jsx';
+import Consultoria from './Consultoria.jsx';
+import GestaoEmpresas from './GestaoEmpresas.jsx';
+import GestaoFuncionarios from './GestaoFuncionarios.jsx';
+import GestaoMediacao from './GestaoMediacaoV2.jsx';
+import GestaoVisitas from './GestaoVisitas.jsx';
 import InscricoesAdmin from './InscricoesAdmin.jsx';
+import InteressesInvestidores from './InteressesInvestidores.jsx';
+import NotificacoesAssinatura from './NotificacoesAssinatura.jsx';
 import OfertasCursos from './OfertasCursos.jsx';
+import OportunidadesInvestimento from './OportunidadesInvestimento.jsx';
+import SuporteTickets from './SuporteTickets.jsx';
+
+// Wrappers para pÃ¡ginas do MÃ³dulo 7 (nÃ£o aceitam props do DashboardAdmin)
+const GestaoEmpresasWrapper = () => <GestaoEmpresas />;
+const GestaoFuncionariosWrapper = () => <GestaoFuncionarios />;
+const GestaoMediacaoWrapper = () => <GestaoMediacao />;
+const ConsultoriaWrapper = () => <Consultoria />;
+const AssinaturasWrapper = () => <Assinaturas />;
+const GestaoVisitasWrapper = () => <GestaoVisitas />;
+const SuporteTicketsWrapper = () => <SuporteTickets />;
+const InteressesInvestidoresWrapper = () => <InteressesInvestidores />;
+const NotificacoesAssinaturaWrapper = () => <NotificacoesAssinatura />;
+const OportunidadesInvestimentoWrapper = () => <OportunidadesInvestimento />;
 
 const BACKEND_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5000/api').replace(/\/api\/?$/, '');
 
-// ── Secções disponíveis ──────────────────────────────────────
+// â”€â”€ SecÃ§Ãµes disponÃ­veis â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const SECOES = {
   painel:        PainelGeral,
   notificacoes:  NotificacoesReal,
@@ -53,26 +78,39 @@ const SECOES = {
   centros:       CentrosFormacao,
   ofertas:       OfertasCursos,
   inscricoes:    InscricoesAdmin,
-  empresas:      EmpresasRevisao,
+  empresas:      GestaoEmpresasWrapper,
   investimentos: Investimentos,
+  funcionarios:  GestaoFuncionariosWrapper,
+  mediacao:     GestaoMediacaoWrapper,
+  consultoria:  ConsultoriaWrapper,
+  assinaturas:  AssinaturasWrapper,
+  visitas:      GestaoVisitasWrapper,
+  suporte:      SuporteTicketsWrapper,
+  interesses:   InteressesInvestidoresWrapper,
+  'notificacoes-assinatura': NotificacoesAssinaturaWrapper,
   pagamentos:    Pagamentos,
   contratos:     ContratosReal,
   vagas:         VagasEmpresa,
+  oportunidades: OportunidadesInvestimentoWrapper,
   ficheiros:     Ficheiros,
   seguranca:     Seguranca,
   configuracoes: Configuracoes,
 };
 
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // LAYOUT PRINCIPAL
-// ════════════════════════════════════════════════════════════
-export default function DashboardAdmin() {
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+export default function DashboardAdmin({ secaoInicial = 'painel' }) {
   const { tema, alternarTema } = useAuth();
-  const [secaoActiva,   setSecaoActiva]   = useState('painel');
+  const [secaoActiva,   setSecaoActiva]   = useState(secaoInicial);
   const [sidebarAberta, setSidebarAberta] = useState(false);
   const [notifCount,    setNotifCount]    = useState(0);
 
   const SecaoActual = SECOES[secaoActiva] || PainelGeral;
+
+  useEffect(() => {
+    setSecaoActiva(secaoInicial);
+  }, [secaoInicial]);
 
   useEffect(() => {
     adminAPI.notificacoes()
@@ -114,7 +152,7 @@ export default function DashboardAdmin() {
               {tema === 'light' ? <Moon size={18}/> : <Sun size={18}/>}
             </button>
             <button className="admin-topbar__icon-btn"
-              onClick={() => setSecaoActiva('notificacoes')} aria-label="Notificações">
+              onClick={() => setSecaoActiva('notificacoes')} aria-label="NotificaÃ§Ãµes">
               <Bell size={18}/>
               {notifCount > 0 && <span className="admin-topbar__notif-count">{notifCount}</span>}
             </button>
@@ -131,9 +169,9 @@ export default function DashboardAdmin() {
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// PAINEL GERAL — dados reais
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PAINEL GERAL â€” dados reais
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function PainelGeral({ onNavegar }) {
   const [stats,       setStats]       = useState(null);
   const [empresasPend, setEmpresasPend] = useState([]);
@@ -151,10 +189,16 @@ function PainelGeral({ onNavegar }) {
       // O backend retorna { dados: { stats: {...}, recent_enrollments: [...] } }
       const dadosStats = sRes.data.dados?.stats || sRes.data.dados || {};
       setStats(dadosStats);
-      setEmpresasPend(eRes.data.dados?.empresas || []);
+      
+      // Debug: log da resposta de empresas
+      console.log('[DEBUG] Resposta empresas pendentes:', eRes.data);
+      const empresasData = eRes.data.dados?.empresas || [];
+      console.log('[DEBUG] Empresas pendentes:', empresasData);
+      setEmpresasPend(empresasData);
+      
       setInscricoesPend(iRes.data.dados?.slice(0, 5) || []);
     } catch (e) {
-      toast.erro('Erro ao carregar estatísticas: ' + extrairErro(e));
+      toast.erro('Erro ao carregar estatÃ­sticas: ' + extrairErro(e));
     } finally {
       setCarregando(false);
     }
@@ -169,17 +213,19 @@ function PainelGeral({ onNavegar }) {
       <div className="page-header">
         <div>
           <h1 className="page-header__title">Painel Geral</h1>
-          <p className="page-header__sub">Visão geral do ecossistema ULEZI XPB</p>
+          <p className="page-header__sub">VisÃ£o geral do ecossistema ULEZI XPB</p>
         </div>
-        <button className="btn btn--secondary btn--sm" onClick={carregar}>
-          <RefreshCw size={14}/> Actualizar
-        </button>
+        <div className="page-header__actions">
+          <button className="btn btn--secondary btn--sm" onClick={() => carregar(meta.pagina || 1)}>
+            <RefreshCw size={14}/> Actualizar
+          </button>
+        </div>
       </div>
 
-      {/* Stat cards — campos reais do backend */}
+      {/* Stat cards â€” campos reais do backend */}
       <div className="stats-grid">
         <StatCard icone={<Users size={20} color="var(--ciano)"/>}      label="Utilizadores"   valor={stats?.total_utilizadores?.toLocaleString('pt-AO') || '0'} variacao={null} cor="var(--ciano-100)"   />
-        <StatCard icone={<BookOpen size={20} color="var(--laranja)"/>}  label="Inscrições"     valor={stats?.total_inscricoes?.toLocaleString('pt-AO') || '0'}    variacao={null} cor="var(--laranja-100)" />
+        <StatCard icone={<BookOpen size={20} color="var(--laranja)"/>}  label="InscriÃ§Ãµes"     valor={stats?.total_inscricoes?.toLocaleString('pt-AO') || '0'}    variacao={null} cor="var(--laranja-100)" />
         <StatCard icone={<Building2 size={20} color="var(--verde)"/>}   label="Empresas"       valor={stats?.total_empresas?.toLocaleString('pt-AO') || '0'}       variacao={null} cor="var(--verde-100)"   />
         <StatCard icone={<CreditCard size={20} color="var(--vermelho)"/>} label="Pag. Pendentes" valor={stats?.pagamentos_pendentes?.toLocaleString('pt-AO') || '0'}  variacao={null} cor="var(--vermelho-100)" alerta={stats?.pagamentos_pendentes > 0} />
       </div>
@@ -194,7 +240,7 @@ function PainelGeral({ onNavegar }) {
               { label: 'Oportunidades activas', valor: stats?.total_oportunidades || 0, cor: 'var(--ciano)' },
               { label: 'Vagas em aberto',        valor: stats?.total_vagas         || 0, cor: 'var(--verde)' },
               { label: 'Empresas pendentes',     valor: stats?.empresas_pendentes  || 0, cor: 'var(--amarelo)', alerta: true },
-              { label: 'Op. em análise',         valor: stats?.oportunidades_pendentes || 0, cor: 'var(--roxo)' },
+              { label: 'Op. em anÃ¡lise',         valor: stats?.oportunidades_pendentes || 0, cor: 'var(--roxo)' },
             ].map(item => (
               <div key={item.label} style={{
                 padding: 16, borderRadius: 'var(--r-md)', border: '1px solid var(--border)',
@@ -209,36 +255,36 @@ function PainelGeral({ onNavegar }) {
           </div>
         </div>
 
-        {/* Aprovações Pendentes - Empresas e Inscrições */}
+        {/* AprovaÃ§Ãµes Pendentes - Empresas e InscriÃ§Ãµes */}
         <div className="card" style={{ padding: 24 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700 }}>Aprovações Pendentes</h2>
+            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 700 }}>AprovaÃ§Ãµes Pendentes</h2>
             <span className="badge badge--amarelo">
               {empresasPend.length + inscricoesPend.length} pendentes
             </span>
           </div>
           <p style={{ fontSize: '0.8rem', color: 'var(--txt-3)', marginBottom: 16 }}>
-            Empresas e inscrições aguardando validação
+            Empresas e inscriÃ§Ãµes aguardando validaÃ§Ã£o
           </p>
           
-          {/* Inscrições Pendentes */}
+          {/* InscriÃ§Ãµes Pendentes */}
           {inscricoesPend.length > 0 && (
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--txt-2)', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.5 }}>
-                Inscrições ({inscricoesPend.length})
+                InscriÃ§Ãµes ({inscricoesPend.length})
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {inscricoesPend.map(i => (
                   <div key={i.id} style={{ border: '1px solid var(--border)', borderRadius: 'var(--r-md)', padding: 10, background: 'var(--bg-2)' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                       <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>{i.nome_aluno}</span>
-                      <span className="badge badge--amarelo" style={{ fontSize: '0.7rem' }}>Inscrição</span>
+                      <span className="badge badge--amarelo" style={{ fontSize: '0.7rem' }}>InscriÃ§Ã£o</span>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: 'var(--txt-3)', marginBottom: 6 }}>
-                      {i.nome_curso} · {formatData(i.created_at)}
+                      {i.nome_curso} Â· {formatData(i.created_at)}
                     </p>
                     <button className="btn btn--primary btn--sm btn--full" onClick={() => onNavegar?.('inscricoes')}>
-                      Analisar Inscrição
+                      Analisar InscriÃ§Ã£o
                     </button>
                   </div>
                 ))}
@@ -260,7 +306,7 @@ function PainelGeral({ onNavegar }) {
                       <span className="badge badge--amarelo" style={{ fontSize: '0.7rem' }}>Empresa</span>
                     </div>
                     <p style={{ fontSize: '0.75rem', color: 'var(--txt-3)', marginBottom: 6 }}>
-                      {formatData(e.criado_em)} · {e.num_documentos} docs
+                      {formatData(e.criado_em)} Â· {e.num_documentos} docs
                     </p>
                     <button className="btn btn--primary btn--sm btn--full" onClick={() => onNavegar?.('empresas')}>
                       Analisar Empresa
@@ -273,7 +319,7 @@ function PainelGeral({ onNavegar }) {
           
           {empresasPend.length === 0 && inscricoesPend.length === 0 && (
             <p style={{ color: 'var(--txt-4)', fontSize: '0.875rem', textAlign: 'center', padding: '20px 0' }}>
-              Nenhuma aprovação pendente ✓
+              Nenhuma aprovaÃ§Ã£o pendente âœ“
             </p>
           )}
         </div>
@@ -282,7 +328,7 @@ function PainelGeral({ onNavegar }) {
   );
 }
 
-// ── StatCard local ─────────────────────────────────────────────
+// â”€â”€ StatCard local â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function StatCard({ icone, label, valor, cor, alerta }) {
   return (
     <div className="stat-card">
@@ -297,26 +343,26 @@ function StatCard({ icone, label, valor, cor, alerta }) {
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// NOTIFICAÇÕES
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// NOTIFICAÃ‡Ã•ES
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function Notificacoes() {
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-header__title">Notificações</h1></div>
+        <div><h1 className="page-header__title">NotificaÃ§Ãµes</h1></div>
       </div>
       <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--txt-3)' }}>
         <Bell size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
-        <p>Sem notificações por ler</p>
+        <p>Sem notificaÃ§Ãµes por ler</p>
       </div>
     </div>
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// UTILIZADORES — dados reais
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// UTILIZADORES â€” dados reais
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function Utilizadores() {
   const toast = useToast();
   const [utilizadores, setUtilizadores] = useState([]);
@@ -350,8 +396,8 @@ function Utilizadores() {
     const ok = await toast.confirmar({
       titulo:   novoStatus === 'bloqueado' ? 'Bloquear utilizador' : 'Activar utilizador',
       mensagem: novoStatus === 'bloqueado'
-        ? 'O utilizador não conseguirá entrar na plataforma. Continuar?'
-        : 'O utilizador voltará a ter acesso à plataforma.',
+        ? 'O utilizador nÃ£o conseguirÃ¡ entrar na plataforma. Continuar?'
+        : 'O utilizador voltarÃ¡ a ter acesso Ã  plataforma.',
       variante: novoStatus === 'bloqueado' ? 'perigo' : 'primario',
       labelOk:  novoStatus === 'bloqueado' ? 'Bloquear' : 'Activar',
     });
@@ -378,7 +424,7 @@ function Utilizadores() {
       <div className="page-header">
         <div>
           <h1 className="page-header__title">Utilizadores</h1>
-          <p className="page-header__sub">Gerir todos os usuários do sistema</p>
+          <p className="page-header__sub">Gerir todos os usuÃ¡rios do sistema</p>
         </div>
       </div>
 
@@ -407,11 +453,11 @@ function Utilizadores() {
             value={pesquisa} onChange={e => handlePesquisa(e.target.value)} />
         </div>
         <select className="form-select" style={{ width: 160 }} value={filtroRole} onChange={e => setFiltroRole(e.target.value)}>
-          <option value="">Todos os papéis</option>
+          <option value="">Todos os papÃ©is</option>
           <option value="estudante">Estudante</option>
           <option value="empresa">Empresa</option>
           <option value="investidor">Investidor</option>
-          <option value="funcionario">Funcionário</option>
+          <option value="funcionario">FuncionÃ¡rio</option>
         </select>
       </div>
 
@@ -458,8 +504,8 @@ function Utilizadores() {
                   </td>
                   <td style={{ color: 'var(--txt-3)', fontSize: '0.8rem' }}>{formatData(u.criado_em)}</td>
                   <td>
-                    <button className="btn btn--ghost btn--sm" onClick={() => setModalUser(u)} title="Acções">
-                      ···
+                    <button className="btn btn--ghost btn--sm" onClick={() => setModalUser(u)} title="AcÃ§Ãµes">
+                      Â·Â·Â·
                     </button>
                   </td>
                 </tr>
@@ -469,8 +515,8 @@ function Utilizadores() {
         </div>
       )}
 
-      {/* Modal acções */}
-      <Modal aberto={!!modalUser} onFechar={() => setModalUser(null)} titulo={`Acções — ${modalUser?.nome}`}>
+      {/* Modal acÃ§Ãµes */}
+      <Modal aberto={!!modalUser} onFechar={() => setModalUser(null)} titulo={`AcÃ§Ãµes â€” ${modalUser?.nome}`}>
         <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem', marginBottom: 16 }}>
           Estado actual: <BadgeStatus status={modalUser?.status} />
         </p>
@@ -496,9 +542,9 @@ function Utilizadores() {
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// CURSOS — dados reais
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CURSOS â€” dados reais
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function Cursos() {
   const toast = useToast();
   const [cursos,      setCursos]      = useState([]);
@@ -528,7 +574,7 @@ function Cursos() {
   };
 
   const guardar = async () => {
-    if (!form.nome.trim()) return toast.aviso('Nome do curso obrigatório');
+    if (!form.nome.trim()) return toast.aviso('Nome do curso obrigatÃ³rio');
     setEnviando(true);
     try {
       if (editando) {
@@ -547,7 +593,7 @@ function Cursos() {
   const toggleActivo = async (curso) => {
     const ok = await toast.confirmar({
       titulo:   curso.ativo ? 'Desactivar curso' : 'Activar curso',
-      mensagem: curso.ativo ? 'Este curso ficará indisponível para inscrições.' : 'Este curso ficará visível para inscrições.',
+      mensagem: curso.ativo ? 'Este curso ficarÃ¡ indisponÃ­vel para inscriÃ§Ãµes.' : 'Este curso ficarÃ¡ visÃ­vel para inscriÃ§Ãµes.',
       variante: curso.ativo ? 'perigo' : 'primario',
       labelOk:  curso.ativo ? 'Desactivar' : 'Activar',
     });
@@ -564,7 +610,7 @@ function Cursos() {
       <div className="page-header">
         <div>
           <h1 className="page-header__title">Cursos</h1>
-          <p className="page-header__sub">Gerir cursos de formação</p>
+          <p className="page-header__sub">Gerir cursos de formaÃ§Ã£o</p>
         </div>
         <button className="btn btn--primary btn--sm" onClick={() => abrirModal()}>
           <Plus size={15}/> Novo Curso
@@ -575,7 +621,7 @@ function Cursos() {
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Nome</th><th>Categoria</th><th>Estado</th><th>Acções</th></tr>
+              <tr><th>Nome</th><th>Categoria</th><th>Estado</th><th>AcÃ§Ãµes</th></tr>
             </thead>
             <tbody>
               {cursos.length === 0 ? (
@@ -583,7 +629,7 @@ function Cursos() {
               ) : cursos.map(c => (
                 <tr key={c.id}>
                   <td style={{ fontWeight: 500 }}>{c.nome}</td>
-                  <td style={{ color: 'var(--txt-2)' }}>{c.categoria || '—'}</td>
+                  <td style={{ color: 'var(--txt-2)' }}>{c.categoria || 'â€”'}</td>
                   <td><BadgeStatus status={c.ativo ? 'activo' : 'inactivo'} /></td>
                   <td>
                     <div style={{ display: 'flex', gap: 6 }}>
@@ -612,11 +658,11 @@ function Cursos() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div className="form-group">
             <label className="form-label">Nome do curso *</label>
-            <input className="form-input" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: Informática Básica" />
+            <input className="form-input" value={form.nome} onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} placeholder="Ex: InformÃ¡tica BÃ¡sica" />
           </div>
           <div className="form-group">
             <label className="form-label">Categoria</label>
-            <input className="form-input" value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} placeholder="Ex: Informática" />
+            <input className="form-input" value={form.categoria} onChange={e => setForm(f => ({ ...f, categoria: e.target.value }))} placeholder="Ex: InformÃ¡tica" />
           </div>
         </div>
       </Modal>
@@ -624,9 +670,9 @@ function Cursos() {
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// EMPRESAS — dados reais
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// EMPRESAS â€” dados reais
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function Empresas() {
   const toast = useToast();
   const [empresas,   setEmpresas]   = useState([]);
@@ -652,14 +698,14 @@ function Empresas() {
   const aprovar = async (id, aprovado) => {
     // Backend exige motivo quando rejeitado
     if (!aprovado && !motivo.trim()) {
-      toast.aviso('O motivo de rejeição é obrigatório');
+      toast.aviso('O motivo de rejeiÃ§Ã£o Ã© obrigatÃ³rio');
       return;
     }
 
     const ok = await toast.confirmar({
       titulo:   aprovado ? 'Aprovar empresa' : 'Rejeitar empresa',
       mensagem: aprovado
-        ? 'A empresa ficará visível no marketplace e poderá publicar oportunidades.'
+        ? 'A empresa ficarÃ¡ visÃ­vel no marketplace e poderÃ¡ publicar oportunidades.'
         : `Motivo: "${motivo}"`,
       variante: aprovado ? 'primario' : 'perigo',
       labelOk:  aprovado ? 'Aprovar' : 'Rejeitar',
@@ -682,7 +728,7 @@ function Empresas() {
       <div className="page-header">
         <div>
           <h1 className="page-header__title">Empresas</h1>
-          <p className="page-header__sub">Gerir empresas, aprovações e assinaturas</p>
+          <p className="page-header__sub">Gerir empresas, aprovaÃ§Ãµes e assinaturas</p>
         </div>
       </div>
 
@@ -733,7 +779,7 @@ function Empresas() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ color: 'var(--txt-2)' }}>{e.setor_atividade || '—'}</td>
+                  <td style={{ color: 'var(--txt-2)' }}>{e.setor_atividade || 'â€”'}</td>
                   <td><BadgeStatus status={e.status_aprovacao} /></td>
                   <td>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.875rem', color: 'var(--txt-3)' }}>
@@ -742,7 +788,7 @@ function Empresas() {
                   </td>
                   <td style={{ color: 'var(--txt-3)', fontSize: '0.8rem' }}>{formatData(e.criado_em)}</td>
                   <td>
-                    <button className="btn btn--ghost btn--sm" onClick={() => { setModalEmp(e); setMotivo(''); }}>···</button>
+                    <button className="btn btn--ghost btn--sm" onClick={() => { setModalEmp(e); setMotivo(''); }}>Â·Â·Â·</button>
                   </td>
                 </tr>
               ))}
@@ -751,7 +797,7 @@ function Empresas() {
         </div>
       )}
 
-      <Modal aberto={!!modalEmp} onFechar={() => setModalEmp(null)} titulo={`Acções — ${modalEmp?.nome_empresa}`}>
+      <Modal aberto={!!modalEmp} onFechar={() => setModalEmp(null)} titulo={`AcÃ§Ãµes â€” ${modalEmp?.nome_empresa}`}>
         <p style={{ fontSize: '0.875rem', color: 'var(--txt-2)', marginBottom: 16 }}>
           Estado: <BadgeStatus status={modalEmp?.status_aprovacao} />
         </p>
@@ -761,8 +807,8 @@ function Empresas() {
               <Check size={15}/> Aprovar empresa
             </button>
             <div className="form-group" style={{ marginBottom: 8 }}>
-              <label className="form-label">Motivo de rejeição (opcional)</label>
-              <textarea className="form-textarea" rows={2} value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="Documentação incompleta, NIF inválido..." />
+              <label className="form-label">Motivo de rejeiÃ§Ã£o (opcional)</label>
+              <textarea className="form-textarea" rows={2} value={motivo} onChange={e => setMotivo(e.target.value)} placeholder="DocumentaÃ§Ã£o incompleta, NIF invÃ¡lido..." />
             </div>
             <button className="btn btn--danger btn--full" onClick={() => aprovar(modalEmp.id, false)}>
               <X size={15}/> Rejeitar empresa
@@ -771,7 +817,7 @@ function Empresas() {
         ) : (
           <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem' }}>
             {modalEmp?.status_aprovacao === 'aprovada'
-              ? 'Esta empresa já foi aprovada.' : 'Esta empresa foi rejeitada.'}
+              ? 'Esta empresa jÃ¡ foi aprovada.' : 'Esta empresa foi rejeitada.'}
           </p>
         )}
       </Modal>
@@ -779,10 +825,10 @@ function Empresas() {
   );
 }
 
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 // INVESTIMENTOS
-// ════════════════════════════════════════════════════════════
-function EmpresasRevisao() {
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+function Investimentos() {
   const toast = useToast();
   const [empresas, setEmpresas] = useState([]);
   const [contagens, setContagens] = useState({ total: 0, aprovadas: 0, pendentes: 0, rejeitadas: 0 });
@@ -884,7 +930,7 @@ function EmpresasRevisao() {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-header__title">Avaliação de empresas</h1>
+          <h1 className="page-header__title">AvaliaÃ§Ã£o de empresas</h1>
           <p className="page-header__sub">Validar documentos, confirmar legitimidade do perfil e decidir com mais rigor operacional.</p>
         </div>
         <div className="page-header__actions">
@@ -936,7 +982,7 @@ function EmpresasRevisao() {
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Empresa</th><th>Sector</th><th>Estado</th><th>Documentos</th><th>Localização</th><th>Registo</th><th></th></tr>
+              <tr><th>Empresa</th><th>Sector</th><th>Estado</th><th>Documentos</th><th>LocalizaÃ§Ã£o</th><th>Registo</th><th></th></tr>
             </thead>
             <tbody>
               {empresas.length === 0 ? (
@@ -954,7 +1000,7 @@ function EmpresasRevisao() {
                       </div>
                     </div>
                   </td>
-                  <td style={{ color: 'var(--txt-2)' }}>{e.sector || '—'}</td>
+                  <td style={{ color: 'var(--txt-2)' }}>{e.sector || 'â€”'}</td>
                   <td><BadgeStatus status={e.estado} /></td>
                   <td>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: '0.875rem', color: 'var(--txt-3)' }}>
@@ -962,7 +1008,7 @@ function EmpresasRevisao() {
                     </span>
                   </td>
                   <td style={{ color: 'var(--txt-3)', fontSize: '0.8rem' }}>
-                    {[e.provincia, e.municipio].filter(Boolean).join(', ') || '—'}
+                    {[e.provincia, e.municipio].filter(Boolean).join(', ') || 'â€”'}
                   </td>
                   <td style={{ color: 'var(--txt-3)', fontSize: '0.8rem' }}>{formatData(e.criado_em)}</td>
                   <td>
@@ -980,11 +1026,11 @@ function EmpresasRevisao() {
       <Modal
         aberto={!!modalEmp}
         onFechar={() => { setModalEmp(null); setDetalheEmpresa(null); setMotivo(''); }}
-        titulo={empresaSelecionada ? `Avaliação documental — ${empresaSelecionada.nome_empresa}` : 'Avaliação documental'}
+        titulo={empresaSelecionada ? `AvaliaÃ§Ã£o documental â€” ${empresaSelecionada.nome_empresa}` : 'AvaliaÃ§Ã£o documental'}
         largura={980}
       >
         {carregandoDetalhe ? <PageLoader /> : !empresaSelecionada ? (
-          <EmptyState icone={<Building2 size={28}/>} titulo="Empresa indisponível" descricao="Nao foi possivel carregar os dados desta empresa." />
+          <EmptyState icone={<Building2 size={28}/>} titulo="Empresa indisponÃ­vel" descricao="Nao foi possivel carregar os dados desta empresa." />
         ) : (
           <div className="company-review-shell">
             <div className="company-review-summary">
@@ -996,22 +1042,22 @@ function EmpresasRevisao() {
             <div className="company-review-grid">
               <div className="company-review-panel">
                 <p className="company-review-panel__title">Dados da empresa</p>
-                <p className="company-review-panel__desc">Confirme a identidade da empresa, o responsável e a consistência dos campos apresentados.</p>
+                <p className="company-review-panel__desc">Confirme a identidade da empresa, o responsÃ¡vel e a consistÃªncia dos campos apresentados.</p>
 
                 <div className="company-metadata-grid">
                   {[
                     ['Empresa', empresaSelecionada.nome_empresa],
-                    ['Responsável', empresaSelecionada.nome || empresaSelecionada.representante],
+                    ['ResponsÃ¡vel', empresaSelecionada.nome || empresaSelecionada.representante],
                     ['E-mail', empresaSelecionada.email],
                     ['Telefone', empresaSelecionada.telefone],
                     ['NIF', empresaSelecionada.nif],
                     ['Sector', empresaSelecionada.sector],
-                    ['Província', empresaSelecionada.provincia],
-                    ['Município', empresaSelecionada.municipio],
+                    ['ProvÃ­ncia', empresaSelecionada.provincia],
+                    ['MunicÃ­pio', empresaSelecionada.municipio],
                   ].map(([label, value]) => (
                     <div key={label} className="company-meta-item">
                       <p className="company-meta-item__label">{label}</p>
-                      <p className="company-meta-item__value">{value || '—'}</p>
+                      <p className="company-meta-item__value">{value || 'â€”'}</p>
                     </div>
                   ))}
                 </div>
@@ -1020,7 +1066,7 @@ function EmpresasRevisao() {
                   <div className="alert alert--warning" style={{ marginTop: 16 }}>
                     <AlertCircle size={16} />
                     <div>
-                      <strong>Motivo da rejeição anterior</strong>
+                      <strong>Motivo da rejeiÃ§Ã£o anterior</strong>
                       <p>{empresaSelecionada.motivo_rejeicao}</p>
                     </div>
                   </div>
@@ -1028,18 +1074,18 @@ function EmpresasRevisao() {
               </div>
 
               <div className="company-review-panel">
-                <p className="company-review-panel__title">Decisão administrativa</p>
-                <p className="company-review-panel__desc">Aprove ou rejeite apenas depois de validar a documentação e a legitimidade do perfil.</p>
+                <p className="company-review-panel__title">DecisÃ£o administrativa</p>
+                <p className="company-review-panel__desc">Aprove ou rejeite apenas depois de validar a documentaÃ§Ã£o e a legitimidade do perfil.</p>
 
                 <div className="company-review-actions">
                   <div className="form-group">
-                    <label className="form-label">Observações ou motivo de rejeição</label>
+                    <label className="form-label">ObservaÃ§Ãµes ou motivo de rejeiÃ§Ã£o</label>
                     <textarea
                       className="form-textarea"
                       rows={4}
                       value={motivo}
                       onChange={(e) => setMotivo(e.target.value)}
-                      placeholder="Ex.: documentação ilegível, dados inconsistentes, falta de confirmação presencial..."
+                      placeholder="Ex.: documentaÃ§Ã£o ilegÃ­vel, dados inconsistentes, falta de confirmaÃ§Ã£o presencial..."
                     />
                   </div>
 
@@ -1056,11 +1102,11 @@ function EmpresasRevisao() {
                     <div className={`alert ${estadoEmpresa === 'aprovada' ? 'alert--success' : 'alert--warning'}`}>
                       {estadoEmpresa === 'aprovada' ? <CheckCircle size={16} /> : <AlertCircle size={16} />}
                       <div>
-                        <strong>{estadoEmpresa === 'aprovada' ? 'Empresa já aprovada' : 'Empresa rejeitada'}</strong>
+                        <strong>{estadoEmpresa === 'aprovada' ? 'Empresa jÃ¡ aprovada' : 'Empresa rejeitada'}</strong>
                         <p>
                           {estadoEmpresa === 'aprovada'
-                            ? 'Este perfil já foi validado e pode operar segundo as regras actuais da plataforma.'
-                            : 'Revise o motivo da rejeição antes de solicitar novos documentos ou nova submissão.'}
+                            ? 'Este perfil jÃ¡ foi validado e pode operar segundo as regras actuais da plataforma.'
+                            : 'Revise o motivo da rejeiÃ§Ã£o antes de solicitar novos documentos ou nova submissÃ£o.'}
                         </p>
                       </div>
                     </div>
@@ -1071,10 +1117,10 @@ function EmpresasRevisao() {
 
             <div className="company-review-panel">
               <p className="company-review-panel__title">Documentos enviados</p>
-              <p className="company-review-panel__desc">Abra os ficheiros, confirme se estão legíveis e compare com os dados do cadastro.</p>
+              <p className="company-review-panel__desc">Abra os ficheiros, confirme se estÃ£o legÃ­veis e compare com os dados do cadastro.</p>
 
               {documentos.length === 0 ? (
-                <EmptyState icone={<FileText size={24}/>} titulo="Sem documentos" descricao="Esta empresa ainda não anexou documentos para validação." />
+                <EmptyState icone={<FileText size={24}/>} titulo="Sem documentos" descricao="Esta empresa ainda nÃ£o anexou documentos para validaÃ§Ã£o." />
               ) : (
                 <div className="company-docs-grid">
                   {documentos.map((doc) => (
@@ -1097,21 +1143,21 @@ function EmpresasRevisao() {
             </div>
 
             <div className="company-review-panel">
-              <p className="company-review-panel__title">Histórico de assinaturas</p>
-              <p className="company-review-panel__desc">Consulte a situação comercial do perfil empresarial.</p>
+              <p className="company-review-panel__title">HistÃ³rico de assinaturas</p>
+              <p className="company-review-panel__desc">Consulte a situaÃ§Ã£o comercial do perfil empresarial.</p>
 
               {assinaturas.length === 0 ? (
-                <EmptyState icone={<CreditCard size={24}/>} titulo="Sem assinaturas" descricao="Ainda não existem assinaturas registadas para esta empresa." />
+                <EmptyState icone={<CreditCard size={24}/>} titulo="Sem assinaturas" descricao="Ainda nÃ£o existem assinaturas registadas para esta empresa." />
               ) : (
                 <div className="company-subscription-list">
                   {assinaturas.map((assinatura) => (
                     <div key={assinatura.id} className="company-subscription-item">
                       <div className="company-subscription-item__meta">
-                        <strong>{assinatura.plano || 'Plano não definido'}</strong>
+                        <strong>{assinatura.plano || 'Plano nÃ£o definido'}</strong>
                         <BadgeStatus status={assinatura.status} />
                       </div>
                       <p style={{ color: 'var(--txt-3)', fontSize: '0.8rem' }}>
-                        {formatData(assinatura.data_inicio)} até {formatData(assinatura.data_fim)}
+                        {formatData(assinatura.data_inicio)} atÃ© {formatData(assinatura.data_fim)}
                       </p>
                     </div>
                   ))}
@@ -1125,97 +1171,146 @@ function EmpresasRevisao() {
   );
 }
 
-function Investimentos() {
-  const toast = useToast();
-  const [oportunidades, setOportunidades] = useState([]);
-  const [carregando, setCarregando] = useState(true);
-
-  useEffect(() => {
-    adminAPI.oportunidades({ limite: 50 })
-      .then(({ data }) => setOportunidades(data.dados?.oportunidades || []))
-      .catch(e => toast.erro(extrairErro(e)))
-      .finally(() => setCarregando(false));
-  }, []);
-
-  return (
-    <div>
-      <div className="page-header">
-        <h1 className="page-header__title">Investimentos</h1>
-      </div>
-      {carregando ? <PageLoader /> : (
-        <div className="table-container">
-          <table>
-            <thead><tr><th>Título</th><th>Empresa</th><th>Tipo</th><th>Valor</th><th>Estado</th><th>Data</th></tr></thead>
-            <tbody>
-              {oportunidades.length === 0 ? (
-                <tr><td colSpan={6} style={{ textAlign:'center', padding:32, color:'var(--txt-3)' }}>Nenhuma oportunidade</td></tr>
-              ) : oportunidades.map(o => (
-                <tr key={o.id}>
-                  <td style={{ fontWeight:500 }}>{o.titulo}</td>
-                  <td style={{ color:'var(--txt-3)' }}>{o.nome_empresa || '—'}</td>
-                  <td><BadgeStatus status={o.tipo_servico} /></td>
-                  <td style={{ fontWeight:700 }}>{formatAOA(o.valor_pedido)}</td>
-                  <td><BadgeStatus status={o.status} /></td>
-                  <td style={{ color:'var(--txt-3)', fontSize:'0.8rem' }}>{formatData(o.criado_em)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ════════════════════════════════════════════════════════════
-// PAGAMENTOS — dados reais
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// PAGAMENTOS â€” dados reais
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function Pagamentos() {
   const toast = useToast();
   const [pagamentos, setPagamentos] = useState([]);
   const [carregando, setCarregando] = useState(true);
-  const [modalPag,   setModalPag]   = useState(null);
-  const [motivo,     setMotivo]     = useState('');
+  const [modalPag, setModalPag] = useState(null);
+  const [motivo, setMotivo] = useState('');
+  const [cursos, setCursos] = useState([]);
+  const [pagina, setPagina] = useState(1);
+  const [meta, setMeta] = useState({ total: 0, pagina: 1, limite: 25, totalPaginas: 1 });
+  const [resumo, setResumo] = useState({ receitaConfirmada: 0, pendentes: 0, confirmados: 0, total: 0 });
+  const [filtros, setFiltros] = useState({
+    pesquisa: '',
+    status: '',
+    metodo: '',
+    curso_id: '',
+    data_inicio: '',
+    data_fim: '',
+    valor_min: '',
+    valor_max: '',
+    comprovativo: '',
+    limite: 25,
+  });
 
-  const carregar = useCallback(async () => {
+  const carregar = async (paginaAtual = pagina, filtrosAtuais = filtros) => {
     try {
-      const { data } = await pagamentosAPI.adminListar({ limite: 50 });
-      setPagamentos(data.dados?.pagamentos || []);
-    } catch (e) { toast.erro(extrairErro(e)); }
-    finally { setCarregando(false); }
-  }, [toast]);
+      setCarregando(true);
+      const params = {
+        ...filtrosAtuais,
+        pagina: paginaAtual,
+        limite: Number(filtrosAtuais.limite) || 25,
+      };
 
-  useEffect(() => { carregar(); }, [carregar]);
+      Object.keys(params).forEach((chave) => {
+        if (params[chave] === '' || params[chave] == null) delete params[chave];
+      });
+
+      const { data } = await pagamentosAPI.adminListar(params);
+      setPagamentos(data.dados?.pagamentos || []);
+      setMeta({
+        total: Number(data.dados?.total || 0),
+        pagina: Number(data.dados?.pagina || paginaAtual),
+        limite: Number(data.dados?.limite || params.limite),
+        totalPaginas: Number(data.dados?.total_paginas || 1),
+      });
+      setResumo({
+        receitaConfirmada: Number(data.dados?.resumo?.receita_confirmada || 0),
+        pendentes: Number(data.dados?.resumo?.pendentes || 0),
+        confirmados: Number(data.dados?.resumo?.confirmados || 0),
+        total: Number(data.dados?.resumo?.total || 0),
+      });
+    } catch (e) {
+      toast.erro(extrairErro(e));
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  useEffect(() => {
+    carregar();
+    adminAPI.cursos({ limite: 200 })
+      .then(({ data }) => setCursos(data.dados?.cursos || []))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (pagina !== 1) carregar(pagina);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pagina]);
+
+  const actualizarFiltro = (campo, valor) => {
+    setFiltros((anterior) => ({ ...anterior, [campo]: valor }));
+  };
+
+  const aplicarFiltros = () => {
+    setPagina(1);
+    carregar(1, filtros);
+  };
+
+  const limparFiltros = () => {
+    const limpos = {
+      pesquisa: '',
+      status: '',
+      metodo: '',
+      curso_id: '',
+      data_inicio: '',
+      data_fim: '',
+      valor_min: '',
+      valor_max: '',
+      comprovativo: '',
+      limite: 25,
+    };
+    setFiltros(limpos);
+    setPagina(1);
+    carregar(1, limpos);
+  };
 
   const validar = async (id, aprovado) => {
-    // Backend exige motivo_rejeicao com mínimo 10 chars se não aprovado
     if (!aprovado && (!motivo || motivo.trim().length < 10)) {
       toast.aviso('Indique o motivo da rejeição (mínimo 10 caracteres)');
       return;
     }
 
     const ok = await toast.confirmar({
-      titulo:   aprovado ? 'Confirmar pagamento' : 'Rejeitar pagamento',
+      titulo: aprovado ? 'Confirmar pagamento' : 'Rejeitar pagamento',
       mensagem: aprovado
         ? 'O utilizador receberá confirmação e a inscrição será activada.'
         : `Motivo: "${motivo}"`,
       variante: aprovado ? 'primario' : 'perigo',
-      labelOk:  aprovado ? 'Confirmar' : 'Rejeitar',
+      labelOk: aprovado ? 'Confirmar' : 'Rejeitar',
     });
     if (!ok) return;
 
     try {
       await pagamentosAPI.adminValidar(id, { aprovado, motivo_rejeicao: motivo || null });
-      setPagamentos(p => p.map(pg => pg.id === id ? { ...pg, status: aprovado ? 'confirmado' : 'rejeitado' } : pg));
+      setPagamentos((anteriores) => anteriores.map((pg) => (
+        pg.id === id ? { ...pg, status: aprovado ? 'confirmado' : 'rejeitado' } : pg
+      )));
       setModalPag(null);
       setMotivo('');
       toast.sucesso(aprovado ? 'Pagamento confirmado!' : 'Pagamento rejeitado.');
-    } catch (e) { toast.erro(extrairErro(e)); }
+      carregar(meta.pagina || 1);
+    } catch (e) {
+      toast.erro(extrairErro(e));
+    }
   };
 
-  // Calcular stats dos pagamentos carregados
-  const totalReceita = pagamentos.filter(p => p.status === 'confirmado').reduce((s, p) => s + (parseFloat(p.valor) || 0), 0);
-  const pendentes = pagamentos.filter(p => ['pendente','aguardando_validacao'].includes(p.status)).length;
+  const totalReceita = resumo.receitaConfirmada;
+  const pendentes = resumo.pendentes;
+  const totalRegistos = meta.total;
+  const indiceInicial = totalRegistos === 0 ? 0 : ((meta.pagina - 1) * meta.limite) + 1;
+  const indiceFinal = totalRegistos === 0 ? 0 : Math.min(meta.pagina * meta.limite, totalRegistos);
+  const paginasVisiveis = [];
+  const primeiraPagina = Math.max(1, meta.pagina - 2);
+  const ultimaPagina = Math.min(meta.totalPaginas, meta.pagina + 2);
+
+  for (let i = primeiraPagina; i <= ultimaPagina; i += 1) paginasVisiveis.push(i);
 
   return (
     <div>
@@ -1224,12 +1319,118 @@ function Pagamentos() {
           <h1 className="page-header__title">Pagamentos</h1>
           <p className="page-header__sub">Acompanhamento de todas as transações</p>
         </div>
-        <button className="btn btn--secondary btn--sm" onClick={carregar}>
-          <RefreshCw size={14}/> Actualizar
-        </button>
+        <div className="page-header__actions">
+          <button className="btn btn--secondary btn--sm" onClick={() => carregar(meta.pagina || 1)}>
+            <RefreshCw size={14}/> Actualizar
+          </button>
+        </div>
       </div>
 
-      {/* Stats */}
+      <div className="card" style={{ padding: 18, marginBottom: 20 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12, marginBottom: 12 }}>
+          <div className="form-group" style={{ gridColumn: 'span 2', minWidth: 0 }}>
+            <label className="form-label">Pesquisa</label>
+            <div className="form-input-wrapper">
+              <Search size={16} />
+              <input
+                className="form-input form-input--icon"
+                placeholder="Referência, utilizador, curso ou ID"
+                value={filtros.pesquisa}
+                onChange={(e) => actualizarFiltro('pesquisa', e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') aplicarFiltros(); }}
+              />
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Estado</label>
+            <select className="form-select" value={filtros.status} onChange={(e) => actualizarFiltro('status', e.target.value)}>
+              <option value="">Todos</option>
+              <option value="pendente">Pendente</option>
+              <option value="confirmado">Confirmado</option>
+              <option value="rejeitado">Rejeitado</option>
+              <option value="reembolsado">Reembolsado</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Método</label>
+            <select className="form-select" value={filtros.metodo} onChange={(e) => actualizarFiltro('metodo', e.target.value)}>
+              <option value="">Todos</option>
+              <option value="transferencia">Transferência</option>
+              <option value="referencia">Referência</option>
+              <option value="multibanco">Multibanco</option>
+              <option value="dinheiro">Dinheiro</option>
+              <option value="outro">Outro</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Curso</label>
+            <select className="form-select" value={filtros.curso_id} onChange={(e) => actualizarFiltro('curso_id', e.target.value)}>
+              <option value="">Todos</option>
+              {cursos.map((curso) => (
+                <option key={curso.id} value={curso.id}>{curso.nome}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Comprovativo</label>
+            <select className="form-select" value={filtros.comprovativo} onChange={(e) => actualizarFiltro('comprovativo', e.target.value)}>
+              <option value="">Todos</option>
+              <option value="com">Com comprovativo</option>
+              <option value="sem">Sem comprovativo</option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Data inicial</label>
+            <input type="date" className="form-input" value={filtros.data_inicio} onChange={(e) => actualizarFiltro('data_inicio', e.target.value)} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Data final</label>
+            <input type="date" className="form-input" value={filtros.data_fim} onChange={(e) => actualizarFiltro('data_fim', e.target.value)} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Valor mínimo</label>
+            <input type="number" min="0" step="0.01" className="form-input" value={filtros.valor_min} onChange={(e) => actualizarFiltro('valor_min', e.target.value)} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Valor máximo</label>
+            <input type="number" min="0" step="0.01" className="form-input" value={filtros.valor_max} onChange={(e) => actualizarFiltro('valor_max', e.target.value)} />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Itens por página</label>
+            <select className="form-select" value={filtros.limite} onChange={(e) => actualizarFiltro('limite', Number(e.target.value))}>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <button className="btn btn--primary btn--sm" onClick={aplicarFiltros}>
+            Filtrar
+          </button>
+          <button className="btn btn--secondary btn--sm" onClick={limparFiltros}>
+            Limpar
+          </button>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', marginBottom: 14, flexWrap: 'wrap' }}>
+        <div style={{ fontSize: '0.85rem', color: 'var(--txt-3)' }}>
+          {totalRegistos > 0 ? `A mostrar ${indiceInicial}-${indiceFinal} de ${totalRegistos} pagamentos` : 'Nenhum pagamento encontrado'}
+        </div>
+      </div>
+
       <div className="stats-grid" style={{ marginBottom: 20 }}>
         <div className="card" style={{ padding: '20px 24px' }}>
           <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800, marginBottom: 4 }}>{formatAOA(totalReceita)}</div>
@@ -1240,11 +1441,11 @@ function Pagamentos() {
           <div style={{ fontSize: '0.8rem', color: 'var(--txt-3)' }}>Aguardam Validação</div>
         </div>
         <div className="card" style={{ padding: '20px 24px' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800, marginBottom: 4 }}>{pagamentos.length}</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800, marginBottom: 4 }}>{totalRegistos}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--txt-3)' }}>Total de Transações</div>
         </div>
         <div className="card" style={{ padding: '20px 24px' }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800, marginBottom: 4, color: 'var(--verde)' }}>{pagamentos.filter(p => p.status==='confirmado').length}</div>
+          <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800, marginBottom: 4, color: 'var(--verde)' }}>{resumo.confirmados}</div>
           <div style={{ fontSize: '0.8rem', color: 'var(--txt-3)' }}>Confirmados</div>
         </div>
       </div>
@@ -1253,23 +1454,24 @@ function Pagamentos() {
         <div className="table-container">
           <table>
             <thead>
-              <tr><th>Referência</th><th>Utilizador</th><th>Tipo</th><th>Valor</th><th>Estado</th><th>Data</th><th>Acções</th></tr>
+              <tr><th>Referência</th><th>Utilizador</th><th>Curso</th><th>Método</th><th>Valor</th><th>Estado</th><th>Data</th><th>Acções</th></tr>
             </thead>
             <tbody>
               {pagamentos.length === 0 ? (
-                <tr><td colSpan={7} style={{ textAlign:'center', padding:32, color:'var(--txt-3)' }}>Nenhum pagamento encontrado</td></tr>
-              ) : pagamentos.map(p => (
+                <tr><td colSpan={8} style={{ textAlign:'center', padding:32, color:'var(--txt-3)' }}>Nenhum pagamento encontrado</td></tr>
+              ) : pagamentos.map((p) => (
                 <tr key={p.id}>
                   <td style={{ fontWeight:600, color:'var(--txt-3)', fontSize:'0.8rem' }}>{p.referencia || `PAG-${p.id}`}</td>
                   <td style={{ fontWeight:500 }}>{p.nome_utilizador || p.user_nome || '—'}</td>
-                  <td style={{ color:'var(--txt-3)', fontSize:'0.85rem' }}>{p.tipo || '—'}</td>
+                  <td style={{ color:'var(--txt-3)', fontSize:'0.85rem' }}>{p.nome_curso || '—'}</td>
+                  <td style={{ color:'var(--txt-3)', fontSize:'0.85rem', textTransform: 'capitalize' }}>{p.metodo || '—'}</td>
                   <td style={{ fontWeight:700 }}>{formatAOA(p.valor)}</td>
                   <td><BadgeStatus status={p.status} /></td>
                   <td style={{ color:'var(--txt-3)', fontSize:'0.8rem' }}>{formatData(p.criado_em || p.data)}</td>
                   <td>
                     <div style={{ display:'flex', gap:4 }}>
                       {p.comprovativo_url && (
-                        <a href={p.comprovativo_url} target="_blank" rel="noreferrer" className="btn btn--secondary btn--sm" title="Ver comprovativo">
+                        <a href={`${BACKEND_BASE_URL}${p.comprovativo_url}`} target="_blank" rel="noreferrer" className="btn btn--secondary btn--sm" title="Ver comprovativo">
                           <Eye size={13}/>
                         </a>
                       )}
@@ -1287,11 +1489,36 @@ function Pagamentos() {
         </div>
       )}
 
+      {meta.totalPaginas > 1 && (
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, marginTop: 16, flexWrap: 'wrap' }}>
+          <div style={{ fontSize: '0.82rem', color: 'var(--txt-3)' }}>
+            Página {meta.pagina} de {meta.totalPaginas}
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn--secondary btn--sm" disabled={meta.pagina <= 1} onClick={() => setPagina((anterior) => Math.max(1, anterior - 1))}>
+              Anterior
+            </button>
+            {paginasVisiveis.map((numero) => (
+              <button
+                key={numero}
+                className={`btn btn--sm ${numero === meta.pagina ? 'btn--primary' : 'btn--secondary'}`}
+                onClick={() => setPagina(numero)}
+              >
+                {numero}
+              </button>
+            ))}
+            <button className="btn btn--secondary btn--sm" disabled={meta.pagina >= meta.totalPaginas} onClick={() => setPagina((anterior) => Math.min(meta.totalPaginas, anterior + 1))}>
+              Seguinte
+            </button>
+          </div>
+        </div>
+      )}
+
       <Modal aberto={!!modalPag} onFechar={() => setModalPag(null)} titulo={`Validar Pagamento`}>
         <div style={{ background: 'var(--bg-input)', borderRadius: 'var(--r-md)', padding: 14, marginBottom: 16 }}>
           <p style={{ fontWeight:600 }}>{modalPag?.nome_utilizador || '—'}</p>
           <p style={{ fontSize:'0.85rem', color:'var(--txt-3)', marginTop:4 }}>
-            {formatAOA(modalPag?.valor)} · {modalPag?.tipo || 'Pagamento'}
+            {formatAOA(modalPag?.valor)} · {modalPag?.metodo || 'Pagamento'}
           </p>
         </div>
         <button className="btn btn--primary btn--full" style={{ marginBottom:8 }} onClick={() => validar(modalPag.id, true)}>
@@ -1308,17 +1535,15 @@ function Pagamentos() {
     </div>
   );
 }
-
-// ════════════════════════════════════════════════════════════
-// SECÇÕES SIMPLES
-// ════════════════════════════════════════════════════════════
+// SECÃ‡Ã•ES SIMPLES
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function Contratos() {
-  return <SecaoSimples icone={<FileText/>} titulo="Contratos" desc="Gestão de contratos digitais"/>;
+  return <SecaoSimples icone={<FileText/>} titulo="Contratos" desc="GestÃ£o de contratos digitais"/>;
 }
 
-// ════════════════════════════════════════════════════════════
-// VAGAS DE EMPRESAS — Aprovação/Rejeição
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// VAGAS DE EMPRESAS â€” AprovaÃ§Ã£o/RejeiÃ§Ã£o
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function VagasEmpresa() {
   const toast = useToast();
   const [vagas,      setVagas]      = useState([]);
@@ -1347,7 +1572,7 @@ function VagasEmpresa() {
   const aprovar = async (id, titulo) => {
     const ok = await toast.confirmar({
       titulo: 'Aprovar vaga',
-      mensagem: `Aprovar a vaga "${titulo}"? Ficará visível publicamente.`,
+      mensagem: `Aprovar a vaga "${titulo}"? FicarÃ¡ visÃ­vel publicamente.`,
       labelOk: 'Aprovar',
     });
     if (!ok) return;
@@ -1364,7 +1589,7 @@ function VagasEmpresa() {
   };
 
   const confirmarRejeicao = async () => {
-    if (!motivoRej.trim()) return toast.aviso('Indique o motivo de rejeição.');
+    if (!motivoRej.trim()) return toast.aviso('Indique o motivo de rejeiÃ§Ã£o.');
     setEnviando(true);
     try {
       await adminAPI.rejeitarVaga(modalRej.id, { motivo: motivoRej });
@@ -1437,14 +1662,14 @@ function VagasEmpresa() {
                       </span>
                     </div>
                     <div style={{ fontSize: '0.82rem', color: 'var(--txt-3)', marginBottom: 8 }}>
-                      🏢 {v.nome_empresa} · 📋 {v.tipo} {v.localizacao ? `· 📍 ${v.localizacao}` : ''}
+                      ðŸ¢ {v.nome_empresa} Â· ðŸ“‹ {v.tipo} {v.localizacao ? `Â· ðŸ“ ${v.localizacao}` : ''}
                     </div>
                     <p style={{ fontSize: '0.83rem', color: 'var(--txt-2)', lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {v.descricao}
                     </p>
                     {v.motivo_rejeicao && (
                       <p style={{ fontSize: '0.78rem', color: '#991B1B', marginTop: 6, background: 'var(--vermelho-100)', padding: '6px 10px', borderRadius: 'var(--r-sm)' }}>
-                        ⚠️ {v.motivo_rejeicao}
+                        âš ï¸ {v.motivo_rejeicao}
                       </p>
                     )}
                   </div>
@@ -1466,7 +1691,7 @@ function VagasEmpresa() {
         </div>
       )}
 
-      {/* Modal: motivo de rejeição */}
+      {/* Modal: motivo de rejeiÃ§Ã£o */}
       <Modal aberto={!!modalRej} onFechar={() => setModalRej(null)} titulo="Rejeitar Vaga"
         acoes={<>
           <button className="btn btn--secondary" onClick={() => setModalRej(null)}>Cancelar</button>
@@ -1479,12 +1704,12 @@ function VagasEmpresa() {
           <>
             <p style={{ marginBottom: 12, color: 'var(--txt-2)', fontSize: '0.875rem' }}>
               Vai rejeitar a vaga <strong>"{modalRej.titulo}"</strong> da empresa <strong>{modalRej.nome_empresa}</strong>.
-              A empresa será notificada com o motivo.
+              A empresa serÃ¡ notificada com o motivo.
             </p>
             <div className="form-group">
-              <label className="form-label">Motivo de rejeição *</label>
+              <label className="form-label">Motivo de rejeiÃ§Ã£o *</label>
               <textarea className="form-textarea" rows={3}
-                placeholder="Ex: Conteúdo inapropriado, informação incompleta, duplicado..."
+                placeholder="Ex: ConteÃºdo inapropriado, informaÃ§Ã£o incompleta, duplicado..."
                 value={motivoRej} onChange={e => setMotivoRej(e.target.value)}
                 style={{ minHeight: 80 }}/>
             </div>
@@ -1496,7 +1721,7 @@ function VagasEmpresa() {
 }
 
 function Ficheiros() {
-  return <SecaoSimples icone={<Folder/>} titulo="Ficheiros" desc="Gestão de ficheiros do sistema"/>;
+  return <SecaoSimples icone={<Folder/>} titulo="Ficheiros" desc="GestÃ£o de ficheiros do sistema"/>;
 }
 function NotificacoesReal({ setNotifCount }) {
   const toast = useToast();
@@ -1514,7 +1739,7 @@ function NotificacoesReal({ setNotifCount }) {
         ? dados.nao_lidas
         : lista.filter((item) => !item.lida).length);
     } catch (e) {
-      toast.erro('Erro ao carregar notificações: ' + extrairErro(e));
+      toast.erro('Erro ao carregar notificaÃ§Ãµes: ' + extrairErro(e));
     } finally {
       setCarregando(false);
     }
@@ -1540,7 +1765,7 @@ function NotificacoesReal({ setNotifCount }) {
       await adminAPI.marcarTodas();
       setNotificacoes((lista) => lista.map((item) => ({ ...item, lida: 1 })));
       setNotifCount?.(0);
-      toast.sucesso('Notificações marcadas como lidas.');
+      toast.sucesso('NotificaÃ§Ãµes marcadas como lidas.');
     } catch (e) {
       toast.erro(extrairErro(e));
     }
@@ -1550,7 +1775,7 @@ function NotificacoesReal({ setNotifCount }) {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-header__title">Notificações</h1>
+          <h1 className="page-header__title">NotificaÃ§Ãµes</h1>
           <p className="page-header__sub">Alertas internos do painel administrativo</p>
         </div>
         <div className="page-header__actions">
@@ -1566,7 +1791,7 @@ function NotificacoesReal({ setNotifCount }) {
       {carregando ? <PageLoader /> : notificacoes.length === 0 ? (
         <div className="card" style={{ padding: 32, textAlign: 'center', color: 'var(--txt-3)' }}>
           <Bell size={48} style={{ margin: '0 auto 16px', opacity: 0.3 }} />
-          <p>Sem notificações disponíveis.</p>
+          <p>Sem notificaÃ§Ãµes disponÃ­veis.</p>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1621,7 +1846,7 @@ function ContratosReal() {
       <div className="page-header">
         <div>
           <h1 className="page-header__title">Contratos</h1>
-          <p className="page-header__sub">Acompanhar contratos gerados no módulo de investimentos</p>
+          <p className="page-header__sub">Acompanhar contratos gerados no mÃ³dulo de investimentos</p>
         </div>
         <button className="btn btn--secondary btn--sm" onClick={carregar}>
           <RefreshCw size={14}/> Actualizar
@@ -1629,13 +1854,13 @@ function ContratosReal() {
       </div>
 
       {carregando ? <PageLoader /> : contratos.length === 0 ? (
-        <EmptyState icone={<FileText size={28}/>} titulo="Sem contratos" descricao="Os contratos gerados aparecerão aqui."/>
+        <EmptyState icone={<FileText size={28}/>} titulo="Sem contratos" descricao="Os contratos gerados aparecerÃ£o aqui."/>
       ) : (
         <div className="table-container">
           <table>
             <thead>
               <tr>
-                <th>Título</th>
+                <th>TÃ­tulo</th>
                 <th>Empresa</th>
                 <th>Investidor</th>
                 <th>Estado</th>
@@ -1647,11 +1872,11 @@ function ContratosReal() {
               {contratos.map((c) => (
                 <tr key={c.id}>
                   <td style={{ fontWeight: 600 }}>{c.titulo || c.oportunidade_titulo || 'Contrato de investimento'}</td>
-                  <td>{c.nome_empresa || '—'}</td>
-                  <td>{c.investidor_nome || '—'}</td>
+                  <td>{c.nome_empresa || 'â€”'}</td>
+                  <td>{c.investidor_nome || 'â€”'}</td>
                   <td><BadgeStatus status={c.status} /></td>
                   <td style={{ fontSize: '0.82rem', color: 'var(--txt-3)' }}>
-                    Empresa: {c.assinado_empresa ? 'Sim' : 'Não'} | Investidor: {c.assinado_investidor ? 'Sim' : 'Não'}
+                    Empresa: {c.assinado_empresa ? 'Sim' : 'NÃ£o'} | Investidor: {c.assinado_investidor ? 'Sim' : 'NÃ£o'}
                   </td>
                   <td style={{ color: 'var(--txt-3)', fontSize: '0.82rem' }}>{formatData(c.criado_em || c.created_at)}</td>
                 </tr>
@@ -1678,19 +1903,19 @@ function Seguranca() {
 
   return (
     <div>
-      <div className="page-header"><h1 className="page-header__title">Segurança & Auditoria</h1></div>
+      <div className="page-header"><h1 className="page-header__title">SeguranÃ§a & Auditoria</h1></div>
       {carregando ? <PageLoader /> : (
         <div className="table-container">
           <table>
-            <thead><tr><th>Acção</th><th>Utilizador</th><th>IP</th><th>Data</th></tr></thead>
+            <thead><tr><th>AcÃ§Ã£o</th><th>Utilizador</th><th>IP</th><th>Data</th></tr></thead>
             <tbody>
               {logs.length === 0 ? (
                 <tr><td colSpan={4} style={{ textAlign:'center', padding:32, color:'var(--txt-3)' }}>Sem registos</td></tr>
               ) : logs.map((l, i) => (
                 <tr key={i}>
                   <td style={{ fontSize:'0.85rem' }}>{l.acao}</td>
-                  <td style={{ color:'var(--txt-3)', fontSize:'0.85rem' }}>{l.user_nome || l.actor || '—'}</td>
-                  <td style={{ color:'var(--txt-4)', fontSize:'0.8rem' }}>{l.ip_address || '—'}</td>
+                  <td style={{ color:'var(--txt-3)', fontSize:'0.85rem' }}>{l.user_nome || l.actor || 'â€”'}</td>
+                  <td style={{ color:'var(--txt-4)', fontSize:'0.8rem' }}>{l.ip_address || 'â€”'}</td>
                   <td style={{ color:'var(--txt-3)', fontSize:'0.8rem' }}>{formatData(l.criado_em)}</td>
                 </tr>
               ))}
@@ -1702,9 +1927,9 @@ function Seguranca() {
   );
 }
 
-// ════════════════════════════════════════════════════════════
-// CONFIGURAÇÕES
-// ════════════════════════════════════════════════════════════
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// CONFIGURAÃ‡Ã•ES
+// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 function Configuracoes() {
   const toast  = useToast();
   const { utilizador } = useAuth();
@@ -1741,15 +1966,15 @@ function Configuracoes() {
     setGuardando(true);
     try {
       await adminAPI.salvarConfigs(configs);
-      toast.sucesso('Configurações guardadas!');
+      toast.sucesso('ConfiguraÃ§Ãµes guardadas!');
     } catch (e) { toast.erro(extrairErro(e)); }
     finally { setGuardando(false); }
   };
 
   const alterarSenha = async () => {
     if (!senhaActual) return toast.aviso('Introduza a palavra-passe actual');
-    if (novaSenha.length < 8) return toast.aviso('Nova senha deve ter mínimo 8 caracteres');
-    if (novaSenha !== confirmarSenha) return toast.aviso('As senhas não coincidem');
+    if (novaSenha.length < 8) return toast.aviso('Nova senha deve ter mÃ­nimo 8 caracteres');
+    if (novaSenha !== confirmarSenha) return toast.aviso('As senhas nÃ£o coincidem');
     setMudandoSenha(true);
     try {
       await authAPI.alterarSenha({ password_atual: senhaActual, nova_password: novaSenha });
@@ -1766,19 +1991,19 @@ function Configuracoes() {
   return (
     <div>
       <div className="page-header">
-        <div><h1 className="page-header__title">Configurações</h1><p className="page-header__sub">Configurações gerais do sistema</p></div>
+        <div><h1 className="page-header__title">ConfiguraÃ§Ãµes</h1><p className="page-header__sub">ConfiguraÃ§Ãµes gerais do sistema</p></div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, alignItems: 'start' }}>
-        {/* Coluna Esquerda - Configurações */}
+        {/* Coluna Esquerda - ConfiguraÃ§Ãµes */}
         <div style={{ maxWidth: 640 }}>
-          {/* Informações da plataforma */}
+          {/* InformaÃ§Ãµes da plataforma */}
           <div className="card" style={{ padding: 24, marginBottom: 16 }}>
             <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
               <div style={{ width:36, height:36, borderRadius:'var(--r-full)', background:'var(--ciano-100)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                 <Settings size={18} color="var(--ciano)"/>
               </div>
-              <div><p style={{ fontWeight:700 }}>Informações da Plataforma</p><p style={{ fontSize:'0.78rem', color:'var(--txt-3)' }}>Dados do sistema</p></div>
+              <div><p style={{ fontWeight:700 }}>InformaÃ§Ãµes da Plataforma</p><p style={{ fontSize:'0.78rem', color:'var(--txt-3)' }}>Dados do sistema</p></div>
             </div>
             <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
           <div className="form-group">
@@ -1799,39 +2024,39 @@ function Configuracoes() {
           </div>
         </div>
         <button className={`btn btn--primary btn--sm${guardando?' btn--loading':''}`} style={{ marginTop:14 }} onClick={guardar} disabled={guardando}>
-          {!guardando && <><Save size={14}/> Guardar Alterações</>}
+          {!guardando && <><Save size={14}/> Guardar AlteraÃ§Ãµes</>}
         </button>
       </div>
 
-      {/* Notificações */}
+      {/* NotificaÃ§Ãµes */}
       <div className="card" style={{ padding:24, marginBottom:16 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
           <div style={{ width:36, height:36, borderRadius:'var(--r-full)', background:'var(--amarelo-100)', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <Bell size={18} color="var(--amarelo)"/>
           </div>
-          <div><p style={{ fontWeight:700 }}>Notificações</p><p style={{ fontSize:'0.78rem', color:'var(--txt-3)' }}>Configurar alertas do sistema</p></div>
+          <div><p style={{ fontWeight:700 }}>NotificaÃ§Ãµes</p><p style={{ fontSize:'0.78rem', color:'var(--txt-3)' }}>Configurar alertas do sistema</p></div>
         </div>
         {[
-          { k:'notifInscricoes', l:'Notificar novas inscrições',    d:'Alerta quando aluno se inscreve' },
-          { k:'notifEmpresas',   l:'Notificar novas empresas',      d:'Alerta quando empresa solicita aprovação' },
+          { k:'notifInscricoes', l:'Notificar novas inscriÃ§Ãµes',    d:'Alerta quando aluno se inscreve' },
+          { k:'notifEmpresas',   l:'Notificar novas empresas',      d:'Alerta quando empresa solicita aprovaÃ§Ã£o' },
           { k:'notifInvestidores',l:'Notificar investimentos',      d:'Alerta quando investidor demonstra interesse' },
-          { k:'notifEmail',      l:'Notificações por e-mail',       d:'Enviar também por email' },
-          { k:'notifWhatsapp',   l:'Notificações por WhatsApp',     d:'Enviar via WhatsApp' },
+          { k:'notifEmail',      l:'NotificaÃ§Ãµes por e-mail',       d:'Enviar tambÃ©m por email' },
+          { k:'notifWhatsapp',   l:'NotificaÃ§Ãµes por WhatsApp',     d:'Enviar via WhatsApp' },
         ].map(({k,l,d}) => <ToggleRow key={k} label={l} desc={d} activo={configs[k]} onChange={()=>toggle(k)} />)}
       </div>
 
-      {/* Segurança */}
+      {/* SeguranÃ§a */}
       <div className="card" style={{ padding:24 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:20 }}>
           <div style={{ width:36, height:36, borderRadius:'var(--r-full)', background:'var(--verde-100)', display:'flex', alignItems:'center', justifyContent:'center' }}>
             <Shield size={18} color="var(--verde)"/>
           </div>
-          <div><p style={{ fontWeight:700 }}>Segurança</p><p style={{ fontSize:'0.78rem', color:'var(--txt-3)' }}>Configurações de segurança</p></div>
+          <div><p style={{ fontWeight:700 }}>SeguranÃ§a</p><p style={{ fontSize:'0.78rem', color:'var(--txt-3)' }}>ConfiguraÃ§Ãµes de seguranÃ§a</p></div>
         </div>
         {[
-          { k:'autenticacao2FA',      l:'Autenticação de dois factores', d:'Exigir 2FA para administradores' },
-          { k:'bloqueioInstrumentos', l:'Bloqueio de instrumentos',      d:'Bloquear após 5 tentativas falhadas' },
-          { k:'registosAuditoria',    l:'Registos de auditoria',         d:'Registar todas as acções administrativas' },
+          { k:'autenticacao2FA',      l:'AutenticaÃ§Ã£o de dois factores', d:'Exigir 2FA para administradores' },
+          { k:'bloqueioInstrumentos', l:'Bloqueio de instrumentos',      d:'Bloquear apÃ³s 5 tentativas falhadas' },
+          { k:'registosAuditoria',    l:'Registos de auditoria',         d:'Registar todas as acÃ§Ãµes administrativas' },
         ].map(({k,l,d}) => <ToggleRow key={k} label={l} desc={d} activo={configs[k]} onChange={()=>toggle(k)} />)}
 
         {/* Alterar senha */}
@@ -1840,11 +2065,11 @@ function Configuracoes() {
           <div style={{ display:'grid', gridTemplateColumns:'1fr', gap:12, marginBottom:12 }}>
             <div className="form-group">
               <label className="form-label">Palavra-passe actual</label>
-              <input type="password" className="form-input" value={senhaActual} onChange={e=>setSenhaActual(e.target.value)} placeholder="••••••••" />
+              <input type="password" className="form-input" value={senhaActual} onChange={e=>setSenhaActual(e.target.value)} placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢" />
             </div>
             <div className="form-group">
               <label className="form-label">Nova palavra-passe</label>
-              <input type="password" className="form-input" value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} placeholder="Mínimo 8 caracteres" />
+              <input type="password" className="form-input" value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} placeholder="MÃ­nimo 8 caracteres" />
             </div>
             <div className="form-group">
               <label className="form-label">Confirmar nova palavra-passe</label>
@@ -1858,7 +2083,7 @@ function Configuracoes() {
         </div>
         </div>
 
-        {/* Coluna Direita - Coordenadas Bancárias */}
+        {/* Coluna Direita - Coordenadas BancÃ¡rias */}
         <div>
           <GestaoCoordenadasBancarias />
         </div>
@@ -1901,3 +2126,6 @@ function SecaoSimples({ icone, titulo, desc }) {
     </div>
   );
 }
+
+
+

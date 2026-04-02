@@ -5,7 +5,7 @@
  * de formação profissional, incluindo cadastro, edição, associação de cursos
  * e definição de ofertas específicas (preços, carga horária, etc.).
  * 
- * @author ULEZI XPB Team
+ * @author AsdrubaDeveloper
  * @version 1.0.0
  */
 

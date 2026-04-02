@@ -10,12 +10,13 @@ const {
   adminListJobs, approveJob, rejectJob,
 } = require('../controllers/jobs.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
+const { requireActiveSubscription, requireApprovedCompany, requirePrivilege } = require('../middlewares/subscription.middleware');
 
 // Rotas empresa
-router.get('/minhas/vagas', authenticate, authorize('company'), listMyJobs);
-router.post('/',             authenticate, authorize('company'), createJob);
-router.put('/:id',           authenticate, authorize('company'), updateJob);
-router.delete('/:id',        authenticate, authorize('company'), deleteJob);
+router.get('/minhas/vagas', authenticate, authorize('company'), requireActiveSubscription, listMyJobs);
+router.post('/',             authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, requirePrivilege('vagas'), createJob);
+router.put('/:id',           authenticate, authorize('company'), requireActiveSubscription, updateJob);
+router.delete('/:id',        authenticate, authorize('company'), requireActiveSubscription, deleteJob);
 
 // Rotas admin
 router.get('/admin/todas',        authenticate, authorize('admin','employee'), adminListJobs);
