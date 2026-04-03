@@ -6,7 +6,7 @@
 const { pool } = require('../config/database');
 const { success, error, notFound, badRequest } = require('../utils/response');
 const { log } = require('../utils/audit');
-const { generateSubscriptionReceiptBuffer } = require('../services/pdf.service');
+const { generateSubscriptionReceiptBuffer } = require('../services/pdf-company-modern');
 const {
   sendSubscriptionApprovalEmail,
   sendSubscriptionRejectionEmail,

@@ -5,7 +5,7 @@
 const path = require('path');
 const { pool } = require('../config/database');
 const { success, created, error, notFound, badRequest } = require('../utils/response');
-const { gerarReciboPDF } = require('../utils/pdf');
+const { gerarReciboPDF } = require('../utils/pdf-modern');
 const { sendEnrollmentConfirmation } = require('../utils/email');
 const { sendWhatsApp } = require('../utils/whatsapp');
 const { createNotification } = require('../services/notification.service');

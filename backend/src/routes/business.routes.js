@@ -98,7 +98,7 @@ module.exports = router;
 // ── Dashboard empresa (/api/empresa/*) ────────────────────────────────────────
 const {
   getEmpresaPerfil, getEmpresaStats, getEmpresaOportunidades,
-  getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaOpportunityInterests,
+  getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaContratos, getEmpresaOpportunityInterests,
 } = require('../controllers/business.controller');
 const {
   listActivePackages
@@ -113,6 +113,7 @@ router.get('/empresa/perfil',        authenticate, authorize('company'), getEmpr
 router.get('/empresa/stats',         authenticate, authorize('company'), requireActiveSubscription, getEmpresaStats);
 router.get('/empresa/oportunidades', authenticate, authorize('company'), requireActiveSubscription, getEmpresaOportunidades);
 router.get('/empresa/oportunidades/:id/interessados', authenticate, authorize('company'), requireActiveSubscription, getEmpresaOpportunityInterests);
+router.get('/empresa/contratos',     authenticate, authorize('company'), getEmpresaContratos);
 router.get('/empresa/documentos',    authenticate, authorize('company'), getEmpresaDocumentos);
 router.post('/empresa/documentos',   authenticate, authorize('company'), uploadDoc.single('documento'), uploadDocument);
 router.get('/empresa/assinatura',    authenticate, authorize('company'), getEmpresaAssinatura);

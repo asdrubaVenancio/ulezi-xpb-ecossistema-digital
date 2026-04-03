@@ -70,6 +70,7 @@ export default function Negocios() {
     setEnviandoInt(true);
     try {
       await negociosAPI.interesse(modalInt.id, {});
+      setOportunidades((actual) => actual.filter((item) => item.id !== modalInt.id));
       setModalInt(null);
       toast.sucesso('Interesse registado. A equipa administrativa fara a mediacao do processo.');
     } catch (e) { toast.erro(extrairErro(e)); }
@@ -131,7 +132,12 @@ export default function Negocios() {
               <OportunidadeCard
                 key={o.id}
                 {...o}
+                podeInteressar={!estaAutenticado || ehInvestidor}
                 onInteresse={() => {
+                  if (estaAutenticado && !ehInvestidor) {
+                    toast.aviso('Apenas investidores podem demonstrar interesse nas oportunidades.');
+                    return;
+                  }
                   setModalInt(o);
                 }}
               />
@@ -193,7 +199,7 @@ export default function Negocios() {
 }
 
 // â”€â”€ Card de oportunidade â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function OportunidadeCard({ tipo_servico, nome_empresa, titulo, descricao, valor_solicitado, valor_pedido, retorno_estimado, verificada, status, onInteresse }) {
+function OportunidadeCard({ tipo_servico, nome_empresa, titulo, descricao, valor_solicitado, valor_pedido, retorno_estimado, verificada, status, podeInteressar, onInteresse }) {
   const labelTipo = TIPO_OPORTUNIDADE[tipo_servico] || tipo_servico || 'â€”';
 
   // Cor por tipo
@@ -256,7 +262,7 @@ function OportunidadeCard({ tipo_servico, nome_empresa, titulo, descricao, valor
         <button
           className="btn btn--laranja btn--sm"
           onClick={onInteresse}
-          disabled={status && !['ativa', 'publicada', 'em_analise'].includes(status)}
+          disabled={!podeInteressar || (status && !['ativa', 'publicada', 'em_analise'].includes(status))}
         >
           Analisar <ArrowRight size={13} />
         </button>

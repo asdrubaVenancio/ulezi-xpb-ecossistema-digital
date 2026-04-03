@@ -3,7 +3,7 @@
  */
 const { pool } = require('../config/database');
 const { success, created, error, notFound, badRequest } = require('../utils/response');
-const { gerarContratoPDF } = require('../utils/pdf');
+const { gerarContratoPDF } = require('../utils/pdf-modern');
 const {
   sendContractEmail,
   sendInvestorInterestNotification,
@@ -208,7 +208,13 @@ const listOpportunities = async (req, res) => {
                  FROM investment_opportunities io
                  LEFT JOIN company_profiles cp ON cp.id=io.company_id
                  LEFT JOIN users u ON u.id=cp.user_id
-                 WHERE io.status="ativa" AND cp.is_approved=1`;
+                 WHERE io.status="ativa" AND cp.is_approved=1
+                   AND NOT EXISTS (
+                     SELECT 1
+                     FROM investor_interests ii
+                     WHERE ii.opportunity_id = io.id
+                       AND ii.status NOT IN ('cancelado', 'rejeitado')
+                   )`;
     const params = [];
 
     if (tipo) { query += ' AND io.tipo=?'; params.push(tipo); }
@@ -331,6 +337,20 @@ const expressInterest = async (req, res) => {
     }
 
     // Verificar se jÃ¡ demonstrou interesse
+    const [activeProcess] = await connection.execute(
+      `SELECT id
+       FROM investor_interests
+       WHERE opportunity_id = ?
+         AND status NOT IN ('cancelado', 'rejeitado')
+       LIMIT 1`,
+      [opportunityId]
+    );
+
+    if (activeProcess.length) {
+      await connection.rollback();
+      return badRequest(res, 'Esta oportunidade jÃƒÂ¡ estÃ¡ em processo de mediaÃ§Ã£o e estÃ¡ temporariamente indisponÃ­vel.');
+    }
+
     const [existing] = await connection.execute(
       'SELECT id FROM investor_interests WHERE investor_id=? AND opportunity_id=?',
       [investorId, opportunityId]
@@ -925,10 +945,39 @@ const getEmpresaAssinatura = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/empresa/contratos
+ * Lista contratos da empresa autenticada
+ */
+const getEmpresaContratos = async (req, res) => {
+  try {
+    const [[cp]] = await pool.execute(
+      'SELECT id FROM company_profiles WHERE user_id = ?',
+      [req.user.id]
+    );
+    if (!cp) return success(res, { contratos: [] });
+
+    const [rows] = await pool.execute(
+      `SELECT c.*, io.titulo as oportunidade_titulo,
+              u.nome as nome_investidor
+       FROM contracts c
+       LEFT JOIN investment_opportunities io ON io.id = c.opportunity_id
+       LEFT JOIN users u ON u.id = c.investor_id
+       WHERE c.company_id = ?
+       ORDER BY c.created_at DESC`,
+      [cp.id]
+    );
+
+    return success(res, { contratos: rows });
+  } catch (err) {
+    return error(res, 'Erro ao listar contratos.', 500);
+  }
+};
+
 // Adicionar ao exports existentes
 Object.assign(module.exports, {
   getEmpresaPerfil, getEmpresaStats, getEmpresaOportunidades,
-  getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaOpportunityInterests,
+  getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaContratos, getEmpresaOpportunityInterests,
 });
 
 // â”€â”€ Dashboard de Investidor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

@@ -203,6 +203,7 @@ export const empresaAPI = {
   perfil:       ()    => api.get('/empresa/perfil'),
   stats:        ()    => api.get('/empresa/stats'),
   oportunidades:()    => api.get('/empresa/oportunidades'),
+  contratos:    ()    => api.get('/empresa/contratos'),
   criarOportunidade:(d)=> api.post('/oportunidades', d),
   interessados: (id)  => api.get(`/empresa/oportunidades/${id}/interessados`),
   documentos:   ()    => api.get('/empresa/documentos'),

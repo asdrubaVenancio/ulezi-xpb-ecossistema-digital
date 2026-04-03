@@ -179,8 +179,14 @@ const GestaoMediacaoV2 = () => {
     if (!detalhe?.mediacao?.id || !detalhe?.permissoes?.pode_gerir) return;
     setASalvarReuniao(true);
     try {
-      await api.post(`/admin/mediations/${detalhe.mediacao.id}/meetings`, formAgendamento);
-      toast.success(formAgendamento.meeting_id ? 'Reuniao reagendada com sucesso.' : 'Reuniao agendada com sucesso.');
+      const { data } = await api.post(`/admin/mediations/${detalhe.mediacao.id}/meetings`, formAgendamento);
+      const dados = data?.dados || data?.data || {};
+      const avisosEmail = dados.avisos_email || [];
+      if (avisosEmail.length) {
+        toast.error(avisosEmail.join(' '));
+      } else {
+        toast.success(dados.message || (formAgendamento.meeting_id ? 'Reuniao reagendada com sucesso.' : 'Reuniao agendada com sucesso.'));
+      }
       setFormAgendamento(formAgendamentoInicial);
       await abrirDetalhe(detalhe.mediacao.id);
       await carregar();
@@ -301,7 +307,11 @@ const GestaoMediacaoV2 = () => {
         {detalhe?.mediacao ? (
           <ModalBloco
             titulo={detalhe.mediacao.titulo_oportunidade}
-            subtitulo="So o administrador e o mediador indicado podem gerir este processo. A reuniao deve ser definida manualmente pelo responsavel da mediacao."
+            subtitulo={
+              detalhe.permissoes?.somente_leitura
+                ? 'Este processo foi encerrado e a modal permanece apenas para consulta informativa.'
+                : 'So o administrador e o mediador indicado podem gerir este processo. A reuniao deve ser definida manualmente pelo responsavel da mediacao.'
+            }
           >
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 }}>
               <Painel style={{ padding: 14, background: 'var(--bg-2)' }}>
@@ -570,7 +580,7 @@ const GestaoMediacaoV2 = () => {
                 </button>
               </div>
             ) : (
-              <LinhaVazia titulo="Acesso apenas de leitura" descricao="So o administrador e o mediador indicado podem alterar este processo." />
+              <LinhaVazia titulo="Processo apenas para consulta" descricao="Esta mediação foi encerrada e não permite novas alterações." />
             )}
           </ModalBloco>
         ) : null}

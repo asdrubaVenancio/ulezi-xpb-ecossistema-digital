@@ -1,6 +1,6 @@
 /**
- * Controller de MediaÃ§Ã£o de NegÃ³cios
- * MÃ³dulo 7 - NegÃ³cios e Investimentos
+ * Controller de Mediação de Negócios
+ * 
  * 
  * Gerencia o processo completo de mediaÃ§Ã£o entre investidores e empresas
  */
@@ -8,7 +8,8 @@
 const { pool } = require('../config/database');
 const { success, created, error, notFound, badRequest } = require('../utils/response');
 const { log } = require('../utils/audit');
-const { sendEmail } = require('../utils/email');
+const { sendEmail, sendContractEmail } = require('../utils/email');
+const { gerarContratoPDF } = require('../utils/pdf-modern');
 
 const ensureMediationRuntimeSchema = async () => {
   const allowedTables = new Set(['mediations', 'scheduled_meetings']);
@@ -40,6 +41,10 @@ const canManageMediation = (user, mediation) => (
   user?.role === 'admin' || Number(mediation?.mediator_user_id) === Number(user?.id)
 );
 
+const isClosedMediation = (mediation) => (
+  ['concluida', 'cancelada'].includes(String(mediation?.status || '').toLowerCase())
+);
+
 const sendMeetingStatusEmail = async ({
   to,
   nome,
@@ -64,7 +69,7 @@ const sendMeetingStatusEmail = async ({
           <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">${assunto}</p>
         </div>
         <div style="padding:28px">
-          <p style="color:#374151">OlÃ¡ <strong>${nome || 'utilizador'}</strong>,</p>
+          <p style="color:#374151">Ol&aacute; <strong>${nome || 'utilizador'}</strong>,</p>
           <p style="color:#6B7280;line-height:1.6">${resumo}</p>
           <div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin:18px 0">
             <p style="margin:6px 0;color:#374151"><strong>Processo:</strong> ${titulo}</p>
@@ -78,6 +83,250 @@ const sendMeetingStatusEmail = async ({
       </div>
     `,
   });
+};
+
+const sendMediationClosureEmail = async ({
+  to,
+  nome,
+  titulo,
+  contraparte,
+  resultado,
+  motivo,
+}) => {
+  if (!to) return;
+
+  const houveAcordo = resultado === 'sucesso';
+  const assunto = houveAcordo
+    ? 'Mediação concluída com acordo'
+    : 'Mediação encerrada sem acordo';
+  const resumo = houveAcordo
+    ? 'A mediação foi concluída com sucesso. O contrato foi gerado e está disponível na plataforma.'
+    : `A mediação foi encerrada sem acordo. ${motivo || 'O processo foi arquivado e já não pode ser reaberto automaticamente.'}`;
+
+  return sendEmail({
+    to,
+    subject: assunto,
+    html: `
+      <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
+        <div style="background:${houveAcordo ? '#16A34A' : '#DC2626'};padding:28px;text-align:center">
+          <h1 style="color:#fff;margin:0">ULEZI XPB</h1>
+          <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">${assunto}</p>
+        </div>
+        <div style="padding:28px">
+          <p style="color:#374151">Ol&aacute; <strong>${nome || 'utilizador'}</strong>,</p>
+          <p style="color:#6B7280;line-height:1.6">${resumo}</p>
+          <div style="background:#F8FAFC;border:1px solid #E5E7EB;border-radius:8px;padding:16px;margin:18px 0">
+            <p style="margin:6px 0;color:#374151"><strong>Processo:</strong> ${titulo}</p>
+            <p style="margin:6px 0;color:#374151"><strong>Contraparte:</strong> ${contraparte}</p>
+            <p style="margin:6px 0;color:#374151"><strong>Resultado:</strong> ${houveAcordo ? 'Concluído com sucesso' : 'Encerrado sem acordo'}</p>
+            ${motivo ? `<p style="margin:6px 0;color:#374151"><strong>Observação:</strong> ${motivo}</p>` : ''}
+          </div>
+        </div>
+      </div>
+    `,
+  });
+};
+
+const scheduleMeetingWithEmailStatus = async (req, res) => {
+  try {
+    await ensureMediationRuntimeSchema();
+    const { id } = req.params;
+    const {
+      meeting_id,
+      data_reuniao,
+      hora_inicio,
+      hora_fim,
+      local_reuniao,
+      tipo_reuniao,
+      link_video,
+      objetivo,
+      pauta
+    } = req.body;
+
+    if (!data_reuniao || !hora_inicio || !tipo_reuniao) {
+      return badRequest(res, 'Data, hora e tipo de reuniao sao obrigatorios.');
+    }
+
+    const [mediation] = await pool.execute(
+      `SELECT m.*,
+              u_inv.nome as nome_investidor,
+              u_inv.email as email_investidor,
+              cp.nome_empresa,
+              cp.user_id as company_user_id,
+              io.titulo as titulo_oportunidade,
+              u_emp.email as email_empresa,
+              COALESCE(func.nome, mu.nome) as nome_funcionario
+       FROM mediations m
+       INNER JOIN users u_inv ON u_inv.id = m.investor_id
+       INNER JOIN investor_interests ii ON ii.id = m.interest_id
+       INNER JOIN investment_opportunities io ON io.id = ii.opportunity_id
+       INNER JOIN company_profiles cp ON cp.id = m.company_id
+       INNER JOIN users u_emp ON u_emp.id = cp.user_id
+       LEFT JOIN employees e ON e.id = m.employee_id
+       LEFT JOIN users func ON func.id = e.user_id
+       LEFT JOIN users mu ON mu.id = m.mediator_user_id
+       WHERE m.id = ?`,
+      [id]
+    );
+
+    if (!mediation.length) {
+      return notFound(res, 'Mediacao nao encontrada.');
+    }
+
+    const med = mediation[0];
+
+    if (!canManageMediation(req.user, med)) {
+      return error(res, 'Acesso negado.', 403);
+    }
+
+    if (isClosedMediation(med)) {
+      return badRequest(res, 'Esta mediação já foi encerrada e não pode receber alterações.');
+    }
+
+    let resultId = meeting_id;
+    const isEditing = !!meeting_id;
+
+    if (isEditing) {
+      await pool.execute(
+        `UPDATE scheduled_meetings
+         SET data_reuniao = ?, hora_inicio = ?, hora_fim = ?, local_reuniao = ?,
+             tipo_reuniao = ?, link_video = ?, objetivo = ?, pauta = ?,
+             status = 'reagendada', employee_id = ?, mediator_user_id = ?
+         WHERE id = ? AND mediation_id = ?`,
+        [
+          data_reuniao,
+          hora_inicio,
+          hora_fim || null,
+          local_reuniao || null,
+          tipo_reuniao,
+          link_video || null,
+          objetivo || null,
+          pauta || null,
+          med.employee_id || null,
+          med.mediator_user_id || null,
+          meeting_id,
+          id,
+        ]
+      );
+    } else {
+      const [result] = await pool.execute(
+        `INSERT INTO scheduled_meetings
+         (mediation_id, employee_id, mediator_user_id, company_id, investor_id, data_reuniao, hora_inicio, hora_fim,
+          local_reuniao, tipo_reuniao, link_video, objetivo, pauta)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          id,
+          med.employee_id || null,
+          med.mediator_user_id || null,
+          med.company_id,
+          med.investor_id,
+          data_reuniao,
+          hora_inicio,
+          hora_fim || null,
+          local_reuniao || null,
+          tipo_reuniao,
+          link_video || null,
+          objetivo || null,
+          pauta || null,
+        ]
+      );
+      resultId = result.insertId;
+    }
+
+    await pool.execute(
+      'UPDATE mediations SET status = "agendada", etapa_atual = "reuniao_inicial" WHERE id = ?',
+      [id]
+    );
+
+    const tipoNotificacao = isEditing ? 'reuniao_reagendada' : 'reuniao_agendada';
+    const tituloNotificacao = isEditing ? 'Reuniao de mediacao reagendada' : 'Reuniao de mediacao agendada';
+    const assunto = isEditing ? 'Reuniao de mediacao reagendada' : 'Reuniao de mediacao agendada';
+    const resumoInvestidor = isEditing
+      ? `A reuniao da mediacao com a empresa ${med.nome_empresa} foi reagendada.`
+      : `Foi agendada uma reuniao da mediacao com a empresa ${med.nome_empresa}.`;
+    const resumoEmpresa = isEditing
+      ? `A reuniao da mediacao com o investidor ${med.nome_investidor} foi reagendada.`
+      : `Foi agendada uma reuniao da mediacao com o investidor ${med.nome_investidor}.`;
+
+    await pool.execute(
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+       VALUES (?, ?, ?, CONCAT('Reuniao marcada para ', ?, ' as ', ?, '.'))`,
+      [med.investor_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio]
+    );
+
+    await pool.execute(
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+       VALUES (?, ?, ?, CONCAT('Reuniao marcada para ', ?, ' as ', ?, '.'))`,
+      [med.company_user_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio]
+    );
+
+    const emailResults = await Promise.all([
+      sendMeetingStatusEmail({
+        to: med.email_investidor,
+        nome: med.nome_investidor,
+        titulo: med.titulo_oportunidade || `Mediacao com ${med.nome_empresa}`,
+        contraparte: med.nome_empresa,
+        dataReuniao: data_reuniao,
+        horaInicio: hora_inicio,
+        tipoReuniao: tipo_reuniao,
+        mediador: med.nome_funcionario,
+        assunto,
+        resumo: resumoInvestidor,
+      }),
+      sendMeetingStatusEmail({
+        to: med.email_empresa,
+        nome: med.nome_empresa,
+        titulo: med.titulo_oportunidade || `Mediacao com ${med.nome_investidor}`,
+        contraparte: med.nome_investidor,
+        dataReuniao: data_reuniao,
+        horaInicio: hora_inicio,
+        tipoReuniao: tipo_reuniao,
+        mediador: med.nome_funcionario,
+        assunto,
+        resumo: resumoEmpresa,
+      }),
+    ]);
+
+    const avisosEmail = [];
+    if (!med.email_investidor) {
+      avisosEmail.push('O investidor nao tem email cadastrado.');
+    } else if (emailResults[0] && emailResults[0].success === false) {
+      avisosEmail.push(`Falha ao enviar email para o investidor: ${emailResults[0].error || 'erro desconhecido'}.`);
+    }
+
+    if (!med.email_empresa) {
+      avisosEmail.push('A empresa nao tem email cadastrado.');
+    } else if (emailResults[1] && emailResults[1].success === false) {
+      avisosEmail.push(`Falha ao enviar email para a empresa: ${emailResults[1].error || 'erro desconhecido'}.`);
+    }
+
+    if (avisosEmail.length > 0 && med.mediator_user_id) {
+      await pool.execute(
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+         VALUES (?, 'email_reuniao_falhou', 'Falha no envio do aviso de reuniao', ?)`,
+        [med.mediator_user_id, avisosEmail.join(' ')]
+      );
+    }
+
+    await log(req.user.id, isEditing ? 'RESCHEDULE_MEETING' : 'SCHEDULE_MEETING', 'scheduled_meetings', resultId, { mediation_id: id, avisos_email: avisosEmail }, req);
+
+    return created(res, {
+      id: resultId,
+      message: avisosEmail.length
+        ? `${isEditing ? 'Reuniao reagendada' : 'Reuniao agendada'} com avisos no envio de email.`
+        : (isEditing ? 'Reuniao reagendada com sucesso.' : 'Reuniao agendada com sucesso.'),
+      avisos_email: avisosEmail,
+      reuniao: {
+        data: data_reuniao,
+        hora: hora_inicio,
+        tipo: tipo_reuniao,
+        mediador: med.nome_funcionario
+      }
+    });
+  } catch (err) {
+    console.error('[SCHEDULE_MEETING_V2]', err);
+    return error(res, 'Erro ao agendar reuniao.', 500);
+  }
 };
 
 /**
@@ -268,8 +517,9 @@ const getMediation = async (req, res) => {
       reunioes: meetings,
       interesse: interest[0] || null,
       permissoes: {
-        pode_gerir: true,
-        pode_indicar_mediador: req.user.role === 'admin',
+        pode_gerir: !isClosedMediation(mediation),
+        pode_indicar_mediador: req.user.role === 'admin' && !isClosedMediation(mediation),
+        somente_leitura: isClosedMediation(mediation),
       },
     });
     
@@ -428,6 +678,10 @@ const updateMediation = async (req, res) => {
       return error(res, 'Acesso negado.', 403);
     }
 
+    if (isClosedMediation(existing)) {
+      return badRequest(res, 'Esta mediação já foi encerrada e está disponível apenas para consulta.');
+    }
+
     const updates = [];
     const params = [];
     let novoMediatorUserId = existing.mediator_user_id;
@@ -505,24 +759,38 @@ const updateMediation = async (req, res) => {
  * Finaliza uma mediação com sucesso ou insucesso
  */
 const completeMediation = async (req, res) => {
+  const connection = await pool.getConnection();
+
   try {
     await ensureMediationRuntimeSchema();
     const { id } = req.params;
     const { resultado_final, motivo_cancelamento } = req.body;
+
+    await connection.beginTransaction();
     
     if (!['sucesso', 'insucesso', 'cancelado'].includes(resultado_final)) {
       return badRequest(res, 'Resultado deve ser: sucesso, insucesso ou cancelado.');
     }
     
-    const [existing] = await pool.execute(
-      `SELECT m.*, 
+    const [existing] = await connection.execute(
+      `SELECT m.*,
               u_inv.nome as nome_investidor,
               u_inv.email as email_investidor,
+              io.id as opportunity_id,
+              io.titulo as titulo_oportunidade,
+              io.descricao as descricao_oportunidade,
+              io.tipo as tipo_oportunidade,
+              io.valor as valor_oportunidade,
               cp.nome_empresa,
-              cp.user_id as company_user_id
+              cp.nif as nif_empresa,
+              cp.user_id as company_user_id,
+              u_emp.email as email_empresa
        FROM mediations m
        INNER JOIN users u_inv ON u_inv.id = m.investor_id
+       INNER JOIN investor_interests ii ON ii.id = m.interest_id
+       INNER JOIN investment_opportunities io ON io.id = ii.opportunity_id
        INNER JOIN company_profiles cp ON cp.id = m.company_id
+       INNER JOIN users u_emp ON u_emp.id = cp.user_id
        WHERE m.id = ?`,
       [id]
     );
@@ -615,11 +883,14 @@ const scheduleMeeting = async (req, res) => {
               u_inv.email as email_investidor,
               cp.nome_empresa,
               cp.user_id as company_user_id,
+              io.titulo as titulo_oportunidade,
               u_emp.email as email_empresa,
               COALESCE(func.nome, mu.nome) as nome_funcionario,
               COALESCE(func.email, mu.email) as email_funcionario
        FROM mediations m
        INNER JOIN users u_inv ON u_inv.id = m.investor_id
+       INNER JOIN investor_interests ii ON ii.id = m.interest_id
+       INNER JOIN investment_opportunities io ON io.id = ii.opportunity_id
        INNER JOIN company_profiles cp ON cp.id = m.company_id
        INNER JOIN users u_emp ON u_emp.id = cp.user_id
        LEFT JOIN employees e ON e.id = m.employee_id
@@ -703,7 +974,7 @@ const scheduleMeeting = async (req, res) => {
       [med.company_user_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio]
     );
     
-    await Promise.all([
+    const emailResults = await Promise.all([
       sendMeetingStatusEmail({
         to: med.email_investidor,
         nome: med.nome_investidor,
@@ -729,8 +1000,29 @@ const scheduleMeeting = async (req, res) => {
         resumo: resumoEmpresa,
       }),
     ]);
+
+    const avisosEmail = [];
+    if (!med.email_investidor) {
+      avisosEmail.push('O investidor nao tem email cadastrado.');
+    } else if (emailResults[0] && emailResults[0].success === false) {
+      avisosEmail.push(`Falha ao enviar email para o investidor: ${emailResults[0].error || 'erro desconhecido'}.`);
+    }
+
+    if (!med.email_empresa) {
+      avisosEmail.push('A empresa nao tem email cadastrado.');
+    } else if (emailResults[1] && emailResults[1].success === false) {
+      avisosEmail.push(`Falha ao enviar email para a empresa: ${emailResults[1].error || 'erro desconhecido'}.`);
+    }
+
+    if (avisosEmail.length > 0 && med.mediator_user_id) {
+      await pool.execute(
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+         VALUES (?, 'email_reuniao_falhou', 'Falha no envio do aviso de reuniao', ?)`,
+        [med.mediator_user_id, avisosEmail.join(' ')]
+      );
+    }
     
-    await log(req.user.id, isEditing ? 'RESCHEDULE_MEETING' : 'SCHEDULE_MEETING', 'scheduled_meetings', resultId, { mediation_id: id }, req);
+    await log(req.user.id, isEditing ? 'RESCHEDULE_MEETING' : 'SCHEDULE_MEETING', 'scheduled_meetings', resultId, { mediation_id: id, avisos_email: avisosEmail }, req);
     
     return created(res, {
       id: resultId,
@@ -787,6 +1079,10 @@ const cancelMeeting = async (req, res) => {
       return error(res, 'Acesso negado.', 403);
     }
 
+    if (isClosedMediation(meeting)) {
+      return badRequest(res, 'Esta mediação já foi encerrada e não permite cancelar reuniões.');
+    }
+
     await pool.execute(
       `UPDATE scheduled_meetings SET status = 'cancelada', observacoes = ? WHERE id = ?`,
       [motivo || 'Reunião cancelada pelo mediador.', meetingId]
@@ -837,6 +1133,231 @@ const cancelMeeting = async (req, res) => {
  * GET /api/admin/mediations/stats
  * EstatÃ­sticas de mediaÃ§Ãµes
  */
+const completeMediationWithContract = async (req, res) => {
+  const connection = await pool.getConnection();
+
+  try {
+    await ensureMediationRuntimeSchema();
+    const { id } = req.params;
+    const { resultado_final, motivo_cancelamento } = req.body;
+
+    if (!['sucesso', 'insucesso', 'cancelado'].includes(resultado_final)) {
+      return badRequest(res, 'Resultado deve ser: sucesso, insucesso ou cancelado.');
+    }
+
+    await connection.beginTransaction();
+
+    const [existing] = await connection.execute(
+      `SELECT m.*,
+              u_inv.nome as nome_investidor,
+              u_inv.email as email_investidor,
+              io.id as opportunity_id,
+              io.titulo as titulo_oportunidade,
+              io.descricao as descricao_oportunidade,
+              io.tipo as tipo_oportunidade,
+              io.valor as valor_oportunidade,
+              cp.nome_empresa,
+              cp.nif as nif_empresa,
+              cp.user_id as company_user_id,
+              u_emp.email as email_empresa
+       FROM mediations m
+       INNER JOIN users u_inv ON u_inv.id = m.investor_id
+       INNER JOIN investor_interests ii ON ii.id = m.interest_id
+       INNER JOIN investment_opportunities io ON io.id = ii.opportunity_id
+       INNER JOIN company_profiles cp ON cp.id = m.company_id
+       INNER JOIN users u_emp ON u_emp.id = cp.user_id
+       WHERE m.id = ?`,
+      [id]
+    );
+
+    if (!existing.length) {
+      await connection.rollback();
+      return notFound(res, 'Mediacao nao encontrada.');
+    }
+
+    const mediation = existing[0];
+
+    if (!canManageMediation(req.user, mediation)) {
+      await connection.rollback();
+      return error(res, 'Acesso negado.', 403);
+    }
+
+    if (isClosedMediation(mediation)) {
+      await connection.rollback();
+      return badRequest(res, 'Esta mediação já foi encerrada e está disponível apenas para consulta.');
+    }
+
+    await connection.execute(
+      `UPDATE mediations SET
+        status = 'concluida',
+        resultado_final = ?,
+        motivo_cancelamento = ?,
+        data_conclusao = NOW()
+       WHERE id = ?`,
+      [resultado_final, motivo_cancelamento || null, id]
+    );
+
+    let contractId = null;
+    let contractPdfBuffer = null;
+    let novoStatusInteresse = 'cancelado';
+
+    if (resultado_final === 'sucesso') {
+      const [existingContract] = await connection.execute(
+        'SELECT id, pdf_data FROM contracts WHERE interest_id = ? LIMIT 1',
+        [mediation.interest_id]
+      );
+
+      if (existingContract.length) {
+        contractId = existingContract[0].id;
+        contractPdfBuffer = existingContract[0].pdf_data || null;
+      } else {
+        const contractData = {
+          id: `MED-${mediation.interest_id}`,
+          titulo: mediation.titulo_oportunidade,
+          nome_empresa: mediation.nome_empresa,
+          nif_empresa: mediation.nif_empresa,
+          email_empresa: mediation.email_empresa,
+          nome_investidor: mediation.nome_investidor,
+          email_investidor: mediation.email_investidor,
+          descricao_oportunidade: mediation.descricao_oportunidade,
+          tipo_oportunidade: mediation.tipo_oportunidade,
+          valor: mediation.valor_negociado || mediation.valor_oportunidade,
+        };
+
+        try {
+          contractPdfBuffer = await gerarContratoPDF(contractData);
+        } catch (pdfErr) {
+          console.error('[MEDIATION CONTRACT PDF]', pdfErr.message);
+        }
+
+        const [contractResult] = await connection.execute(
+          `INSERT INTO contracts
+           (interest_id, opportunity_id, investor_id, company_id, titulo, pdf_data, gerado_by, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, 'gerado')`,
+          [
+            mediation.interest_id,
+            mediation.opportunity_id,
+            mediation.investor_id,
+            mediation.company_id,
+            mediation.titulo_oportunidade,
+            contractPdfBuffer,
+            req.user.id,
+          ]
+        );
+
+        contractId = contractResult.insertId;
+      }
+
+      novoStatusInteresse = 'em_analise';
+    }
+
+    await connection.execute(
+      'UPDATE investor_interests SET status = ? WHERE id = ?',
+      [novoStatusInteresse, mediation.interest_id]
+    );
+
+    const mensagem = resultado_final === 'sucesso'
+      ? `A mediacao foi concluida com sucesso! Parabens pelo negocio com ${mediation.nome_empresa}.`
+      : resultado_final === 'insucesso'
+      ? `A mediacao nao resultou em acordo. ${motivo_cancelamento || 'As partes nao chegaram a um consenso.'}`
+      : `A mediacao foi cancelada. ${motivo_cancelamento || ''}`;
+
+    await connection.execute(
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+       VALUES (?, 'mediacao_concluida', ?, ?)`,
+      [mediation.investor_id, `Mediacao: ${resultado_final}`, mensagem]
+    );
+
+    await connection.execute(
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+       VALUES (?, 'mediacao_concluida', ?, ?)`,
+      [mediation.company_user_id, `Mediacao: ${resultado_final}`, mensagem]
+    );
+
+    if (resultado_final === 'sucesso' && contractId) {
+      await connection.execute(
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+         VALUES (?, 'contrato_gerado', 'Contrato gerado', ?)`,
+        [
+          mediation.investor_id,
+          `O contrato da oportunidade "${mediation.titulo_oportunidade}" foi gerado e ja esta disponivel no seu perfil.`,
+        ]
+      );
+
+      await connection.execute(
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+         VALUES (?, 'contrato_gerado', 'Contrato gerado', ?)`,
+        [
+          mediation.company_user_id,
+          `O contrato da oportunidade "${mediation.titulo_oportunidade}" foi gerado e ja esta disponivel no perfil da empresa.`,
+        ]
+      );
+    }
+
+    await connection.commit();
+
+    const contractData = {
+      id: `MED-${mediation.interest_id}`,
+      titulo: mediation.titulo_oportunidade,
+      nome_empresa: mediation.nome_empresa,
+      nif_empresa: mediation.nif_empresa,
+      email_empresa: mediation.email_empresa,
+      nome_investidor: mediation.nome_investidor,
+      email_investidor: mediation.email_investidor,
+      descricao_oportunidade: mediation.descricao_oportunidade,
+      tipo_oportunidade: mediation.tipo_oportunidade,
+      valor: mediation.valor_negociado || mediation.valor_oportunidade,
+    };
+
+    if (resultado_final === 'sucesso' && contractId) {
+      await Promise.all([
+        sendContractEmail(mediation.email_empresa, mediation.nome_empresa, contractData, contractPdfBuffer)
+          .then(() => pool.execute('UPDATE contracts SET enviado_email_empresa = 1, status = "enviado" WHERE id = ?', [contractId]))
+          .catch((mailErr) => console.error('[MEDIATION CONTRACT EMAIL EMPRESA]', mailErr)),
+        sendContractEmail(mediation.email_investidor, mediation.nome_investidor, contractData, contractPdfBuffer)
+          .then(() => pool.execute('UPDATE contracts SET enviado_email_investidor = 1, status = "enviado" WHERE id = ?', [contractId]))
+          .catch((mailErr) => console.error('[MEDIATION CONTRACT EMAIL INVESTIDOR]', mailErr)),
+      ]);
+    }
+
+    await Promise.all([
+      sendMediationClosureEmail({
+        to: mediation.email_empresa,
+        nome: mediation.nome_empresa,
+        titulo: mediation.titulo_oportunidade,
+        contraparte: mediation.nome_investidor,
+        resultado: resultado_final,
+        motivo: motivo_cancelamento,
+      }),
+      sendMediationClosureEmail({
+        to: mediation.email_investidor,
+        nome: mediation.nome_investidor,
+        titulo: mediation.titulo_oportunidade,
+        contraparte: mediation.nome_empresa,
+        resultado: resultado_final,
+        motivo: motivo_cancelamento,
+      }),
+    ]);
+
+    await log(req.user.id, 'COMPLETE_MEDIATION', 'mediations', id, { resultado_final, contract_id: contractId }, req);
+
+    return success(res, {
+      message: 'Mediacao concluida com sucesso.',
+      resultado: resultado_final,
+      contract_id: contractId,
+      proximo_passo: resultado_final === 'sucesso' ? 'Contrato gerado e enviado para as partes' : 'Processo arquivado'
+    });
+  } catch (err) {
+    try {
+      await connection.rollback();
+    } catch (_) {}
+    console.error('[COMPLETE_MEDIATION_V2]', err);
+    return error(res, 'Erro ao concluir mediacao.', 500);
+  } finally {
+    connection.release();
+  }
+};
+
 const getMediationStats = async (req, res) => {
   try {
     // EstatÃ­sticas gerais
@@ -897,9 +1418,8 @@ module.exports = {
   getMediation,
   createMediation,
   updateMediation,
-  completeMediation,
-  scheduleMeeting,
+  completeMediation: completeMediationWithContract,
+  scheduleMeeting: scheduleMeetingWithEmailStatus,
   cancelMeeting,
   getMediationStats
 };
-

@@ -15,6 +15,8 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+const saudacao = (nome) => `Ol&aacute; <strong>${nome || 'utilizador'}</strong>,`;
+
 /**
  * Envia email genérico
  */
@@ -109,7 +111,7 @@ const sendEnrollmentConfirmation = async (email, data, pdfBuffer) => {
       </div>
       <div style="padding:30px">
         <h2 style="color:#374151">Inscrição Confirmada! ✅</h2>
-        <p style="color:#6B7280">Olá <strong>${data.nome_aluno}</strong>,</p>
+        <p style="color:#6B7280">${saudacao(data.nome_aluno)}</p>
         <p style="color:#6B7280">A sua inscrição no curso <strong>${data.nome_curso}</strong> foi confirmada com sucesso.</p>
         <div style="background:#F8FAFC;border-radius:8px;padding:20px;margin:20px 0">
           <h3 style="margin:0 0 12px;color:#374151">Detalhes da Inscrição</h3>
@@ -170,7 +172,7 @@ const sendContractEmail = async (email, recipientName, contractData, pdfBuffer) 
       </div>
       <div style="padding:30px">
         <h2 style="color:#374151">📄 Contrato Gerado</h2>
-        <p style="color:#6B7280">Olá <strong>${recipientName}</strong>,</p>
+        <p style="color:#6B7280">${saudacao(recipientName)}</p>
         <p style="color:#6B7280">O contrato referente à oportunidade <strong>${contractData.titulo}</strong> foi gerado.</p>
         <p style="color:#6B7280">O contrato em PDF está em anexo. Após análise, poderá proceder à assinatura digital na plataforma.</p>
         <a href="${process.env.FRONTEND_URL}" style="display:inline-block;background:#374151;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
@@ -208,10 +210,10 @@ const sendMediationMeetingScheduledEmail = async ({
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
       <div style="background:#0EA5E9;padding:28px;text-align:center">
         <h1 style="color:#fff;margin:0">ULEZI XPB</h1>
-        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Reunião de mediação agendada</p>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Reuni&atilde;o de media&ccedil;&atilde;o agendada</p>
       </div>
       <div style="padding:28px">
-        <p style="color:#374151">Olá <strong>${nome || 'utilizador'}</strong>,</p>
+        <p style="color:#374151">${saudacao(nome)}</p>
         <p style="color:#6B7280;line-height:1.6">
           Foi agendada uma reunião de mediação para dar seguimento à oportunidade
           <strong>${titulo}</strong>.
@@ -232,7 +234,7 @@ const sendMediationMeetingScheduledEmail = async ({
 
   return sendEmail({
     to,
-    subject: `Reunião de mediação agendada - ${titulo}`,
+    subject: `Reuniao de mediacao agendada - ${titulo}`,
     html,
   });
 };
@@ -289,7 +291,7 @@ const sendCompanyRejectionEmail = async (email, empresaData) => {
       </div>
       <div style="padding:30px">
         <h2 style="color:#374151">Cadastro Rejeitado</h2>
-        <p style="color:#6B7280;line-height:1.6">Olá, <strong>${empresaData.nome_empresa}</strong>.</p>
+        <p style="color:#6B7280;line-height:1.6">Ol&aacute;, <strong>${empresaData.nome_empresa}</strong>.</p>
         <p style="color:#6B7280;line-height:1.6">Após análise da documentação enviada, informamos que o cadastro da sua empresa não pôde ser aprovado neste momento.</p>
         
         <div style="background:#FEF2F2;border-left:4px solid #EF4444;border-radius:8px;padding:20px;margin:20px 0">
@@ -333,7 +335,7 @@ const sendSubscriptionApprovalEmail = async (email, dados, pdfBuffer) => {
       </div>
       <div style="padding:30px">
         <h2 style="color:#374151">Pagamento confirmado com sucesso</h2>
-        <p style="color:#6B7280;line-height:1.6">Olá, <strong>${dados.nome_empresa}</strong>.</p>
+        <p style="color:#6B7280;line-height:1.6">Ol&aacute;, <strong>${dados.nome_empresa}</strong>.</p>
         <p style="color:#6B7280;line-height:1.6">A sua assinatura do plano <strong>${dados.pacote_nome}</strong> foi aprovada e já está activa na plataforma.</p>
         <div style="background:#F8FAFC;border-radius:8px;padding:20px;margin:20px 0">
           <p style="margin:4px 0;color:#374151"><strong>Referência:</strong> ${dados.referencia_pagamento || 'N/D'}</p>
@@ -374,7 +376,7 @@ const sendSubscriptionRejectionEmail = async (email, dados) => {
       </div>
       <div style="padding:30px">
         <h2 style="color:#374151">Não foi possível aprovar a assinatura</h2>
-        <p style="color:#6B7280;line-height:1.6">Olá, <strong>${dados.nome_empresa}</strong>.</p>
+        <p style="color:#6B7280;line-height:1.6">Ol&aacute;, <strong>${dados.nome_empresa}</strong>.</p>
         <p style="color:#6B7280;line-height:1.6">A sua solicitação do plano <strong>${dados.pacote_nome}</strong> foi analisada, mas não pôde ser aprovada neste momento.</p>
         <div style="background:#FEF2F2;border-left:4px solid #EF4444;border-radius:8px;padding:20px;margin:20px 0">
           <p style="margin:0 0 8px;color:#991B1B;font-weight:bold">Motivo da rejeição:</p>
