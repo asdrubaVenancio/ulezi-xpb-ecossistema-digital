@@ -1,168 +1,137 @@
 // ============================================================
 // ULEZI XPB — App.jsx — Roteamento principal
+// Módulos separados por responsabilidade única (SRP)
 // ============================================================
 
+import React, { lazy, Suspense } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { PageLoader } from './components/ui/index.jsx';
 import { ToastProvider } from './components/ui/Toast';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider }  from './context/AuthContext';
 import { RotaPrivada, RotaPublica } from './routes/Guards';
 
-// Páginas públicas
+// Landing em bundle inicial (LCP)
 import Home from './pages/publico/Home';
-import Negocios from './pages/publico/Negocios';
-import {
-    Comunidade,
-    CursoDetalhe,
-    Cursos,
-    EsqueciPassword,
-    NotFound,
-    NovaPassword,
-    Privacidade,
-    Termos,
-} from './pages/publico/Paginas';
 
-// Auth
-import { Login, Registar } from './pages/auth/Auth';
+// ── Code-splitting: restantes carregam sob demanda ───────────
+const Negocios = lazy(() => import('./pages/publico/Negocios'));
+const Cursos = lazy(() => import('./pages/publico/Cursos'));
+const CursoDetalhe = lazy(() => import('./pages/publico/CursoDetalhe'));
+const Comunidade = lazy(() => import('./pages/publico/Comunidade'));
 
-// Dashboards
+const Termos = lazy(() => import('./pages/publico/Paginas').then((m) => ({ default: m.Termos })));
+const Privacidade = lazy(() => import('./pages/publico/Paginas').then((m) => ({ default: m.Privacidade })));
+const NotFound = lazy(() => import('./pages/publico/Paginas').then((m) => ({ default: m.NotFound })));
+const EsqueciPassword = lazy(() => import('./pages/publico/Paginas').then((m) => ({ default: m.EsqueciPassword })));
+const NovaPassword = lazy(() => import('./pages/publico/Paginas').then((m) => ({ default: m.NovaPassword })));
+
+const Login = lazy(() => import('./pages/auth/Auth').then((m) => ({ default: m.Login })));
+const Registar = lazy(() => import('./pages/auth/Auth').then((m) => ({ default: m.Registar })));
+
 import DashboardLayout from './components/layout/DashboardLayout';
-import DashboardAdmin from './pages/admin/DashboardAdmin';
-import { DashboardAluno, DashboardEmpresa, DashboardInvestidor } from './pages/aluno/Dashboards';
-import Perfil from './pages/perfil/Perfil';
+const DashboardAluno = lazy(() => import('./pages/aluno/Dashboards').then((m) => ({ default: m.DashboardAluno })));
+const DashboardEmpresa = lazy(() => import('./pages/aluno/Dashboards').then((m) => ({ default: m.DashboardEmpresa })));
+const DashboardInvestidor = lazy(() => import('./pages/aluno/Dashboards').then((m) => ({ default: m.DashboardInvestidor })));
+const Perfil = lazy(() => import('./pages/perfil/Perfil'));
+const AssinaturaPage = lazy(() => import('./pages/empresa/Assinatura'));
 
-// Páginas da Empresa
-import { AssinaturaPage } from './pages/empresa/Assinatura';
+import { AdminPainelRota, AdminSecaoRota } from './routes/AdminRoutes';
 
-/** Wrapper com layout de dashboard */
+// ── Wrapper: aplica layout de dashboard ──────────────────────
 function ComLayout({ children }) {
   return <DashboardLayout>{children}</DashboardLayout>;
 }
 
 export default function App() {
-  const loginRoute = <RotaPublica><Login /></RotaPublica>;
-  const registoRoute = <RotaPublica><Registar /></RotaPublica>;
-  const recuperarSenhaRoute = <RotaPublica><EsqueciPassword /></RotaPublica>;
-  const novaSenhaRoute = <RotaPublica><NovaPassword /></RotaPublica>;
-  const alunoRoute = (
-    <RotaPrivada papeis={['estudante', 'student']}>
-      <ComLayout><DashboardAluno /></ComLayout>
-    </RotaPrivada>
-  );
-  const empresaRoute = (
-    <RotaPrivada papeis={['empresa', 'company']}>
-      <ComLayout><DashboardEmpresa /></ComLayout>
-    </RotaPrivada>
-  );
-  const investidorRoute = (
-    <RotaPrivada papeis={['investidor', 'investor']}>
-      <ComLayout><DashboardInvestidor /></ComLayout>
-    </RotaPrivada>
-  );
-  const adminRoute = (
-    <RotaPrivada papeis={['admin', 'funcionario', 'employee']}>
-      <DashboardAdmin />
-    </RotaPrivada>
-  );
-  const adminSecaoRoute = (secaoInicial) => (
-    <RotaPrivada papeis={['admin', 'funcionario', 'employee']}>
-      <DashboardAdmin secaoInicial={secaoInicial} />
-    </RotaPrivada>
-  );
-
   return (
     <AuthProvider>
       <ToastProvider>
         <BrowserRouter>
+          <Suspense fallback={<PageLoader />}>
           <Routes>
-            {/* ── Públicas ──────────────────────────────────── */}
-            <Route path="/"                   element={<Home />} />
-            <Route path="/cursos"             element={<Cursos />} />
-            <Route path="/cursos/:id"         element={<CursoDetalhe />} />
-            <Route path="/negocios"           element={<Negocios />} />
-            <Route path="/comunidade"         element={<Comunidade />} />
-            <Route path="/termos"             element={<Termos />} />
-            <Route path="/privacidade"        element={<Privacidade />} />
+            {/* ── Páginas Públicas ──────────────────────────── */}
+            <Route path="/"              element={<Home />} />
+            <Route path="/cursos"        element={<Cursos />} />
+            <Route path="/cursos/:id"    element={<CursoDetalhe />} />
+            <Route path="/negocios"      element={<Negocios />} />
+            <Route path="/comunidade"    element={<Comunidade />} />
+            <Route path="/termos"        element={<Termos />} />
+            <Route path="/privacidade"   element={<Privacidade />} />
 
-            {/* ── Auth (redireccionam se autenticado) ──────── */}
-            <Route path="/entrar"               element={loginRoute} />
-            <Route path="/criar-conta"          element={registoRoute} />
-            <Route path="/recuperar-senha"      element={recuperarSenhaRoute} />
-            <Route path="/nova-senha/:token"    element={novaSenhaRoute} />
+            {/* ── Autenticação (redireccionam se autenticado) ─ */}
+            <Route path="/entrar"              element={<RotaPublica><Login /></RotaPublica>} />
+            <Route path="/criar-conta"         element={<RotaPublica><Registar /></RotaPublica>} />
+            <Route path="/recuperar-senha"     element={<RotaPublica><EsqueciPassword /></RotaPublica>} />
+            <Route path="/nova-senha/:token"   element={<RotaPublica><NovaPassword /></RotaPublica>} />
 
-            {/* Aliases legados */}
-            <Route path="/login"                element={loginRoute} />
-            <Route path="/registar"             element={registoRoute} />
-            <Route path="/esqueci-password"     element={recuperarSenhaRoute} />
-            <Route path="/nova-password/:token" element={novaSenhaRoute} />
+            {/* Aliases legados — mantidos para compatibilidade */}
+            <Route path="/login"               element={<RotaPublica><Login /></RotaPublica>} />
+            <Route path="/registar"            element={<RotaPublica><Registar /></RotaPublica>} />
+            <Route path="/esqueci-password"    element={<RotaPublica><EsqueciPassword /></RotaPublica>} />
+            <Route path="/nova-password/:token" element={<RotaPublica><NovaPassword /></RotaPublica>} />
 
-            {/* ── Perfil (qualquer autenticado) ─────────────── */}
-            <Route path="/perfil" element={
-              <RotaPrivada>
-                <ComLayout><Perfil /></ComLayout>
-              </RotaPrivada>
-            } />
+            {/* ── Perfil (qualquer utilizador autenticado) ───── */}
+            <Route
+              path="/perfil"
+              element={
+                <RotaPrivada>
+                  <ComLayout><Perfil /></ComLayout>
+                </RotaPrivada>
+              }
+            />
 
-            {/* ── Aluno ─────────────────────────────────────── */}
-            <Route path="/painel/aluno"       element={alunoRoute} />
-            <Route path="/aluno/dashboard"    element={alunoRoute} />
+            {/* ── Painel do Aluno ───────────────────────────── */}
+            <Route
+              path="/painel/aluno"
+              element={
+                <RotaPrivada papeis={['estudante', 'student']}>
+                  <ComLayout><DashboardAluno /></ComLayout>
+                </RotaPrivada>
+              }
+            />
+            <Route path="/aluno/dashboard" element={<Navigate to="/painel/aluno" replace />} />
 
-            {/* ── Empresa ──────────────────────────────────── */}
-            <Route path="/painel/empresa"     element={empresaRoute} />
-            <Route path="/empresa/dashboard"  element={empresaRoute} />
-            <Route path="/empresa/operacoes"  element={<Navigate to="/empresa/dashboard" replace />} />
-            <Route path="/empresa/assinatura" element={
-              <RotaPrivada papeis={['empresa', 'company']}>
-                <ComLayout><AssinaturaPage /></ComLayout>
-              </RotaPrivada>
-            } />
+            {/* ── Painel da Empresa ─────────────────────────── */}
+            <Route
+              path="/empresa/dashboard"
+              element={
+                <RotaPrivada papeis={['empresa', 'company']}>
+                  <ComLayout><DashboardEmpresa /></ComLayout>
+                </RotaPrivada>
+              }
+            />
+            <Route path="/painel/empresa"    element={<Navigate to="/empresa/dashboard" replace />} />
+            <Route path="/empresa/operacoes" element={<Navigate to="/empresa/dashboard" replace />} />
+            <Route
+              path="/empresa/assinatura"
+              element={
+                <RotaPrivada papeis={['empresa', 'company']}>
+                  <ComLayout><AssinaturaPage /></ComLayout>
+                </RotaPrivada>
+              }
+            />
 
-            {/* ── Investidor ───────────────────────────────── */}
-            <Route path="/painel/investidor"      element={investidorRoute} />
-            <Route path="/investidor/dashboard"   element={investidorRoute} />
+            {/* ── Painel do Investidor ──────────────────────── */}
+            <Route
+              path="/painel/investidor"
+              element={
+                <RotaPrivada papeis={['investidor', 'investor']}>
+                  <ComLayout><DashboardInvestidor /></ComLayout>
+                </RotaPrivada>
+              }
+            />
+            <Route path="/investidor/dashboard" element={<Navigate to="/painel/investidor" replace />} />
 
-            {/* ── Admin / Funcionário ──────────────────────── */}
-            <Route path="/painel/admin"       element={adminRoute} />
-            <Route path="/admin/dashboard"    element={adminRoute} />
-            
-            {/* ── Módulo 7: Negócios e Investimentos ─────────── */}
-            <Route path="/admin/empresas" element={
-              adminSecaoRoute('empresas')
-            } />
-            <Route path="/admin/oportunidades" element={
-              adminSecaoRoute('oportunidades')
-            } />
-            <Route path="/admin/interesses" element={
-              adminSecaoRoute('interesses')
-            } />
-            <Route path="/admin/contratos" element={
-              adminSecaoRoute('contratos')
-            } />
-            <Route path="/admin/assinaturas" element={
-              adminSecaoRoute('assinaturas')
-            } />
-            <Route path="/admin/funcionarios" element={
-              adminSecaoRoute('funcionarios')
-            } />
-            <Route path="/admin/visitas" element={
-              adminSecaoRoute('visitas')
-            } />
-            <Route path="/admin/mediacoes" element={
-              adminSecaoRoute('mediacao')
-            } />
-            <Route path="/admin/suporte" element={
-              adminSecaoRoute('suporte')
-            } />
-            <Route path="/admin/consultoria" element={
-              adminSecaoRoute('consultoria')
-            } />
-            <Route path="/admin/notificacoes-assinatura" element={
-              adminSecaoRoute('notificacoes-assinatura')
-            } />
+            {/* ── Painel Admin / Funcionário (URL sincronizada com a secção) ─ */}
+            <Route path="/painel/admin"    element={<AdminPainelRota />} />
+            <Route path="/admin/dashboard" element={<Navigate to="/painel/admin" replace />} />
+            <Route path="/admin/:secaoSlug" element={<AdminSecaoRota />} />
 
-            {/* ── 404 ──────────────────────────────────────── */}
+            {/* ── Página 404 ─────────────────────────────────── */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </BrowserRouter>
       </ToastProvider>
       <Toaster position="top-right" />

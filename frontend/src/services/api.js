@@ -21,21 +21,14 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
-// Interceptor de pedido: adicionar token JWT
+// Interceptor de pedido: adicionar token JWT automaticamente
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem(STORAGE_KEYS.token);
     if (token) config.headers.Authorization = `Bearer ${token}`;
-    
-    // DEBUG: Logar todas as requisições
-    console.log('[AXIOS REQUEST]', config.method?.toUpperCase(), config.url, config.data);
-    
     return config;
   },
-  (erro) => {
-    console.error('[AXIOS REQUEST ERROR]', erro);
-    return Promise.reject(erro);
-  }
+  (erro) => Promise.reject(erro)
 );
 
 // Interceptor de resposta: refresh automático
@@ -43,15 +36,8 @@ let aRefrescar = false;
 let filaEspera = [];
 
 api.interceptors.response.use(
-  (resposta) => {
-    // DEBUG: Logar todas as respostas
-    console.log('[AXIOS RESPONSE]', resposta.status, resposta.config.url);
-    return resposta;
-  },
+  (resposta) => resposta,
   async (erro) => {
-    // DEBUG: Logar todos os erros
-    console.error('[AXIOS RESPONSE ERROR]', erro.message, erro.config?.url);
-    console.error('[AXIOS ERROR DETAILS]', erro.response?.status, erro.response?.data);
     
     const original = erro.config;
     if (!original || original.url?.includes('/auth/refresh')) {
@@ -101,12 +87,27 @@ api.interceptors.response.use(
   }
 );
 
-// Extractor de mensagem de erro
+const truncarMsg = (msg, max = 400) => {
+  const s = typeof msg === 'string' ? msg.trim() : String(msg ?? '');
+  return s.length > max ? `${s.slice(0, max)}…` : s;
+};
+
+// Extractor de mensagem de erro (sem expor detalhes técnicos de rede ao utilizador)
 export const extrairErro = (erro) => {
-  if (erro?.response?.data?.mensagem)   return erro.response.data.mensagem;
-  if (erro?.response?.data?.message)    return erro.response.data.message;
-  if (erro?.response?.data?.erros?.[0]) return erro.response.data.erros[0];
-  if (erro?.message)                    return erro.message;
+  if (erro?.response?.data?.mensagem)   return truncarMsg(erro.response.data.mensagem);
+  if (erro?.response?.data?.message)    return truncarMsg(erro.response.data.message);
+  if (erro?.response?.data?.erros?.[0]) return truncarMsg(erro.response.data.erros[0]);
+  if (!erro?.response) {
+    return 'Não foi possível contactar o servidor. Verifique a ligação e tente novamente.';
+  }
+  const status = erro.response?.status;
+  if (status >= 500) {
+    return 'O serviço está temporariamente indisponível. Tente novamente dentro de instantes.';
+  }
+  if (status === 401) return 'Sessão expirada ou credenciais inválidas.';
+  if (status === 403) return 'Não tem permissão para esta operação.';
+  if (status === 404) return 'Recurso não encontrado.';
+  if (erro?.message && erro.message !== 'Network Error') return truncarMsg(erro.message);
   return 'Ocorreu um erro inesperado. Tente novamente.';
 };
 
@@ -121,6 +122,7 @@ export const authAPI = {
   refresh:        (t)      => api.post('/auth/refresh', { refresh_token: t }),
   esqueciSenha:   (email)  => api.post('/auth/esqueci-password', { email }),
   novaSenha:      (t, d)   => api.post(`/auth/nova-password/${t}`, d),
+  obterPerfilCompleto: ()  => api.get('/auth/perfil'),
   atualizarPerfil:(d)      => api.put('/auth/perfil', d),
   alterarSenha:   (d)      => api.put('/auth/password', d),
 };
@@ -153,7 +155,7 @@ export const negociosAPI = {
 
 export const comunidadeAPI = {
   perfis:        (p)  => api.get('/comunidade/perfis',          { params: p }),
-  servicos:      (cat)=> api.get('/comunidade/servicos',        { params: { categoria: cat } }),
+  servicos:      (p)  => api.get('/comunidade/servicos',        { params: p }),
   categServicos: ()   => api.get('/comunidade/servicos/categorias'),
   // Vagas públicas (aprovadas)
   vagas:         (p)  => api.get('/vagas-empresa',              { params: p }),
@@ -203,6 +205,11 @@ export const empresaAPI = {
   perfil:       ()    => api.get('/empresa/perfil'),
   stats:        ()    => api.get('/empresa/stats'),
   oportunidades:()    => api.get('/empresa/oportunidades'),
+  servicos:     ()    => api.get('/empresa/servicos'),
+  criarServico: (d)   => api.post('/empresas/servicos', d),
+  editarServico:(id,d)=> api.put(`/empresa/servicos/${id}`, d),
+  eliminarServico:(id)=> api.delete(`/empresa/servicos/${id}`),
+  categoriasServicos: () => api.get('/comunidade/servicos/categorias'),
   contratos:    ()    => api.get('/empresa/contratos'),
   criarOportunidade:(d)=> api.post('/oportunidades', d),
   interessados: (id)  => api.get(`/empresa/oportunidades/${id}/interessados`),

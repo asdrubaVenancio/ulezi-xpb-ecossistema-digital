@@ -775,11 +775,147 @@ const addCompanyService = async (req, res) => {
   }
 };
 
+const ensureCompanyServicesRuntimeSchema = async () => {
+  const [emailCols] = await pool.execute(`SHOW COLUMNS FROM company_services LIKE 'contacto_email'`);
+  if (!emailCols.length) {
+    await pool.execute('ALTER TABLE company_services ADD COLUMN contacto_email VARCHAR(255) NULL AFTER descricao');
+  }
+
+  const [whatsappCols] = await pool.execute(`SHOW COLUMNS FROM company_services LIKE 'contacto_whatsapp'`);
+  if (!whatsappCols.length) {
+    await pool.execute('ALTER TABLE company_services ADD COLUMN contacto_whatsapp VARCHAR(50) NULL AFTER contacto_email');
+  }
+};
+
+const getCompanyProfileIdByUser = async (userId) => {
+  const [[company]] = await pool.execute('SELECT id FROM company_profiles WHERE user_id=?', [userId]);
+  return company || null;
+};
+
+const upsertCompanyService = async (req, res) => {
+  try {
+    await ensureCompanyServicesRuntimeSchema();
+
+    const userId = req.user.id;
+    const { category_id, descricao, contacto_email, contacto_whatsapp } = req.body;
+    const company = await getCompanyProfileIdByUser(userId);
+
+    if (!company) return notFound(res, 'Empresa nao encontrada.');
+    if (!category_id) return badRequest(res, 'A categoria do servico e obrigatoria.');
+
+    const [[category]] = await pool.execute(
+      'SELECT id FROM service_categories WHERE id = ? AND status = "ativo"',
+      [category_id]
+    );
+    if (!category) return badRequest(res, 'Categoria de servico invalida.');
+
+    const [result] = await pool.execute(
+      `INSERT INTO company_services (company_id, category_id, descricao, contacto_email, contacto_whatsapp)
+       VALUES (?,?,?,?,?)
+       ON DUPLICATE KEY UPDATE
+         descricao = VALUES(descricao),
+         contacto_email = VALUES(contacto_email),
+         contacto_whatsapp = VALUES(contacto_whatsapp),
+         ativo = 1`,
+      [company.id, category_id, descricao || null, contacto_email || null, contacto_whatsapp || null]
+    );
+
+    await log(userId, 'servico_empresa_criado', 'company_services', result.insertId || null, { category_id }, req);
+    return created(res, { id: result.insertId || null }, 'Servico adicionado com sucesso.');
+  } catch (err) {
+    if (err?.code === 'ER_DUP_ENTRY') {
+      return badRequest(res, 'Ja existe um servico desta categoria registado para a sua empresa.');
+    }
+    return error(res, 'Erro ao adicionar servico.', 500);
+  }
+};
+
+const listCompanyServices = async (req, res) => {
+  try {
+    await ensureCompanyServicesRuntimeSchema();
+
+    const company = await getCompanyProfileIdByUser(req.user.id);
+    if (!company) return success(res, { servicos: [] });
+
+    const [services] = await pool.execute(
+      `SELECT cs.*, sc.nome as nome_categoria, sc.descricao as categoria_descricao
+       FROM company_services cs
+       LEFT JOIN service_categories sc ON sc.id = cs.category_id
+       WHERE cs.company_id = ?
+       ORDER BY cs.created_at DESC`,
+      [company.id]
+    );
+
+    return success(res, { servicos: services });
+  } catch (err) {
+    return error(res, 'Erro ao listar servicos da empresa.', 500);
+  }
+};
+
+const updateCompanyService = async (req, res) => {
+  try {
+    await ensureCompanyServicesRuntimeSchema();
+
+    const userId = req.user.id;
+    const id = Number.parseInt(req.params.id, 10);
+    const { category_id, descricao, contacto_email, contacto_whatsapp } = req.body;
+    const company = await getCompanyProfileIdByUser(userId);
+
+    if (Number.isNaN(id) || id <= 0) return badRequest(res, 'Identificador de servico invalido.');
+    if (!company) return notFound(res, 'Empresa nao encontrada.');
+    if (!category_id) return badRequest(res, 'A categoria do servico e obrigatoria.');
+
+    const [[service]] = await pool.execute(
+      'SELECT id FROM company_services WHERE id = ? AND company_id = ?',
+      [id, company.id]
+    );
+    if (!service) return notFound(res, 'Servico nao encontrado.');
+
+    await pool.execute(
+      `UPDATE company_services
+       SET category_id = ?, descricao = ?, contacto_email = ?, contacto_whatsapp = ?, ativo = 1
+       WHERE id = ? AND company_id = ?`,
+      [category_id, descricao || null, contacto_email || null, contacto_whatsapp || null, id, company.id]
+    );
+
+    await log(userId, 'servico_empresa_actualizado', 'company_services', id, { category_id }, req);
+    return success(res, {}, 'Servico actualizado com sucesso.');
+  } catch (err) {
+    if (err?.code === 'ER_DUP_ENTRY') {
+      return badRequest(res, 'Ja existe um servico desta categoria registado para a sua empresa.');
+    }
+    return error(res, 'Erro ao actualizar servico.', 500);
+  }
+};
+
+const deleteCompanyService = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const id = Number.parseInt(req.params.id, 10);
+    const company = await getCompanyProfileIdByUser(userId);
+
+    if (Number.isNaN(id) || id <= 0) return badRequest(res, 'Identificador de servico invalido.');
+    if (!company) return notFound(res, 'Empresa nao encontrada.');
+
+    const [result] = await pool.execute(
+      'DELETE FROM company_services WHERE id = ? AND company_id = ?',
+      [id, company.id]
+    );
+
+    if (result.affectedRows === 0) return notFound(res, 'Servico nao encontrado.');
+
+    await log(userId, 'servico_empresa_eliminado', 'company_services', id, null, req);
+    return success(res, {}, 'Servico removido com sucesso.');
+  } catch (err) {
+    return error(res, 'Erro ao remover servico.', 500);
+  }
+};
+
 module.exports = {
   uploadDocument, getMyCompany, saveCompanyProfile, listOpportunities, getOpportunity,
   createOpportunity, expressInterest, adminListInterests, generateContract,
   downloadContract, signContract, adminListCompanies, approveCompany,
-  createSubscription, addCompanyService,
+  createSubscription, addCompanyService: upsertCompanyService, listCompanyServices, updateCompanyService, deleteCompanyService,
 };
 
 // â”€â”€ Dashboard de Empresa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -978,6 +1114,7 @@ const getEmpresaContratos = async (req, res) => {
 Object.assign(module.exports, {
   getEmpresaPerfil, getEmpresaStats, getEmpresaOportunidades,
   getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaContratos, getEmpresaOpportunityInterests,
+  listCompanyServices, updateCompanyService, deleteCompanyService,
 });
 
 // â”€â”€ Dashboard de Investidor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

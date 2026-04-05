@@ -1,172 +1,234 @@
 // ============================================================
-// ULEZI XPB — Página Inicial (Home)
-// Fiel ao protótipo Figma
+// ULEZI XPB — Página Inicial
+// Landing page profissional com hero, módulos e CTA
 // ============================================================
-// 
-// @author AsdrubaDeveloper
-// @version 1.0.0
 
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, Building2, Users, ArrowRight, TrendingUp, FileCheck, Zap } from 'lucide-react';
+import {
+  ArrowRight,
+  BookOpen,
+  Building2,
+  CheckCircle,
+  TrendingUp,
+  Users,
+  Zap,
+} from 'lucide-react';
+import Navbar from '../../components/layout/Navbar';
+import Footer from '../../components/layout/Footer';
 
-export default function Home() {
-  return (
-    <main>
-      {/* ── Hero ─────────────────────────────────────────────── */}
-      <section className="hero">
-        <div className="hero__bg" aria-hidden />
-        <div className="hero__content">
-          <div className="hero__tag">
-            <Zap size={12} />
-            Ecossistema Digital
-          </div>
-
-          <h1 className="hero__title">
-            Educação, Investimento e{' '}
-            <span className="ciano">Comunidade</span>{' '}
-            <span className="laranja">num</span> único ecossistema
-          </h1>
-
-          <p className="hero__desc">
-            A ULEZI XPB conecta estudantes, empresas e investidores — criando
-            oportunidades de formação profissional, crescimento empresarial e networking.
-          </p>
-
-          <div className="hero__actions">
-            <Link to="/criar-conta" className="btn btn--primary btn--lg">
-              Começar agora
-              <ArrowRight size={18} />
-            </Link>
-            <Link to="/cursos" className="btn btn--secondary btn--lg">
-              Explorar Cursos
-            </Link>
-          </div>
-
-          {/* Estatísticas */}
-          <div className="hero__stats">
-            <div className="hero__stat">
-              <div className="hero__stat-val">
-                <BookOpen size={20} style={{ color: 'var(--ciano)' }} />
-                150+
-              </div>
-              <div className="hero__stat-lbl">Cursos</div>
-            </div>
-            <div className="hero__stat-div" />
-            <div className="hero__stat">
-              <div className="hero__stat-val">
-                <TrendingUp size={20} style={{ color: 'var(--laranja)' }} />
-                Kz 2M+
-              </div>
-              <div className="hero__stat-lbl">Investimentos</div>
-            </div>
-            <div className="hero__stat-div" />
-            <div className="hero__stat">
-              <div className="hero__stat-val">
-                <Users size={20} style={{ color: 'var(--verde)' }} />
-                5.000+
-              </div>
-              <div className="hero__stat-lbl">Comunidade</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ── Três módulos ─────────────────────────────────────── */}
-      <section className="secao">
-        <div className="secao__header">
-          <h2 className="secao__titulo">Três módulos, um ecossistema</h2>
-          <p className="secao__desc">
-            Cada módulo foi concebido para resolver problemas reais — da formação
-            ao investimento, ao networking e à contratação.
-          </p>
-        </div>
-
-        <div className="modulos-grid">
-          <ModuloCard
-            icone={<BookOpen size={22} color="white" />}
-            corIcone="#00BCD4"
-            titulo="Cursos"
-            desc="Encontre cursos de formação técnico-profissional e inscreva-se nos melhores centros de formação perto de si."
-            features={['Directo e online', 'Filtro por área', 'Recibo PDF automático', 'Histórico de cursos']}
-            link="/cursos"
-          />
-          <ModuloCard
-            icone={<Building2 size={22} color="white" />}
-            corIcone="#F97316"
-            titulo="Negócios"
-            desc="Marketplace de investimentos onde empresas publicam oportunidades e investidores encontram projectos com potencial."
-            features={['Verificação de empresas', 'Contratos digitais', 'Assinatura digital', 'Análise de oportunidades']}
-            link="/negocios"
-          />
-          <ModuloCard
-            icone={<Users size={22} color="white" />}
-            corIcone="#8B5CF6"
-            titulo="Comunidade"
-            desc="Rede profissional colaborativa: networking, contratação de serviços e publicação de vagas de emprego."
-            features={['Perfis profissionais', 'Ofertas de serviço', 'Vagas de emprego', 'Sub-contrato']}
-            link="/comunidade"
-          />
-        </div>
-      </section>
-
-      {/* ── Como funciona ────────────────────────────────────── */}
-      <section className="secao" style={{ paddingTop: 0 }}>
-        <div className="secao__header">
-          <h2 className="secao__titulo">Como funciona</h2>
-          <p className="secao__desc">
-            Um processo simples e transparente, do registo à documentação final.
-          </p>
-        </div>
-
-        <div className="passos-grid">
-          {[
-            { num: '1', titulo: 'Crie sua conta', desc: 'Cadastre-se como estudante, empresa ou investidor em poucos minutos.', icone: Users },
-            { num: '2', titulo: 'Explore as oportunidades', desc: 'Encontre cursos, investimentos ou serviços que atendem às suas necessidades.', icone: TrendingUp },
-            { num: '3', titulo: 'Inscreva-se ou invista', desc: 'Realize seguros pagamentos e recebe confirmações automáticas.', icone: FileCheck },
-            { num: '4', titulo: 'Documentação automática', desc: 'Recebos e contratos gerados em PDF, enviados por e-mail e WhatsApp.', icone: FileCheck },
-          ].map((p) => (
-            <div key={p.num} className="passo-card">
-              <div className="passo-card__num">{p.num}</div>
-              <p className="passo-card__titulo">{p.titulo}</p>
-              <p className="passo-card__desc">{p.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* ── CTA ──────────────────────────────────────────────── */}
-      <div style={{ padding: '0 24px' }}>
-        <div className="cta-section">
-          <h2>Pronto para fazer parte do ecossistema?</h2>
-          <p>Junte-se a milhares de estudantes, empresas e investidores que já estão a transformar o futuro.</p>
-          <Link to="/criar-conta" className="btn btn--primary btn--lg">
-            Criar Conta Gratuita
-            <ArrowRight size={18} />
-          </Link>
-        </div>
-      </div>
-    </main>
-  );
-}
-
-/** Card de módulo */
+// ── Card de módulo da plataforma ────────────────────────────
 function ModuloCard({ icone, corIcone, titulo, desc, features, link }) {
   return (
-    <Link to={link} className="modulo-card" style={{ display: 'block' }}>
+    <Link
+      to={link}
+      className="modulo-card brand-module-card"
+      style={{ display: 'block' }}
+      aria-label={`Saber mais sobre ${titulo}`}
+    >
       <div className="modulo-card__icon" style={{ background: corIcone }}>
         {icone}
       </div>
       <div className="modulo-card__titulo">
         {titulo}
-        <ArrowRight size={14} style={{ color: 'var(--txt-4)' }} />
+        <ArrowRight size={14} className="modulo-card__arrow" />
       </div>
       <p className="modulo-card__desc">{desc}</p>
       <div className="modulo-card__features">
-        {features.map((f) => (
-          <span key={f} className="modulo-card__feature">{f}</span>
+        {features.map((feature) => (
+          <span key={feature} className="modulo-card__feature">{feature}</span>
         ))}
       </div>
     </Link>
+  );
+}
+
+// ── Página Principal ────────────────────────────────────────
+export default function Home() {
+  return (
+    <div className="publico-layout">
+      <Navbar />
+      <main className="brand-page">
+
+        {/* ── Hero ───────────────────────────────────── */}
+        <section className="brand-hero">
+          <div className="brand-hero__layout">
+            <div className="brand-hero__copy">
+              <div className="brand-kicker">
+                <Zap size={14} />
+                Ecossistema digital angolano
+              </div>
+
+              <h1 className="brand-title">
+                Educação, investimento e comunidade num único{' '}
+                <span className="texto-gradiente">ecossistema</span>.
+              </h1>
+
+              <p className="brand-copy">
+                A ULEZI XPB conecta estudantes, empresas e investidores numa
+                plataforma segura com formação certificada, oportunidades
+                de negócio verificadas e uma comunidade profissional ativa.
+              </p>
+
+              <div className="brand-actions">
+                <Link to="/criar-conta" className="btn btn--primary btn--lg">
+                  Começar agora
+                  <ArrowRight size={18} />
+                </Link>
+                <Link to="/cursos" className="btn btn--secondary btn--lg">
+                  Explorar cursos
+                </Link>
+              </div>
+            </div>
+
+            {/* Painel de estatísticas */}
+            <div className="brand-hero__card">
+              <div className="brand-orbit brand-orbit--left" />
+              <div className="brand-orbit brand-orbit--right" />
+              <div className="brand-glow" />
+
+              <div className="brand-hero__stats">
+                <div className="brand-stat">
+                  <BookOpen size={18} />
+                  <strong>Formação</strong>
+                  <span>Cursos e centros verificados</span>
+                </div>
+                <div className="brand-stat">
+                  <TrendingUp size={18} />
+                  <strong>Negócios</strong>
+                  <span>Oportunidades com mediação</span>
+                </div>
+                <div className="brand-stat">
+                  <Users size={18} />
+                  <strong>Rede</strong>
+                  <span>Empresas, alunos e investidores</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── Módulos da plataforma ──────────────────── */}
+        <section className="brand-section">
+          <div className="brand-section__header">
+            <div className="brand-kicker">Três módulos</div>
+            <h2 className="brand-section__title">Três frentes, uma plataforma coesa</h2>
+            <p className="brand-section__desc">
+              Cada módulo foi desenhado para comunicar melhor o papel de cada
+              participante e a diferença entre aprender, investir e conectar.
+            </p>
+          </div>
+
+          <div className="brand-grid brand-grid--modules">
+            <ModuloCard
+              icone={<BookOpen size={22} color="white" />}
+              corIcone="linear-gradient(135deg, #18c8dd 0%, #1978b0 100%)"
+              titulo="Cursos"
+              desc="Formação técnico-profissional com filtros intuitivos, hierarquia visual clara e inscrição orientada por passos."
+              features={['Descoberta por área', 'Centros ativos', 'Recibo PDF automático']}
+              link="/cursos"
+            />
+            <ModuloCard
+              icone={<Building2 size={22} color="white" />}
+              corIcone="linear-gradient(135deg, #ffd54a 0%, #f39a00 100%)"
+              titulo="Negócios"
+              desc="Marketplace empresarial com verificação documental, mediação segura e contratos digitais."
+              features={['Empresas verificadas', 'Mediação', 'Contratos digitais']}
+              link="/negocios"
+            />
+            <ModuloCard
+              icone={<Users size={22} color="white" />}
+              corIcone="linear-gradient(135deg, #17c1d8 0%, #f5a200 100%)"
+              titulo="Comunidade"
+              desc="Rede profissional com perfis públicos, serviços especializados e vagas de emprego ativas."
+              features={['Perfis públicos', 'Serviços', 'Vagas ativas']}
+              link="/comunidade"
+            />
+          </div>
+        </section>
+
+        {/* ── Como funciona ──────────────────────────── */}
+        <section className="brand-section brand-section--compact">
+          <div className="brand-section__header">
+            <div className="brand-kicker">Como funciona</div>
+            <h2 className="brand-section__title">Um fluxo simples e transparente</h2>
+          </div>
+
+          <div className="brand-grid brand-grid--steps">
+            {[
+              {
+                num: '1',
+                titulo: 'Crie a sua conta',
+                desc: 'Escolha o perfil adequado — estudante, empresa ou investidor.',
+              },
+              {
+                num: '2',
+                titulo: 'Explore oportunidades',
+                desc: 'Descubra cursos, negócios ou conexões profissionais com contexto real.',
+              },
+              {
+                num: '3',
+                titulo: 'Inicie o processo',
+                desc: 'Inscreva-se, demonstre interesse ou publique com um fluxo orientado.',
+              },
+              {
+                num: '4',
+                titulo: 'Receba o desfecho',
+                desc: 'Comprovativos, contratos e comunicações ficam centralizados.',
+              },
+            ].map((passo) => (
+              <div key={passo.num} className="brand-step">
+                <div className="brand-step__num">{passo.num}</div>
+                <p className="brand-step__title">{passo.titulo}</p>
+                <p className="brand-step__desc">{passo.desc}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── Porquê a ULEZI XPB ─────────────────────── */}
+        <section className="brand-section brand-section--compact">
+          <div className="brand-section__header">
+            <div className="brand-kicker">Porquê a ULEZI XPB</div>
+            <h2 className="brand-section__title">Confiança, transparência e resultados</h2>
+          </div>
+
+          <div className="brand-grid brand-grid--trust">
+            {[
+              { texto: 'Verificação documental de todas as empresas' },
+              { texto: 'Mediação profissional em investimentos' },
+              { texto: 'Pagamentos seguros com comprovativo digital' },
+              { texto: 'Suporte humano integrado na plataforma' },
+              { texto: 'Dashboard personalizado por papel de utilizador' },
+              { texto: 'Conformidade com proteção de dados' },
+            ].map((item) => (
+              <div key={item.texto} className="brand-trust-item">
+                <CheckCircle size={18} color="var(--verde)" />
+                <span>{item.texto}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* ── CTA final ──────────────────────────────── */}
+        <section className="brand-cta">
+          <div className="brand-cta__inner">
+            <div>
+              <div className="brand-kicker">Ecossistema ULEZI XPB</div>
+              <h2 className="brand-cta__title">Pronto para fazer parte da plataforma?</h2>
+              <p className="brand-cta__desc">
+                Entre com o perfil certo e acompanhe a sua jornada profissional
+                num ecossistema pensado para o mercado angolano.
+              </p>
+            </div>
+            <Link to="/criar-conta" className="btn btn--primary btn--lg">
+              Criar conta gratuita
+              <ArrowRight size={18} />
+            </Link>
+          </div>
+        </section>
+      </main>
+      <Footer />
+    </div>
   );
 }

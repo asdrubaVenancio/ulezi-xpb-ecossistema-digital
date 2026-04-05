@@ -49,7 +49,7 @@ export function PaginaModulo({ titulo, subtitulo, acoes, children }) {
     <div>
       <div className="page-header">
         <div>
-          <h1 className="page-header__title">{titulo}</h1>
+          <h2 className="page-header__title">{titulo}</h2>
           <p className="page-header__sub">{subtitulo}</p>
         </div>
         {acoes ? <div className="page-header__actions">{acoes}</div> : null}

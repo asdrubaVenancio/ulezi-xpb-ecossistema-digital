@@ -12,6 +12,8 @@ const { pool } = require('../config/database');
 const { success, created, error, notFound, badRequest } = require('../utils/response');
 const { log } = require('../utils/audit');
 
+const normalizeModalidade = (modalidade) => modalidade === 'online' ? 'online' : 'presencial';
+
 /**
  * Valida se uma oferta existe e está ativa
  * @param {number} offeringId - ID da oferta
@@ -39,6 +41,7 @@ const createTrainingOffering = async (req, res) => {
       course_id,
       preco,
       carga_horaria,
+      modalidade,
       certificado_exigido = false,
       especificacoes,
       duracao_meses
@@ -100,14 +103,15 @@ const createTrainingOffering = async (req, res) => {
     const [result] = await pool.execute(
       `
       INSERT INTO training_center_courses
-        (center_id, course_id, preco, carga_horaria, certificado_exigido, especificacoes, status, created_by)
-      VALUES (?, ?, ?, ?, ?, ?, 'ativo', ?)
+        (center_id, course_id, preco, carga_horaria, modalidade, certificado_exigido, especificacoes, status, created_by)
+      VALUES (?, ?, ?, ?, ?, ?, ?, 'ativo', ?)
       `,
       [
         center_id,
         course_id,
         Number(preco),
         carga_horaria ? parseInt(carga_horaria, 10) : null,
+        normalizeModalidade(modalidade),
         certificado_exigido ? 1 : 0,
         especificacoes?.trim() || null,
         req.user.id
@@ -124,6 +128,7 @@ const createTrainingOffering = async (req, res) => {
         center_id,
         course_id,
         preco: Number(preco),
+        modalidade: normalizeModalidade(modalidade),
         certificado_exigido: !!certificado_exigido
       },
       req
@@ -135,6 +140,7 @@ const createTrainingOffering = async (req, res) => {
       course_id,
       preco: Number(preco),
       carga_horaria,
+      modalidade: normalizeModalidade(modalidade),
       certificado_exigido: !!certificado_exigido,
       especificacoes
     }, 'Oferta de curso criada com sucesso.');
@@ -176,6 +182,7 @@ const listTrainingOfferings = async (req, res) => {
         tcc.course_id,
         tcc.preco,
         tcc.carga_horaria,
+        tcc.modalidade,
         tcc.certificado_exigido,
         tcc.especificacoes,
         tcc.status,
@@ -232,7 +239,7 @@ const listTrainingOfferings = async (req, res) => {
       params.push(Number(max_preco));
     }
 
-    query += ` GROUP BY tcc.id, tcc.center_id, tcc.course_id, tcc.preco, tcc.carga_horaria, tcc.certificado_exigido, tcc.especificacoes, tcc.status, tcc.created_at, tcc.updated_at, tc.nome, tc.provincia, tc.municipio, c.nome, c.categoria, c.nivel, u.nome ORDER BY tcc.created_at DESC`;
+    query += ` GROUP BY tcc.id, tcc.center_id, tcc.course_id, tcc.preco, tcc.carga_horaria, tcc.modalidade, tcc.certificado_exigido, tcc.especificacoes, tcc.status, tcc.created_at, tcc.updated_at, tc.nome, tc.provincia, tc.municipio, c.nome, c.categoria, c.nivel, u.nome ORDER BY tcc.created_at DESC`;
 
     // Query para contagem total (sem agregações - simples)
     let countQuery = `SELECT COUNT(DISTINCT tcc.id) as total FROM training_center_courses tcc`;
@@ -358,6 +365,7 @@ const getTrainingOffering = async (req, res) => {
     return success(res, {
       ...offering,
       preco: Number(offering.preco),
+      modalidade: offering.modalidade || 'presencial',
       certificado_exigido: !!offering.certificado_exigido,
       inscricoes_recentes: enrollments,
       estatisticas: {
@@ -386,6 +394,7 @@ const updateTrainingOffering = async (req, res) => {
     const {
       preco,
       carga_horaria,
+      modalidade,
       certificado_exigido,
       especificacoes,
       status
@@ -416,6 +425,11 @@ const updateTrainingOffering = async (req, res) => {
     if (carga_horaria !== undefined) {
       updates.push('carga_horaria = ?');
       params.push(carga_horaria ? parseInt(carga_horaria, 10) : null);
+    }
+
+    if (modalidade !== undefined) {
+      updates.push('modalidade = ?');
+      params.push(normalizeModalidade(modalidade));
     }
 
     if (certificado_exigido !== undefined) {
@@ -543,6 +557,7 @@ const listPublicTrainingOfferings = async (req, res) => {
         tcc.id,
         tcc.preco,
         tcc.carga_horaria,
+        tcc.modalidade,
         tcc.certificado_exigido,
         tcc.especificacoes,
         tc.id AS center_id,
@@ -627,6 +642,7 @@ const listPublicTrainingOfferings = async (req, res) => {
       id: row.id,
       preco: Number(row.preco),
       carga_horaria: row.carga_horaria,
+      modalidade: row.modalidade || 'presencial',
       certificado_exigido: !!row.certificado_exigido,
       especificacoes: row.especificacoes,
       centro: {

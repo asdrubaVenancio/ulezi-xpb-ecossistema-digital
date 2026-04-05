@@ -29,11 +29,7 @@ export const centrosAPI = {
    * @param {Object} dados - Dados do centro
    * @returns {Promise} Promise com centro criado
    */
-  criar: (dados) => {
-    console.log('[API] centrosAPI.criar chamado com dados:', dados);
-    console.log('[API] Fazendo POST para:', '/api/training-centers/admin');
-    return api.post('/training-centers/admin', dados);
-  },
+  criar: (dados) => api.post('/training-centers/admin', dados),
 
   /**
    * Obtém detalhes de um centro específico

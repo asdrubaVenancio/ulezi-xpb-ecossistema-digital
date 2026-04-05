@@ -22,6 +22,7 @@ import {
     Filter,
     GraduationCap,
     Plus,
+    Search,
     Trash2,
     TrendingUp,
     Users
@@ -69,6 +70,7 @@ const OfertasCursos = () => {
     course_id: '',
     preco: '',
     carga_horaria: '',
+    modalidade: 'presencial',
     certificado_exigido: false,
     especificacoes: ''
   });
@@ -76,6 +78,8 @@ const OfertasCursos = () => {
   // Estados para selects dinâmicos
   const [carregandoCentros, setCarregandoCentros] = useState(false);
   const [carregandoCursos, setCarregandoCursos] = useState(false);
+  const [pesquisaCentro, setPesquisaCentro] = useState('');
+  const [pesquisaCurso, setPesquisaCurso] = useState('');
 
   /**
    * Carrega lista de ofertas de cursos com paginação
@@ -267,6 +271,7 @@ const OfertasCursos = () => {
       course_id: '',
       preco: '',
       carga_horaria: '',
+      modalidade: 'presencial',
       certificado_exigido: false,
       especificacoes: ''
     });
@@ -287,6 +292,7 @@ const OfertasCursos = () => {
       course_id: oferta.course_id || '',
       preco: oferta.preco || '',
       carga_horaria: oferta.carga_horaria || '',
+      modalidade: oferta.modalidade || 'presencial',
       certificado_exigido: oferta.certificado_exigido || false,
       especificacoes: oferta.especificacoes || ''
     });
@@ -304,6 +310,7 @@ const OfertasCursos = () => {
       course_id: '',
       preco: '',
       carga_horaria: '',
+      modalidade: 'presencial',
       certificado_exigido: false,
       especificacoes: ''
     });
@@ -360,6 +367,28 @@ const OfertasCursos = () => {
     return () => clearTimeout(timeoutId);
   }, [filtros, paginacao.page]);
 
+  const termoCentro = pesquisaCentro.trim().toLowerCase();
+  const termoCurso = pesquisaCurso.trim().toLowerCase();
+
+  const centrosFiltrados = listaCentros.filter((centro) => {
+    if (!termoCentro) return true;
+    return [
+      centro.nome,
+      centro.municipio,
+      centro.provincia,
+      centro.email
+    ].filter(Boolean).some((valor) => String(valor).toLowerCase().includes(termoCentro));
+  });
+
+  const cursosFiltrados = listaCursos.filter((curso) => {
+    if (!termoCurso) return true;
+    return [
+      curso.nome,
+      curso.categoria,
+      curso.nivel
+    ].filter(Boolean).some((valor) => String(valor).toLowerCase().includes(termoCurso));
+  });
+
   return (
     <div className="admin-page">
       {/* Cabeçalho */}
@@ -371,14 +400,15 @@ const OfertasCursos = () => {
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--txt-1)', marginBottom: '4px' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--txt-1)', marginBottom: '4px' }}>
                 Ofertas de Cursos
-              </h1>
+              </h2>
               <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem' }}>
                 Gerencie preços, carga horária e especificações dos cursos por centro
               </p>
             </div>
             <button
+              type="button"
               onClick={abrirModalCriacao}
               className="btn btn--primary"
               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -767,11 +797,58 @@ const OfertasCursos = () => {
                     <Building2 size={16} color="var(--ciano)" />
                     Centro de Formação *
                   </label>
+                  <div style={{ position: 'relative', marginBottom: '10px' }}>
+                    <Search size={16} color="var(--txt-4)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={pesquisaCentro}
+                      onChange={(e) => setPesquisaCentro(e.target.value)}
+                      className="form-input"
+                      placeholder="Pesquisar centro por nome, municÃ­pio ou provÃ­ncia..."
+                      style={{ paddingLeft: '40px' }}
+                    />
+                  </div>
+                  <div style={{ position: 'relative', marginBottom: '10px', display: 'none' }}>
+                    <Search size={16} color="var(--txt-4)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={pesquisaCurso}
+                      onChange={(e) => setPesquisaCurso(e.target.value)}
+                      className="form-input"
+                      placeholder="Pesquisar curso por nome, categoria ou nÃ­vel..."
+                      style={{ paddingLeft: '40px' }}
+                      disabled={!formData.center_id}
+                    />
+                  </div>
+                  <div style={{ position: 'relative', marginBottom: '10px', display: 'none' }}>
+                    <Search size={16} color="var(--txt-4)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={pesquisaCurso}
+                      onChange={(e) => setPesquisaCurso(e.target.value)}
+                      className="form-input"
+                      placeholder="Pesquisar curso por nome, categoria ou nivel..."
+                      style={{ paddingLeft: '40px' }}
+                      disabled={!formData.center_id}
+                    />
+                  </div>
+                  <div style={{ position: 'relative', marginBottom: '10px', display: 'none' }}>
+                    <Search size={16} color="var(--txt-4)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={pesquisaCurso}
+                      onChange={(e) => setPesquisaCurso(e.target.value)}
+                      className="form-input"
+                      placeholder="Pesquisar curso por nome, categoria ou nivel..."
+                      style={{ paddingLeft: '40px' }}
+                      disabled={!formData.center_id}
+                    />
+                  </div>
                   <select
                     required
                     value={formData.center_id}
-                    onChange={(e) => setFormData(prev => ({ ...prev, center_id: e.target.value }))}
-                    className="form-select"
+                    onChange={(e) => setFormData(prev => ({ ...prev, center_id: e.target.value, course_id: prev.center_id === e.target.value ? prev.course_id : '' }))}
+                    className="form-select ofertas-modal__select"
                     style={{ 
                       padding: '14px 40px 14px 16px',
                       border: '2px solid var(--border)',
@@ -788,12 +865,15 @@ const OfertasCursos = () => {
                     title={listaCentros.find(c => c.id === formData.center_id)?.nome || 'Selecione um centro'}
                   >
                     <option value="">Selecione um centro...</option>
-                    {listaCentros.map(centro => (
+                    {centrosFiltrados.map(centro => (
                       <option key={centro.id} value={centro.id} title={`${centro.nome} (${centro.municipio}, ${centro.provincia})`}>
                         {centro.nome.length > 35 ? centro.nome.substring(0, 35) + '...' : centro.nome} {centro.municipio ? `(${centro.municipio})` : ''}
                       </option>
                     ))}
                   </select>
+                  <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: 'var(--txt-4)' }}>
+                    {centrosFiltrados.length} centro{centrosFiltrados.length !== 1 ? 's' : ''} encontrado{centrosFiltrados.length !== 1 ? 's' : ''}
+                  </p>
                   {carregandoCentros && (
                     <div style={{ position: 'absolute', right: '12px', top: '50%', marginTop: '8px' }}>
                       <div className="spinner spinner--sm"></div>
@@ -812,11 +892,23 @@ const OfertasCursos = () => {
                     <GraduationCap size={16} color="var(--ciano)" />
                     Curso *
                   </label>
+                  <div style={{ position: 'relative', marginBottom: '10px' }}>
+                    <Search size={16} color="var(--txt-4)" style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)' }} />
+                    <input
+                      type="text"
+                      value={pesquisaCurso}
+                      onChange={(e) => setPesquisaCurso(e.target.value)}
+                      className="form-input"
+                      placeholder="Pesquisar curso por nome, categoria ou nivel..."
+                      style={{ paddingLeft: '40px' }}
+                      disabled={!formData.center_id}
+                    />
+                  </div>
                   <select
                     required
                     value={formData.course_id}
                     onChange={(e) => setFormData(prev => ({ ...prev, course_id: e.target.value }))}
-                    className="form-select"
+                    className="form-select ofertas-modal__select"
                     style={{ 
                       padding: '14px 40px 14px 16px',
                       border: '2px solid var(--border)',
@@ -836,12 +928,17 @@ const OfertasCursos = () => {
                     <option value="">
                       {!formData.center_id ? 'Selecione um centro primeiro' : 'Selecione um curso...'}
                     </option>
-                    {listaCursos.map(curso => (
+                    {cursosFiltrados.map(curso => (
                       <option key={curso.id} value={curso.id} title={`${curso.nome} — ${curso.categoria || 'Sem categoria'}`}>
                         {curso.nome.length > 35 ? curso.nome.substring(0, 35) + '...' : curso.nome}
                       </option>
                     ))}
                   </select>
+                  <p style={{ margin: '8px 0 0', fontSize: '0.8rem', color: 'var(--txt-4)' }}>
+                    {!formData.center_id
+                      ? 'Selecione primeiro um centro para definir a oferta.'
+                      : `${cursosFiltrados.length} curso${cursosFiltrados.length !== 1 ? 's' : ''} encontrado${cursosFiltrados.length !== 1 ? 's' : ''}`}
+                  </p>
                 </div>
               </div>
 
@@ -909,6 +1006,29 @@ const OfertasCursos = () => {
                     }}
                   />
                 </div>
+              </div>
+
+              <div className="form-group" style={{ marginBottom: '24px' }}>
+                <label className="form-label" style={{ fontWeight: '600', color: 'var(--txt-2)' }}>
+                  Modalidade *
+                </label>
+                <select
+                  value={formData.modalidade}
+                  onChange={(e) => setFormData(prev => ({ ...prev, modalidade: e.target.value }))}
+                  className="form-select ofertas-modal__select"
+                  style={{
+                    padding: '14px 16px',
+                    border: '2px solid var(--border)',
+                    borderRadius: 'var(--r-lg)',
+                    fontSize: '0.95rem',
+                    color: 'var(--txt-1)',
+                    backgroundColor: 'var(--surface-2)',
+                    WebkitTextFillColor: 'var(--txt-1)'
+                  }}
+                >
+                  <option value="presencial">Presencial</option>
+                  <option value="online">Online</option>
+                </select>
               </div>
 
               {/* Checkbox Certificado */}

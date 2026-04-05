@@ -291,11 +291,9 @@ const GestaoCoordenadasBancarias = () => {
       const response = await coordenadasBancariasAPI.adminListar();
 
       if (response.data.success) {
-        console.log('[COORDENADAS] Dados recebidos:', response.data.dados);
         setCoordenadas(response.data.dados?.coordenadas || []);
       }
-    } catch (err) {
-      console.error('[ADMIN_COORDS_ERROR]', err);
+    } catch {
       toast.erro('Erro ao carregar coordenadas bancárias.');
     } finally {
       setCarregando(false);

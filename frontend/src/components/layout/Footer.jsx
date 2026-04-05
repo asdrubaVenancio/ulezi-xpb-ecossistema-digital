@@ -16,7 +16,14 @@ export default function Footer() {
           <div>
             <div className="footer__brand-name">
               <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden>
-                <rect width="32" height="32" rx="7" fill="#00BCD4"/>
+                <defs>
+                  <linearGradient id="ulezi-logo-footer" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+                    <stop stopColor="#17C1D8" />
+                    <stop offset="0.58" stopColor="#1782B5" />
+                    <stop offset="1" stopColor="#F6A400" />
+                  </linearGradient>
+                </defs>
+                <rect width="32" height="32" rx="7" fill="url(#ulezi-logo-footer)"/>
                 <text y="23" x="6" fontSize="18" fontWeight="900" fill="white" fontFamily="sans-serif">U</text>
               </svg>
               ULEZI<span>XPB</span>

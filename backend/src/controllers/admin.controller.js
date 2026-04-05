@@ -6,6 +6,8 @@ const { success, error, notFound } = require('../utils/response');
 const { log } = require('../utils/audit');
 const { sendCompanyApprovalEmail, sendCompanyRejectionEmail } = require('../utils/email');
 
+const normalizeOfferingModalidade = (modalidade) => modalidade === 'online' ? 'online' : 'presencial';
+
 const normalizeRole = (role) => ({
   estudante: 'student',
   empresa: 'company',
@@ -269,14 +271,14 @@ const createAdminCourse = async (req, res) => {
   try {
     const { nome, descricao, preco, duracao_horas, categoria, nivel } = req.body;
 
-    if (!nome || preco == null || preco === '') {
-      return error(res, 'Nome e preço são obrigatórios.', 400);
+    if (!nome) {
+      return error(res, 'Nome do curso é obrigatório.', 400);
     }
 
     const [result] = await pool.execute(
       `INSERT INTO courses (nome, descricao, preco, duracao, categoria, nivel, status, created_by)
        VALUES (?,?,?,?,?,?,?,?)`,
-      [nome, descricao || null, preco, duracao_horas || null, categoria || null, nivel || 'basico', 'ativo', req.user.id]
+      [nome, descricao || null, preco === undefined || preco === null || preco === '' ? 0 : preco, duracao_horas === undefined || duracao_horas === '' ? null : duracao_horas, categoria || null, ['basico', 'intermedio', 'avancado'].includes(nivel) ? nivel : 'basico', 'ativo', req.user.id]
     );
 
     await log(req.user.id, 'CREATE_COURSE', 'courses', result.insertId, { nome }, req);
@@ -896,7 +898,7 @@ const deleteTrainingCenterV2 = async (req, res) => {
 const saveCenterCourseOffering = async (req, res) => {
   try {
     const { id } = req.params;
-    const { course_id, preco, carga_horaria, certificado_exigido, especificacoes } = req.body;
+    const { course_id, preco, carga_horaria, modalidade, certificado_exigido, especificacoes } = req.body;
 
     if (!course_id) {
       return res.status(400).json({ success: false, message: 'O curso é obrigatório.' });
@@ -905,15 +907,16 @@ const saveCenterCourseOffering = async (req, res) => {
     await pool.execute('INSERT IGNORE INTO center_courses (center_id, course_id) VALUES (?,?)', [id, course_id]);
     await pool.execute(
       `INSERT INTO training_center_courses
-        (center_id, course_id, preco, carga_horaria, certificado_exigido, especificacoes, created_by)
-       VALUES (?,?,?,?,?,?,?)
+        (center_id, course_id, preco, carga_horaria, modalidade, certificado_exigido, especificacoes, created_by)
+       VALUES (?,?,?,?,?,?,?,?)
        ON DUPLICATE KEY UPDATE
-         preco = VALUES(preco),
-         carga_horaria = VALUES(carga_horaria),
-         certificado_exigido = VALUES(certificado_exigido),
-         especificacoes = VALUES(especificacoes),
-         status = 'ativo'`,
-      [id, course_id, preco || 0, carga_horaria || null, certificado_exigido ? 1 : 0, especificacoes || null, req.user.id]
+          preco = VALUES(preco),
+          carga_horaria = VALUES(carga_horaria),
+          modalidade = VALUES(modalidade),
+          certificado_exigido = VALUES(certificado_exigido),
+          especificacoes = VALUES(especificacoes),
+          status = 'ativo'`,
+      [id, course_id, preco || 0, carga_horaria || null, normalizeOfferingModalidade(modalidade), certificado_exigido ? 1 : 0, especificacoes || null, req.user.id]
     );
 
     await log(req.user.id, 'UPSERT_CENTER_COURSE', 'training_center_courses', null, req.body, req);
@@ -947,12 +950,13 @@ const listCenterCourseOfferings = async (req, res) => {
 const updateCenterCourseOffering = async (req, res) => {
   try {
     const { centerId, offeringId } = req.params;
-    const { preco, carga_horaria, certificado_exigido, especificacoes, status } = req.body;
+    const { preco, carga_horaria, modalidade, certificado_exigido, especificacoes, status } = req.body;
 
     await pool.execute(
       `UPDATE training_center_courses
        SET preco = COALESCE(?, preco),
            carga_horaria = COALESCE(?, carga_horaria),
+           modalidade = COALESCE(?, modalidade),
            certificado_exigido = COALESCE(?, certificado_exigido),
            especificacoes = COALESCE(?, especificacoes),
            status = COALESCE(?, status)
@@ -960,6 +964,7 @@ const updateCenterCourseOffering = async (req, res) => {
       [
         preco ?? null,
         carga_horaria ?? null,
+        modalidade === undefined ? null : normalizeOfferingModalidade(modalidade),
         certificado_exigido === undefined ? null : (certificado_exigido ? 1 : 0),
         especificacoes ?? null,
         status ?? null,

@@ -11,10 +11,10 @@ const {
   uploadDocument, getMyCompany, listOpportunities, getOpportunity,
   saveCompanyProfile, createOpportunity, expressInterest, adminListInterests, generateContract,
   downloadContract, signContract, adminListCompanies, approveCompany,
-  createSubscription, addCompanyService,
+  createSubscription, addCompanyService, listCompanyServices, updateCompanyService, deleteCompanyService,
 } = require('../controllers/business.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
-const { requireActiveSubscription, requirePrivilege } = require('../middlewares/subscription.middleware');
+const { requireActiveSubscription, requirePrivilege, requireApprovedCompany } = require('../middlewares/subscription.middleware');
 const { validate, opportunitySchema } = require('../validations/opportunity.validation');
 
 // Pasta para documentos de empresas
@@ -47,11 +47,17 @@ const uploadDoc = multer({
 router.post('/companies/documents', authenticate, authorize('company'), uploadDoc.single('documento'), uploadDocument);
 router.get('/companies/my', authenticate, authorize('company'), getMyCompany);
 router.post('/companies', authenticate, authorize('company'), saveCompanyProfile);
-router.post('/companies/services', authenticate, authorize('company'), addCompanyService);
+router.post('/companies/services', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, addCompanyService);
+router.get('/companies/services', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, listCompanyServices);
+router.put('/companies/services/:id', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, updateCompanyService);
+router.delete('/companies/services/:id', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, deleteCompanyService);
 router.post('/empresas', authenticate, authorize('company'), saveCompanyProfile);
 router.get('/empresas/minha', authenticate, authorize('company'), getMyCompany);
 router.post('/empresas/documentos', authenticate, authorize('company'), uploadDoc.single('documento'), uploadDocument);
-router.post('/empresas/servicos', authenticate, authorize('company'), addCompanyService);
+router.post('/empresas/servicos', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, addCompanyService);
+router.get('/empresas/servicos', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, listCompanyServices);
+router.put('/empresas/servicos/:id', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, updateCompanyService);
+router.delete('/empresas/servicos/:id', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, deleteCompanyService);
 
 // ── Oportunidades ─────────────────────────────────────────────────────────────
 router.get('/opportunities', listOpportunities);
@@ -113,6 +119,9 @@ router.get('/empresa/perfil',        authenticate, authorize('company'), getEmpr
 router.get('/empresa/stats',         authenticate, authorize('company'), requireActiveSubscription, getEmpresaStats);
 router.get('/empresa/oportunidades', authenticate, authorize('company'), requireActiveSubscription, getEmpresaOportunidades);
 router.get('/empresa/oportunidades/:id/interessados', authenticate, authorize('company'), requireActiveSubscription, getEmpresaOpportunityInterests);
+router.get('/empresa/servicos', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, listCompanyServices);
+router.put('/empresa/servicos/:id', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, updateCompanyService);
+router.delete('/empresa/servicos/:id', authenticate, authorize('company'), requireActiveSubscription, requireApprovedCompany, deleteCompanyService);
 router.get('/empresa/contratos',     authenticate, authorize('company'), getEmpresaContratos);
 router.get('/empresa/documentos',    authenticate, authorize('company'), getEmpresaDocumentos);
 router.post('/empresa/documentos',   authenticate, authorize('company'), uploadDoc.single('documento'), uploadDocument);

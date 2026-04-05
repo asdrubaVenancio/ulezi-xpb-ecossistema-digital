@@ -26,8 +26,7 @@ import {
 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useToast } from '../../components/ui/Toast';
-import api from '../../services/api';
-import { centrosAPI, cursosAPI } from '../../services/trainingAPI';
+import { centrosAPI, cursosAPI, ofertasAPI } from '../../services/trainingAPI';
 
 /**
  * Componente principal de gestão de centros de formação
@@ -75,6 +74,7 @@ const CentrosFormacao = () => {
     course_id: '',
     preco: '',
     carga_horaria: '',
+    modalidade: 'presencial',
     certificado_exigido: false,
     especificacoes: ''
   });
@@ -143,34 +143,22 @@ const CentrosFormacao = () => {
    */
   const salvarCentro = async (e) => {
     e.preventDefault();
-    
-    console.log('[FRONTEND] Botão salvar clicado!');
-    console.log('[FRONTEND] FormData:', formData);
-    console.log('[FRONTEND] Centro selecionado:', centroSelecionado);
-    
+
     try {
       const dataToSend = { ...formData };
-      console.log('[FRONTEND] Dados a enviar:', dataToSend);
-      console.log('[FRONTEND] Chamando centrosAPI.criar...');
-      
+
       if (centroSelecionado) {
-        console.log('[FRONTEND] Modo: EDITAR centro ID:', centroSelecionado.id);
         await centrosAPI.atualizar(centroSelecionado.id, dataToSend);
-        toast.sucesso('Centro atualizado com sucesso!');
+        toast.sucesso('Centro actualizado com sucesso.');
       } else {
-        console.log('[FRONTEND] Modo: CRIAR novo centro');
-        console.log('[FRONTEND] URL que será chamada:', '/api/training-centers/admin');
         await centrosAPI.criar(dataToSend);
-        toast.sucesso('Centro criado com sucesso!');
+        toast.sucesso('Centro criado com sucesso.');
       }
 
       fecharModal();
       carregarCentros();
     } catch (error) {
-      console.error('[FRONTEND] Erro ao salvar centro:', error);
-      console.error('[FRONTEND] Error response:', error.response);
-      console.error('[FRONTEND] Error message:', error.message);
-      toast.erro(error.response?.data?.message || 'Erro ao salvar centro');
+      toast.erro(error.response?.data?.message || 'Erro ao guardar o centro.');
     }
   };
 
@@ -236,6 +224,7 @@ const CentrosFormacao = () => {
       course_id: '',
       preco: '',
       carga_horaria: '',
+      modalidade: 'presencial',
       certificado_exigido: false,
       especificacoes: ''
     });
@@ -254,7 +243,7 @@ const CentrosFormacao = () => {
         carga_horaria: parseInt(ofertaData.carga_horaria) || null
       };
 
-      await api.post('/admin/training-offerings', dataToSend);
+      await ofertasAPI.criar(dataToSend);
       toast.sucesso('Oferta criada com sucesso!');
       setShowOfertaModal(false);
       carregarCentros();
@@ -344,14 +333,15 @@ const CentrosFormacao = () => {
         <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '0 24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div>
-              <h1 style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--txt-1)', marginBottom: '4px' }}>
+              <h2 style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--txt-1)', marginBottom: '4px' }}>
                 Centros de Formação
-              </h1>
+              </h2>
               <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem' }}>
                 Gerencie centros de formação profissional e suas ofertas
               </p>
             </div>
             <button
+              type="button"
               onClick={() => setShowModal(true)}
               className="btn btn--primary"
               style={{ display: 'flex', alignItems: 'center', gap: '8px' }}
@@ -562,7 +552,7 @@ const CentrosFormacao = () => {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '672px' }}>
-            <div className="modal__header">
+            <div className="modal__header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
               <h2 className="modal__title">
                 {centroSelecionado ? 'Editar Centro de Formação' : 'Novo Centro de Formação'}
               </h2>
@@ -680,11 +670,11 @@ const CentrosFormacao = () => {
       {showAssociacaoModal && centroSelecionado && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '768px' }}>
-            <div className="modal__header">
+            <div className="modal__header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
               <h2 className="modal__title">
                 Associar Cursos - {centroSelecionado.nome}
               </h2>
-              <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem', marginTop: '4px' }}>
+              <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem', margin: 0 }}>
                 Selecione os cursos que este centro irá oferecer
               </p>
             </div>
@@ -769,11 +759,11 @@ const CentrosFormacao = () => {
       {showOfertaModal && centroSelecionado && (
         <div className="modal-overlay">
           <div className="modal" style={{ maxWidth: '672px' }}>
-            <div className="modal__header">
+            <div className="modal__header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
               <h2 className="modal__title">
                 Nova Oferta - {centroSelecionado.nome}
               </h2>
-              <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem', marginTop: '4px' }}>
+              <p style={{ color: 'var(--txt-3)', fontSize: '0.875rem', margin: 0 }}>
                 Defina preço, carga horária e especificações para este curso
               </p>
             </div>
@@ -825,6 +815,18 @@ const CentrosFormacao = () => {
                   </div>
                 </div>
 
+                <div className="form-group">
+                  <label className="form-label">Modalidade *</label>
+                  <select
+                    value={ofertaData.modalidade}
+                    onChange={(e) => setOfertaData(prev => ({ ...prev, modalidade: e.target.value }))}
+                    className="form-select"
+                  >
+                    <option value="presencial">Presencial</option>
+                    <option value="online">Online</option>
+                  </select>
+                </div>
+
                 <div>
                   <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <input
@@ -856,7 +858,7 @@ const CentrosFormacao = () => {
                   )}
                 </div>
 
-                <div className="form-group">
+                <div className="form-group" style={{ marginBottom: '12px' }}>
                   <label className="form-label">Especificações</label>
                   <textarea
                     value={ofertaData.especificacoes}
@@ -868,7 +870,7 @@ const CentrosFormacao = () => {
                 </div>
               </div>
 
-              <div className="modal__footer">
+              <div className="modal__footer" style={{ marginTop: '32px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
                 <button
                   onClick={() => setShowOfertaModal(false)}
                   className="btn btn--secondary"

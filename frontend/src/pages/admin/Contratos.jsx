@@ -130,7 +130,7 @@ const Contratos = () => {
       <main className="flex-1 ml-64 p-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Contratos</h1>
+          <h2 className="text-3xl font-bold text-gray-900 mb-2">Contratos</h2>
           <p className="text-gray-600">Gestão de contratos de investimento</p>
         </div>
 

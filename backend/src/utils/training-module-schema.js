@@ -37,6 +37,7 @@ const ensureTrainingModuleSchema = async () => {
       course_id INT NOT NULL,
       preco DECIMAL(12,2) NOT NULL DEFAULT 0,
       carga_horaria INT NULL,
+      modalidade ENUM('presencial','online') NOT NULL DEFAULT 'presencial',
       certificado_exigido TINYINT(1) NOT NULL DEFAULT 0,
       especificacoes TEXT NULL,
       status ENUM('ativo','inativo') NOT NULL DEFAULT 'ativo',
@@ -51,6 +52,7 @@ const ensureTrainingModuleSchema = async () => {
 
   await addColumnIfMissing('enrollments', 'offering_id', 'INT NULL AFTER center_id');
   await addColumnIfMissing('training_centers', 'descricao', 'TEXT NULL AFTER telefone');
+  await addColumnIfMissing('training_center_courses', 'modalidade', `ENUM('presencial','online') NOT NULL DEFAULT 'presencial' AFTER carga_horaria`);
   await addColumnIfMissing('enrollments', 'documento_requisito_url', 'VARCHAR(255) NULL AFTER observacoes');
   await addColumnIfMissing('enrollments', 'documento_requisito_nome', 'VARCHAR(255) NULL AFTER documento_requisito_url');
   await addColumnIfMissing('enrollments', 'documento_requisito_mime', 'VARCHAR(120) NULL AFTER documento_requisito_nome');

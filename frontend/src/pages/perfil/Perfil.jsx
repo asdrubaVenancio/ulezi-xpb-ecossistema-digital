@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { authAPI, empresaAPI, investidorAPI, extrairErro } from '../../services/api';
 import { useToast } from '../../components/ui/Toast';
+import { PageLoader } from '../../components/ui/index.jsx';
 import { iniciais, ROLE_DASHBOARD, ROLE_LABELS } from '../../utils/constants';
 
 const schemaPerfilBase = z.object({
@@ -33,14 +34,6 @@ const schemaSenha = z.object({
   message: 'As palavras-passe não coincidem.',
   path: ['confirmar'],
 });
-
-const secaoCard = {
-  background: 'var(--bg-card)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--r-xl)',
-  padding: 24,
-  boxShadow: 'var(--shadow-sm)',
-};
 
 const roleColor = {
   student: 'var(--ciano)',
@@ -82,40 +75,50 @@ export default function Perfil() {
   }, [utilizador?.role]);
 
   return (
-    <div style={{ maxWidth: 980, margin: '0 auto', display: 'grid', gap: 20 }}>
-      <section style={{ ...secaoCard, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 20, alignItems: 'center' }}>
-        <div style={{ width: 88, height: 88, borderRadius: 28, background: `${cor}18`, border: `1px solid ${cor}44`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: cor, fontSize: '1.75rem', fontWeight: 800, fontFamily: 'var(--font-display)' }}>
+    <div className="perfil-container">
+      {/* ── Cabeçalho do perfil ───────────────────── */}
+      <section className="perfil-cabecalho">
+        <div className="perfil-avatar-box" style={{ '--perfil-cor': cor }}>
           {iniciais(utilizador?.nome || '?')}
         </div>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 800 }}>{utilizador?.nome || 'Perfil'}</h1>
-            <span style={{ display: 'inline-flex', alignItems: 'center', padding: '4px 10px', borderRadius: '999px', background: `${cor}18`, color: cor, fontWeight: 700, fontSize: '0.75rem' }}>
+        <div className="perfil-info">
+          <div className="perfil-info__header">
+            <h1 className="perfil-info__nome">{utilizador?.nome || 'Perfil'}</h1>
+            <span className="perfil-tipo-badge" style={{ '--perfil-cor': cor }}>
               {ROLE_LABELS[utilizador?.role] || utilizador?.role}
             </span>
           </div>
-          <p style={{ color: 'var(--txt-3)', marginBottom: 10 }}>{utilizador?.email}</p>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', color: 'var(--txt-3)', fontSize: '0.84rem' }}>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Mail size={14} /> Conta autenticada</span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><Shield size={14} /> Dados protegidos por sessão</span>
+          <p className="perfil-info__email">{utilizador?.email}</p>
+          <div className="perfil-info__meta">
+            <span><Mail size={14} /> Conta autenticada</span>
+            <span><Shield size={14} /> Dados protegidos por sessão</span>
           </div>
         </div>
       </section>
 
-      <section style={{ ...secaoCard, paddingBottom: 12 }}>
-        {utilizador?.password_change_required ? (
-          <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 'var(--r-lg)', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.28)', color: 'var(--txt)' }}>
+      {/* ── Abas + alerta de senha temporária ───── */}
+      <section className="perfil-tabs-section">
+        {utilizador?.password_change_required && (
+          <div className="alert alert--warning" style={{ marginBottom: 16 }}>
             A sua conta foi criada com uma senha temporária. Para continuar, altere a palavra-passe nesta página.
           </div>
-        ) : null}
+        )}
         <div className="tabs" style={{ marginBottom: 0 }}>
           {tabs.map((tab) => (
-            <button key={tab.id} className={`tab-btn${aba === tab.id ? ' active' : ''}`} onClick={() => setAba(tab.id)}>
+            <button
+              key={tab.id}
+              type="button"
+              className={`tab-btn${aba === tab.id ? ' active' : ''}`}
+              onClick={() => setAba(tab.id)}
+              role="tab"
+              aria-selected={aba === tab.id}
+            >
               {tab.icon} {tab.label}
             </button>
           ))}
         </div>
       </section>
+
 
       {aba === 'dados' && (
         <DadosPessoais
@@ -151,7 +154,11 @@ export default function Perfil() {
 }
 
 function DadosPessoais({ utilizador, onSucesso, onErro }) {
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
+  const ehEstudante = ['student', 'estudante'].includes(utilizador?.role);
+  const [perfilPublico, setPerfilPublico] = useState(false);
+  const [perfilCarregado, setPerfilCarregado] = useState(!ehEstudante);
+
+  const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(schemaPerfilBase),
     defaultValues: {
       nome: utilizador?.nome || '',
@@ -159,9 +166,35 @@ function DadosPessoais({ utilizador, onSucesso, onErro }) {
     },
   });
 
+  useEffect(() => {
+    reset({
+      nome: utilizador?.nome || '',
+      telefone: utilizador?.telefone || '',
+    });
+  }, [utilizador?.nome, utilizador?.telefone, reset]);
+
+  useEffect(() => {
+    if (!ehEstudante) return;
+    let cancelado = false;
+    authAPI.obterPerfilCompleto()
+      .then(({ data }) => {
+        if (cancelado) return;
+        const p = data.dados?.profile || data.data?.profile || {};
+        const pub = p.is_public === 1 || p.is_public === true;
+        setPerfilPublico(!!pub);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelado) setPerfilCarregado(true);
+      });
+    return () => { cancelado = true; };
+  }, [ehEstudante, utilizador?.id]);
+
   const submeter = async (dados) => {
     try {
-      await authAPI.atualizarPerfil(dados);
+      const payload = { ...dados };
+      if (ehEstudante) payload.is_public = perfilPublico;
+      await authAPI.atualizarPerfil(payload);
       onSucesso(dados);
     } catch (e) {
       onErro(extrairErro(e));
@@ -169,9 +202,9 @@ function DadosPessoais({ utilizador, onSucesso, onErro }) {
   };
 
   return (
-    <form onSubmit={handleSubmit(submeter)} style={secaoCard}>
+    <form className="perfil-secao" onSubmit={handleSubmit(submeter)}>
       <CabecalhoSecao titulo="Dados pessoais" subtitulo="Informações principais da sua conta." icone={<User size={18} />} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+      <div className="perfil-secao__grid">
         <Campo label="Nome completo" erro={errors.nome?.message} icon={<User size={16} />}>
           <input className="form-input form-input--icon" {...register('nome')} />
         </Campo>
@@ -181,8 +214,16 @@ function DadosPessoais({ utilizador, onSucesso, onErro }) {
         <Campo label="Telefone" erro={errors.telefone?.message} icon={<Phone size={16} />}>
           <input className="form-input form-input--icon" {...register('telefone')} placeholder="+244 9XX XXX XXX" />
         </Campo>
+        {ehEstudante && perfilCarregado && (
+          <TogglePublico
+            value={perfilPublico}
+            onChange={setPerfilPublico}
+            titulo="Perfil público na comunidade"
+            descricao="Ao activar, o seu nome e localização podem aparecer na página Comunidade (Membros), conforme as regras da plataforma."
+          />
+        )}
       </div>
-      <AcaoGuardar carregando={isSubmitting} />
+      <AcaoGuardar carregando={isSubmitting || (ehEstudante && !perfilCarregado)} />
     </form>
   );
 }
@@ -206,9 +247,9 @@ function Seguranca({ onSucesso, onErro }) {
   };
 
   return (
-    <form onSubmit={handleSubmit(submeter)} style={secaoCard}>
+    <form className="perfil-secao" onSubmit={handleSubmit(submeter)}>
       <CabecalhoSecao titulo="Segurança da conta" subtitulo="Mantenha uma palavra-passe forte e actualizada." icone={<Shield size={18} />} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+      <div className="perfil-secao__grid">
         <Campo label="Palavra-passe actual" erro={errors.password_atual?.message} icon={<Lock size={16} />}>
           <input type="password" className="form-input form-input--icon" {...register('password_atual')} />
         </Campo>
@@ -275,13 +316,17 @@ function PerfilInvestidor({ onSucesso, onAviso }) {
   };
 
   if (carregando) {
-    return <div style={secaoCard}><div className="skeleton" style={{ height: 220 }} /></div>;
+    return (
+      <div className="perfil-secao perfil-secao--loading">
+        <PageLoader />
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={guardar} style={secaoCard}>
+    <form className="perfil-secao" onSubmit={guardar}>
       <CabecalhoSecao titulo="Perfil de investidor" subtitulo="Defina como deseja aparecer na plataforma e quais dados operacionais quer expor." icone={<TrendingUp size={18} />} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+      <div className="perfil-secao__grid">
         <Campo label="Província" icon={<MapPin size={16} />}>
           <input className="form-input form-input--icon" value={form.provincia} onChange={(e) => setForm((s) => ({ ...s, provincia: e.target.value }))} placeholder="Ex: Luanda" />
         </Campo>
@@ -295,7 +340,12 @@ function PerfilInvestidor({ onSucesso, onAviso }) {
           <label className="form-label">Resumo do perfil</label>
           <textarea className="form-textarea" rows={4} value={form.experiencia_previa} onChange={(e) => setForm((s) => ({ ...s, experiencia_previa: e.target.value }))} placeholder="Indique experiência, tickets médios ou preferências de investimento." />
         </div>
-        <TogglePublico value={form.perfil_publico} onChange={(value) => setForm((s) => ({ ...s, perfil_publico: value }))} />
+        <TogglePublico
+          value={form.perfil_publico}
+          onChange={(value) => setForm((s) => ({ ...s, perfil_publico: value }))}
+          titulo="Perfil público"
+          descricao="Quando activo, o seu perfil de investidor pode aparecer na página Comunidade (Membros)."
+        />
       </div>
       <AcaoGuardar carregando={salvando} />
     </form>
@@ -311,6 +361,7 @@ function PerfilEmpresa({ onSucesso, onAviso }) {
     provincia: '',
     municipio: '',
     endereco: '',
+    perfil_publico: false,
   });
   const [carregando, setCarregando] = useState(true);
   const [salvando, setSalvando] = useState(false);
@@ -327,6 +378,7 @@ function PerfilEmpresa({ onSucesso, onAviso }) {
           provincia: perfil.provincia || '',
           municipio: perfil.municipio || '',
           endereco: perfil.endereco || '',
+          perfil_publico: perfil.is_public === 1 || perfil.is_public === true,
         });
       })
       .catch(() => {})
@@ -348,6 +400,7 @@ function PerfilEmpresa({ onSucesso, onAviso }) {
         provincia: form.provincia || null,
         municipio: form.municipio || null,
         endereco: form.endereco || null,
+        is_public: form.perfil_publico,
       });
       onSucesso();
     } catch (e) {
@@ -358,13 +411,17 @@ function PerfilEmpresa({ onSucesso, onAviso }) {
   };
 
   if (carregando) {
-    return <div style={secaoCard}><div className="skeleton" style={{ height: 260 }} /></div>;
+    return (
+      <div className="perfil-secao perfil-secao--loading">
+        <PageLoader />
+      </div>
+    );
   }
 
   return (
-    <form onSubmit={guardar} style={secaoCard}>
+    <form className="perfil-secao" onSubmit={guardar}>
       <CabecalhoSecao titulo="Perfil empresarial" subtitulo="Organize as informações públicas da empresa para oportunidades, comunidade e validação interna." icone={<Briefcase size={18} />} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16 }}>
+      <div className="perfil-secao__grid">
         <Campo label="Nome da empresa" ajuda="Definido no registo inicial." icon={<Briefcase size={16} />}>
           <input className="form-input form-input--icon" value={form.nome_empresa} disabled />
         </Campo>
@@ -388,6 +445,12 @@ function PerfilEmpresa({ onSucesso, onAviso }) {
           <label className="form-label">Descrição institucional</label>
           <textarea className="form-textarea" rows={4} value={form.descricao} onChange={(e) => setForm((s) => ({ ...s, descricao: e.target.value }))} placeholder="Descreva a actividade, a proposta de valor e o momento actual da empresa." />
         </div>
+        <TogglePublico
+          value={form.perfil_publico}
+          onChange={(value) => setForm((s) => ({ ...s, perfil_publico: value }))}
+          titulo="Empresa visível na comunidade"
+          descricao="Quando activo, a empresa aprovada pode aparecer na página Comunidade (Membros), desde que o perfil esteja aprovado pela equipa."
+        />
       </div>
       <AcaoGuardar carregando={salvando} />
     </form>
@@ -396,13 +459,11 @@ function PerfilEmpresa({ onSucesso, onAviso }) {
 
 function CabecalhoSecao({ titulo, subtitulo, icone }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 20 }}>
-      <div style={{ width: 40, height: 40, borderRadius: 14, background: 'var(--bg-soft)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ciano)' }}>
-        {icone}
-      </div>
-      <div>
-        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 800, marginBottom: 4 }}>{titulo}</h2>
-        <p style={{ color: 'var(--txt-3)', fontSize: '0.88rem', lineHeight: 1.6 }}>{subtitulo}</p>
+    <div className="perfil-secao__head">
+      <div className="perfil-secao__icon">{icone}</div>
+      <div className="perfil-secao__titles">
+        <h2>{titulo}</h2>
+        <p>{subtitulo}</p>
       </div>
     </div>
   );
@@ -422,29 +483,28 @@ function Campo({ label, icon, erro, ajuda, children }) {
   );
 }
 
-function TogglePublico({ value, onChange }) {
+function TogglePublico({
+  value,
+  onChange,
+  titulo = 'Perfil público',
+  descricao = 'Quando activo, o perfil pode aparecer na página Comunidade (Membros) e noutras listagens públicas.',
+}) {
   return (
     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, alignItems: 'center', padding: 16, borderRadius: 'var(--r-lg)', border: '1px solid var(--border)', background: 'var(--bg-soft)' }}>
+      <div className="perfil-visibilidade-toggle">
         <div>
-          <p style={{ fontWeight: 700, marginBottom: 4 }}>Perfil público</p>
-          <p style={{ color: 'var(--txt-3)', fontSize: '0.84rem' }}>Quando activo, o perfil pode aparecer na comunidade e em listagens da plataforma.</p>
+          <p className="perfil-visibilidade-toggle__titulo">{titulo}</p>
+          <p className="perfil-visibilidade-toggle__desc">{descricao}</p>
         </div>
         <button
           type="button"
+          role="switch"
+          aria-checked={value}
+          aria-label={value ? `${titulo}: activo` : `${titulo}: inactivo`}
           onClick={() => onChange(!value)}
-          style={{
-            width: 52,
-            height: 30,
-            border: 'none',
-            borderRadius: 999,
-            background: value ? 'var(--ciano)' : 'var(--border)',
-            position: 'relative',
-            cursor: 'pointer',
-            flexShrink: 0,
-          }}
+          className={`perfil-visibilidade-toggle__switch${value ? ' perfil-visibilidade-toggle__switch--on' : ''}`}
         >
-          <span style={{ position: 'absolute', top: 3, left: value ? 25 : 3, width: 24, height: 24, borderRadius: '50%', background: '#fff', transition: 'left 180ms ease' }} />
+          <span className="perfil-visibilidade-toggle__thumb" aria-hidden />
         </button>
       </div>
     </div>
@@ -453,8 +513,8 @@ function TogglePublico({ value, onChange }) {
 
 function AcaoGuardar({ carregando }) {
   return (
-    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-      <button type="submit" className={`btn btn--primary${carregando ? ' btn--loading' : ''}`} disabled={carregando}>
+    <div className="perfil-secao__actions">
+      <button type="submit" className={`btn btn--primary${carregando ? ' btn--loading' : ''}`} disabled={carregando} aria-busy={carregando}>
         {!carregando && <><Save size={15} /> Guardar alterações</>}
       </button>
     </div>

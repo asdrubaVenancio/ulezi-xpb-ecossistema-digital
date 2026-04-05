@@ -152,6 +152,7 @@ const trainingOfferingRoutes = require('./routes/training-offering.routes');
 
 app.use('/api/training-centers', trainingCenterRoutes);
 app.use('/api/training-offerings', trainingOfferingRoutes);
+app.use('/api/admin/training-offerings', trainingOfferingRoutes);
 
 // ── Rotas de Perfis de Usuários ─────────────────────────────────────────────────
 const profileRoutes = require('./routes/profile.routes');

@@ -6,11 +6,11 @@
 import React, { useState } from 'react';
 import {
   LayoutDashboard, BookOpen, CreditCard, User, LogOut,
-  Bell, Sun, Moon, Menu, TrendingUp, Users,
+  Sun, Moon, Menu, TrendingUp, Users, Globe,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { iniciais } from '../../utils/constants';
+import { iniciais, ROLE_LABELS } from '../../utils/constants';
 
 /** Itens de navegação por papel */
 const NAV_POR_PAPEL = {
@@ -73,7 +73,9 @@ export default function DashboardLayout({ children }) {
             <div className="sidebar__logo">U</div>
             <div className="sidebar__brand-text">
               <div className="sidebar__brand-name">ULEZI XPB</div>
-              <div className="sidebar__brand-sub">{utilizador?.role ? `Painel ${utilizador.role.charAt(0).toUpperCase() + utilizador.role.slice(1)}` : 'Painel'}</div>
+              <div className="sidebar__brand-sub">
+                {ROLE_LABELS[utilizador?.role] || utilizador?.role || 'Painel'}
+              </div>
             </div>
           </div>
         </div>
@@ -104,7 +106,7 @@ export default function DashboardLayout({ children }) {
               <div className="sidebar__user-name truncate">{utilizador?.nome || '—'}</div>
               <div className="sidebar__user-role">{utilizador?.email}</div>
             </div>
-            <button className="sidebar__logout" onClick={handleLogout} aria-label="Sair">
+            <button type="button" className="sidebar__logout" onClick={handleLogout} aria-label="Sair">
               <LogOut size={16}/>
             </button>
           </div>
@@ -122,19 +124,28 @@ export default function DashboardLayout({ children }) {
       {/* Área principal */}
       <main className="admin-main">
         <header className="admin-topbar">
-          <button className="admin-topbar__icon-btn" onClick={() => setSidebarAberta(a => !a)} aria-label="Menu" style={{ display: 'none' }} id="dl-toggle">
+          <button type="button" className="admin-topbar__icon-btn" onClick={() => setSidebarAberta(a => !a)} aria-label="Menu" style={{ display: 'none' }} id="dl-toggle">
             <Menu size={20}/>
           </button>
 
           <div style={{ flex: 1 }} />
 
           <div className="admin-topbar__right">
-            <button className="admin-topbar__icon-btn" onClick={alternarTema} aria-label="Tema">
+            <Link
+              to="/"
+              className="btn btn--secondary btn--sm dashboard-topbar__site-btn"
+              aria-label="Ir para o site público"
+              title="Site público"
+            >
+              <Globe size={15} />
+              Ir para o site
+            </Link>
+            <button type="button" className="admin-topbar__icon-btn" onClick={alternarTema} aria-label="Tema">
               {tema === 'light' ? <Moon size={18}/> : <Sun size={18}/>}
             </button>
-            <button className="admin-topbar__icon-btn" aria-label="Notificações">
-              <Bell size={18}/>
-            </button>
+            <Link to="/perfil" className="admin-topbar__icon-btn" aria-label="Conta e definições" title="Conta e definições">
+              <User size={18}/>
+            </Link>
           </div>
         </header>
 

@@ -502,6 +502,17 @@
   color: white;
 }
 
+.passo.concluido {
+  background: color-mix(in srgb, var(--verde) 12%, var(--bg-2));
+  color: var(--verde);
+  font-weight: 600;
+}
+
+.passo.concluido .numero {
+  background: var(--verde);
+  color: #fff;
+}
+
 .banco-header {
   display: flex;
   align-items: center;

@@ -86,7 +86,7 @@ export function Alert({ tipo = 'info', titulo, children, onFechar }) {
         {children}
       </div>
       {onFechar && (
-        <button onClick={onFechar} style={{ marginLeft: 'auto', opacity: 0.7, cursor: 'pointer' }}>
+        <button type="button" onClick={onFechar} style={{ marginLeft: 'auto', opacity: 0.7, cursor: 'pointer' }}>
           <X size={16} />
         </button>
       )}
@@ -109,7 +109,7 @@ export function Modal({ aberto, onFechar, titulo, children, acoes, largura = 520
         <div className="modal__header">
           <h2 id="modal-title" className="modal__title">{titulo}</h2>
           {onFechar && (
-            <button className="btn btn--ghost" onClick={onFechar} aria-label="Fechar">
+            <button type="button" className="btn btn--ghost" onClick={onFechar} aria-label="Fechar">
               <X size={18} />
             </button>
           )}
@@ -127,8 +127,9 @@ export function ModalConfirm({ aberto, onFechar, onConfirmar, titulo, mensagem, 
     <Modal aberto={aberto} onFechar={onFechar} titulo={titulo}
       acoes={
         <>
-          <button className="btn btn--secondary" onClick={onFechar} disabled={carregando}>Cancelar</button>
+          <button type="button" className="btn btn--secondary" onClick={onFechar} disabled={carregando}>Cancelar</button>
           <button
+            type="button"
             className={`btn ${perigo ? 'btn--danger' : 'btn--primary'}${carregando ? ' btn--loading' : ''}`}
             onClick={onConfirmar} disabled={carregando}
           >
@@ -185,19 +186,24 @@ export function Card({ children, padding = 24, className = '', ...rest }) {
 }
 
 // ── Stat Card ─────────────────────────────────────────────────
-export function StatCard({ icone, label, valor, variacao, corIcone = 'var(--ciano-100)' }) {
+export function StatCard({ icone, label, valor, variacao, corIcone = 'var(--ciano-100)', alerta }) {
   const sobe = variacao >= 0;
   return (
     <div className="stat-card">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between' }}>
         <div className="stat-card__icon" style={{ background: corIcone }}>{icone}</div>
-        {variacao !== undefined && (
+        {variacao !== undefined && variacao !== null && (
           <span className={`stat-card__badge stat-card__badge--${sobe ? 'up' : 'down'}`}>
             {sobe ? '↑' : '↓'} {Math.abs(variacao)}%
           </span>
         )}
       </div>
-      <div className="stat-card__value">{valor}</div>
+      <div
+        className="stat-card__value"
+        style={alerta ? { color: 'var(--amarelo)' } : undefined}
+      >
+        {valor}
+      </div>
       <div className="stat-card__label">{label}</div>
     </div>
   );
@@ -209,6 +215,7 @@ export function Tabs({ abas, activa, onChange }) {
     <div className="tabs" role="tablist">
       {abas.map((aba) => (
         <button
+          type="button"
           key={aba.id}
           role="tab"
           aria-selected={activa === aba.id}

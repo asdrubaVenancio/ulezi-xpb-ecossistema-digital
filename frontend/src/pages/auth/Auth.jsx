@@ -17,6 +17,7 @@ import {
   BookOpen,
   Building2,
   Check,
+  CheckCircle2,
   Eye,
   EyeOff,
   Lock,
@@ -36,25 +37,25 @@ import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
 
 const schemaLogin = z.object({
-  email: z.string().email('E-mail invalido').min(1, 'Obrigatorio'),
-  password: z.string().min(1, 'Obrigatorio'),
+  email: z.string().email('E-mail inválido').min(1, 'Obrigatório'),
+  password: z.string().min(1, 'Obrigatório'),
 });
 
 const schemaRegistar = z.object({
-  nome: z.string().min(3, 'Minimo 3 caracteres').max(120, 'Maximo 120 caracteres'),
-  email: z.string().email('E-mail invalido'),
+  nome: z.string().min(3, 'Mínimo 3 caracteres').max(120, 'Máximo 120 caracteres'),
+  email: z.string().email('E-mail inválido'),
   telefone: z.string()
-    .regex(/^\+?[0-9\s\-()]{7,20}$/, 'Telefone invalido')
+    .regex(/^\+?[0-9\s\-()]{7,20}$/, 'Telefone inválido')
     .optional()
     .or(z.literal('')),
   password: z.string()
-    .min(8, 'Minimo 8 caracteres')
-    .regex(/[A-Z]/, 'Deve conter letra maiuscula')
-    .regex(/[a-z]/, 'Deve conter letra minuscula')
-    .regex(/[0-9]/, 'Deve conter numero'),
+    .min(8, 'Mínimo 8 caracteres')
+    .regex(/[A-Z]/, 'Deve conter letra maiúscula')
+    .regex(/[a-z]/, 'Deve conter letra minúscula')
+    .regex(/[0-9]/, 'Deve conter número'),
   confirmar_password: z.string().min(1, 'Confirme a palavra-passe'),
   role: z.enum(['student', 'company', 'investor'], {
-    errorMap: () => ({ message: 'Selecione o tipo de conta' }),
+    errorMap: () => ({ message: 'Seleccione o tipo de conta' }),
   }),
   nome_empresa: z.string().optional().or(z.literal('')),
   provincia: z.string().optional().or(z.literal('')),
@@ -67,7 +68,7 @@ const schemaRegistar = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['confirmar_password'],
-      message: 'As palavras-passe nao coincidem',
+      message: 'As palavras-passe não coincidem',
     });
   }
 
@@ -75,7 +76,7 @@ const schemaRegistar = z.object({
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ['nome_empresa'],
-      message: 'O nome da empresa e obrigatorio para contas empresariais',
+      message: 'O nome da empresa é obrigatório para contas empresariais',
     });
   }
 
@@ -138,6 +139,8 @@ export function Login() {
     try {
       const utilizador = await login(email, password);
       toast.sucesso(`Bem-vindo, ${utilizador.nome?.split(' ')[0] || 'utilizador'}!`);
+
+      // Redireccionamento por cenário: alteração de senha obrigatória ou destino original
       if (utilizador.password_change_required) {
         toast.aviso('Altere a senha temporária para continuar a usar a plataforma.');
         navigate('/perfil', { replace: true });
@@ -150,42 +153,32 @@ export function Login() {
   }, [destino, login, navigate, toast]);
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+    <div className="publico-layout">
       <Navbar />
-      <div className="auth-body">
+      <main className="auth-page-wrapper">
         <div className="auth-card">
-          <div style={{ textAlign: 'center', marginBottom: 24 }}>
-            <div style={{
-              width: 52,
-              height: 52,
-              borderRadius: 'var(--r-md)',
-              background: 'var(--ciano)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 12px',
-              fontFamily: 'var(--font-display)',
-              fontWeight: 900,
-              fontSize: '1.4rem',
-              color: 'white',
-            }}>
-              U
-            </div>
+          {/* Logótipo */}
+          <div className="auth-logo-area">
+            <div className="auth-logo-badge auth-logo-badge--brand" aria-hidden="true">U</div>
             <h1 className="auth-card__title">Entrar</h1>
-            <p className="auth-card__sub">Aceda a sua conta ULEZI XPB</p>
+            <p className="auth-card__sub">Aceda à sua conta ULEZI XPB</p>
           </div>
 
+          {/* Formulário de login */}
           <form className="auth-form" onSubmit={handleSubmit(onSubmit)} noValidate>
             <div className="form-group">
-              <label className="form-label">E-mail</label>
+              <label className="form-label" htmlFor="login-email">E-mail</label>
               <div className="form-input-wrapper">
                 <Mail size={16} />
                 <input
+                  id="login-email"
                   type="email"
                   className={`form-input form-input--icon${errors.email ? ' form-input--error' : ''}`}
                   placeholder="seu@email.com"
                   autoComplete="email"
                   autoFocus
+                  aria-required="true"
+                  aria-invalid={!!errors.email}
                   {...register('email')}
                 />
               </div>
@@ -193,27 +186,29 @@ export function Login() {
             </div>
 
             <div className="form-group">
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <label className="form-label">Palavra-passe</label>
-                <Link to="/recuperar-senha" style={{ fontSize: '0.78rem', color: 'var(--ciano)', fontWeight: 500 }}>
-                  Esqueci
+              <div className="auth-password-header">
+                <label className="form-label" htmlFor="login-password">Palavra-passe</label>
+                <Link to="/recuperar-senha" className="auth-forgot-link">
+                  Esqueceu?
                 </Link>
               </div>
               <div className="form-input-wrapper">
                 <Lock size={16} />
                 <input
+                  id="login-password"
                   type={mostrarSenha ? 'text' : 'password'}
-                  className={`form-input form-input--icon${errors.password ? ' form-input--error' : ''}`}
-                  placeholder="********"
+                  className={`form-input form-input--icon form-input--right-action${errors.password ? ' form-input--error' : ''}`}
+                  placeholder="••••••••"
                   autoComplete="current-password"
-                  style={{ paddingRight: 44 }}
+                  aria-required="true"
+                  aria-invalid={!!errors.password}
                   {...register('password')}
                 />
                 <button
                   type="button"
+                  className="form-input-toggle"
                   onClick={() => setMostrarSenha((v) => !v)}
-                  style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--txt-4)' }}
-                  aria-label="Ver senha"
+                  aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}
                 >
                   {mostrarSenha ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
@@ -221,19 +216,29 @@ export function Login() {
               <CampoErro erro={errors.password} />
             </div>
 
-            <button type="submit" className={`btn btn--primary btn--full${isSubmitting ? ' btn--loading' : ''}`} disabled={isSubmitting}>
+            <button
+              type="submit"
+              className={`btn btn--primary btn--full btn--lg${isSubmitting ? ' btn--loading' : ''}`}
+              disabled={isSubmitting}
+            >
               {!isSubmitting && <>Entrar <ArrowRight size={16} /></>}
             </button>
           </form>
 
-          <div className="auth-divider" style={{ margin: '20px 0' }}><span>Nao tem conta?</span></div>
-          <Link to="/criar-conta" className="btn btn--secondary btn--full">Criar conta gratuita</Link>
+          {/* Separador */}
+          <div className="auth-divider"><span>Não tem conta?</span></div>
+
+          {/* CTA de registo */}
+          <Link to="/criar-conta" className="btn btn--secondary btn--full">
+            Criar conta gratuita
+          </Link>
         </div>
-      </div>
+      </main>
       <Footer />
     </div>
   );
 }
+
 
 export function Registar() {
   const toast = useToast();
@@ -272,14 +277,14 @@ export function Registar() {
   const roleAtual = watch('role');
   const senhaAtual = watch('password');
   const tituloNome = useMemo(() => {
-    if (roleAtual === 'company') return 'Nome do responsavel';
+    if (roleAtual === 'company') return 'Nome do responsável';
     return 'Nome completo';
   }, [roleAtual]);
   const senhaChecks = useMemo(() => ([
     { label: 'Pelo menos 8 caracteres', ok: (senhaAtual || '').length >= 8 },
-    { label: 'Uma letra maiuscula', ok: /[A-Z]/.test(senhaAtual || '') },
-    { label: 'Uma letra minuscula', ok: /[a-z]/.test(senhaAtual || '') },
-    { label: 'Um numero', ok: /[0-9]/.test(senhaAtual || '') },
+    { label: 'Uma letra maiúscula', ok: /[A-Z]/.test(senhaAtual || '') },
+    { label: 'Uma letra minúscula', ok: /[a-z]/.test(senhaAtual || '') },
+    { label: 'Um número', ok: /[0-9]/.test(senhaAtual || '') },
   ]), [senhaAtual]);
 
   const onSubmit = useCallback(async (dados) => {
@@ -310,7 +315,7 @@ export function Registar() {
         ].filter(Boolean).join(', ');
 
         if (!documentosEmpresa.documento_alvara || !documentosEmpresa.documento_nif || !documentosEmpresa.documento_certidao || !documentosEmpresa.documento_identificacao) {
-          toast.erro('Anexe todos os documentos obrigatorios da empresa antes de concluir o registo.');
+          toast.erro('Anexe todos os documentos obrigatórios da empresa antes de concluir o registo.');
           return;
         }
 
@@ -352,33 +357,35 @@ export function Registar() {
 
   if (sucesso) {
     return (
-      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+      <div className="publico-layout">
         <Navbar />
-        <div className="auth-body">
-          <div className="auth-card" style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>OK</div>
+        <main className="auth-page-wrapper">
+          <div className="auth-card auth-recover-success">
+            <div className="auth-sucesso-icone" aria-hidden="true">
+              <CheckCircle2 size={34} strokeWidth={2} color="var(--verde)" />
+            </div>
             <h1 className="auth-card__title">Conta criada</h1>
-            <p style={{ color: 'var(--txt-3)', marginBottom: 24, lineHeight: 1.6 }}>
-              O registo foi concluido com sucesso. Ja pode entrar na plataforma.
+            <p className="auth-card__sub" style={{ marginBottom: 24 }}>
+              O registo foi concluído com sucesso. Já pode entrar na plataforma.
             </p>
             <Link to="/entrar" className="btn btn--primary btn--full">Ir para o login</Link>
           </div>
-        </div>
+        </main>
         <Footer />
       </div>
     );
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg)' }}>
+    <div className="publico-layout">
       <Navbar />
-      <div className="auth-body auth-body--register">
+      <div className="publico-main auth-body auth-body--register">
         <div className={`auth-card ${roleAtual === 'company' ? 'auth-card--wide' : 'auth-card--register'}`}>
           <div className="auth-register__hero">
             <span className="auth-register__eyebrow">Onboarding ULEZI XPB</span>
             <h1 className="auth-card__title" style={{ marginBottom: 10 }}>Criar conta</h1>
             <p className="auth-card__sub" style={{ marginBottom: 0 }}>
-              Escolha o perfil correcto, preencha apenas o essencial e conclua o registo com validação imediata.
+              Escolha o perfil correto, preencha apenas o essencial e conclua o registo com validação imediata.
             </p>
           </div>
 
@@ -388,7 +395,7 @@ export function Registar() {
               <div className="auth-section__header">
                 <div>
                   <h2 className="auth-section__title">Tipo de conta</h2>
-                  <p className="auth-section__desc">Cada perfil activa apenas os campos que realmente precisa neste momento.</p>
+                  <p className="auth-section__desc">Cada perfil activa apenas os campos de que realmente precisa neste momento.</p>
                 </div>
               </div>
 
@@ -488,7 +495,7 @@ export function Registar() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Provincia</label>
+                    <label className="form-label">Província</label>
                     <div className="form-input-wrapper">
                       <MapPin size={16} />
                       <input
@@ -502,7 +509,7 @@ export function Registar() {
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Municipio</label>
+                    <label className="form-label">Município</label>
                     <div className="form-input-wrapper">
                       <MapPin size={16} />
                       <input
@@ -526,7 +533,7 @@ export function Registar() {
                   </div>
                   <div className="auth-section__meta">
                     <span className="badge badge--ciano">{totalSetoresSelecionados} setor(es)</span>
-                    <span className="badge badge--amarelo">4 documentos obrigatorios</span>
+                    <span className="badge badge--amarelo">4 documentos obrigatórios</span>
                   </div>
                 </div>
 
@@ -538,7 +545,7 @@ export function Registar() {
                       <input
                         type="text"
                         className={`form-input form-input--icon${errors.nif ? ' form-input--error' : ''}`}
-                        placeholder="Numero de identificacao fiscal"
+                        placeholder="Número de identificação fiscal"
                         {...register('nif')}
                       />
                     </div>
@@ -593,10 +600,10 @@ export function Registar() {
 
                 <div className="auth-upload-grid">
                   {[
-                    ['documento_alvara', 'Alvara comercial', 'Comprovativo legal da actividade da empresa.'],
+                    ['documento_alvara', 'Alvará comercial', 'Comprovativo legal da actividade da empresa.'],
                     ['documento_nif', 'Documento do NIF', 'Documento fiscal usado para validação da empresa.'],
-                    ['documento_certidao', 'Certidao comercial', 'Certidao ou registo comercial actualizado.'],
-                    ['documento_identificacao', 'Identificacao do responsavel', 'BI, passaporte ou outro documento oficial.'],
+                    ['documento_certidao', 'Certidão comercial', 'Certidão ou registo comercial actualizado.'],
+                    ['documento_identificacao', 'Identificação do responsável', 'BI, passaporte ou outro documento oficial.'],
                   ].map(([campo, label, descricao]) => (
                     <div key={campo} className="upload-card">
                       <div className="upload-card__top">
@@ -661,8 +668,8 @@ export function Registar() {
             <section className="auth-section">
               <div className="auth-section__header">
                 <div>
-                  <h2 className="auth-section__title">Seguranca de acesso</h2>
-                  <p className="auth-section__desc">A palavra-passe e validada em tempo real para evitar registos fracos.</p>
+                  <h2 className="auth-section__title">Segurança de acesso</h2>
+                  <p className="auth-section__desc">A palavra-passe é validada em tempo real para evitar registos fracos.</p>
                 </div>
               </div>
 
@@ -674,7 +681,7 @@ export function Registar() {
                     <input
                       type={mostrarSenha ? 'text' : 'password'}
                       className={`form-input form-input--icon${errors.password ? ' form-input--error' : ''}`}
-                      placeholder="Minimo 8 caracteres"
+                      placeholder="Mínimo 8 caracteres"
                       autoComplete="new-password"
                       style={{ paddingRight: 44 }}
                       {...register('password')}
@@ -721,7 +728,7 @@ export function Registar() {
             </button>
           </form>
 
-          <div className="auth-divider" style={{ margin: '20px 0' }}><span>Ja tem conta?</span></div>
+          <div className="auth-divider" style={{ margin: '20px 0' }}><span>Já tem conta?</span></div>
           <Link to="/entrar" className="btn btn--secondary btn--full">Entrar</Link>
           </div>
         </div>

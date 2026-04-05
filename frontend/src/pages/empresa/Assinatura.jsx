@@ -54,12 +54,12 @@ export function AssinaturaPage() {
 
   const handleAssinar = async (pacote) => {
     if (minhaAssinatura?.tem_assinatura_ativa) {
-      toast.aviso('Voce ja possui uma assinatura ativa. Aguarde o vencimento para renovar.');
+      toast.aviso('Você já possui uma assinatura ativa. Aguarde o vencimento para renovar.');
       return;
     }
 
     if (minhaAssinatura?.ultima_solicitacao?.status === 'pendente') {
-      toast.aviso('Ja existe uma solicitacao pendente em analise.');
+      toast.aviso('Já existe uma solicitação pendente em análise.');
       return;
     }
 
@@ -83,12 +83,12 @@ export function AssinaturaPage() {
     // Validar tipo e tamanho
     const tiposValidos = ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'];
     if (!tiposValidos.includes(file.type)) {
-      toast.erro('Formato invalido. Use JPG, PNG ou PDF.');
+      toast.erro('Formato inválido. Use JPG, PNG ou PDF.');
       return;
     }
 
     if (file.size > 5 * 1024 * 1024) {
-      toast.erro('Ficheiro muito grande. Maximo 5MB.');
+      toast.erro('Ficheiro muito grande. Máximo 5MB.');
       return;
     }
 
@@ -111,7 +111,7 @@ export function AssinaturaPage() {
       formData.append('referencia_pagamento', referencia);
 
       await empresaAPI.assinarComComprovativo(formData);
-      toast.sucesso('Solicitacao enviada com sucesso! Aguarde aprovacao.');
+      toast.sucesso('Solicitação enviada com sucesso! Aguarde a aprovação.');
       setModalPagamento(false);
       setComprovativo(null);
       setPacoteSelecionado(null);
@@ -127,7 +127,7 @@ export function AssinaturaPage() {
     setAssinando(true);
     try {
       const res = await empresaAPI.renovarAssinatura();
-      toast.sucesso(res.data.dados?.mensagem || 'Renovacao solicitada com sucesso.');
+      toast.sucesso(res.data.dados?.mensagem || 'Renovação solicitada com sucesso.');
       await carregarDados();
     } catch (err) {
       toast.erro(extrairErro(err));
@@ -161,7 +161,7 @@ export function AssinaturaPage() {
     <div className="assinatura-page">
       <div className="assinatura-header">
         <h1>Planos de assinatura</h1>
-        <p>Escolha o pacote que desbloqueia os privilegios da sua empresa na plataforma.</p>
+        <p>Escolha o pacote que desbloqueia os privilégios da sua empresa na plataforma.</p>
       </div>
 
       {temAssinaturaAtiva && assinaturaAtual && (
@@ -182,7 +182,7 @@ export function AssinaturaPage() {
               <div className="plano-datas">
                 <p>
                   <Calendar size={16} />
-                  Valido ate: {new Date(assinaturaAtual.data_fim).toLocaleDateString('pt-AO')}
+                  Válido até: {new Date(assinaturaAtual.data_fim).toLocaleDateString('pt-AO')}
                 </p>
                 <Badge cor={diasRestantes <= 7 ? 'vermelho' : diasRestantes <= 15 ? 'amarelo' : 'verde'}>
                   {diasRestantes} dias restantes
@@ -206,7 +206,7 @@ export function AssinaturaPage() {
                 </ul>
               </div>
               {diasRestantes <= 7 && (
-                <button className="btn-renovar" onClick={handleRenovar} disabled={assinando}>
+                <button type="button" className="btn-renovar" onClick={handleRenovar} disabled={assinando}>
                   {assinando ? 'Processando...' : 'Renovar agora'}
                 </button>
               )}
@@ -216,8 +216,8 @@ export function AssinaturaPage() {
       )}
 
       {!temAssinaturaAtiva && (
-        <Alert tipo="warning" titulo="Assinatura necessaria">
-          Enquanto a assinatura nao estiver ativa, a empresa podera apenas atualizar o perfil e os documentos.
+        <Alert tipo="warning" titulo="Assinatura necessária">
+          Enquanto a assinatura não estiver ativa, a empresa poderá apenas atualizar o perfil e os documentos.
         </Alert>
       )}
 
@@ -226,22 +226,22 @@ export function AssinaturaPage() {
           <div className="assinatura-card">
             <div className="assinatura-card-header">
               <AlertCircle size={24} />
-              <h3>Solicitacao em analise</h3>
+              <h3>Solicitação em análise</h3>
             </div>
             <div className="assinatura-card-body">
               <div className="plano-info">
                 <h4>{solicitacaoPendente.package_name || solicitacaoPendente.tipo_plano || 'Plano selecionado'}</h4>
                 <p className="plano-preco">
                   {solicitacaoPendente.valor_pago} {solicitacaoPendente.moeda}
-                  <span>/solicitacao</span>
+                  <span>/solicitação</span>
                 </p>
               </div>
               <div className="plano-datas">
                 <p>
                   <Calendar size={16} />
-                  Referencia: {solicitacaoPendente.referencia_pagamento || 'a gerar'}
+                  Referência: {solicitacaoPendente.referencia_pagamento || 'a gerar'}
                 </p>
-                <Badge cor="amarelo">Aguardando validacao administrativa</Badge>
+                <Badge cor="amarelo">Aguardando validação administrativa</Badge>
               </div>
             </div>
           </div>
@@ -273,36 +273,36 @@ export function AssinaturaPage() {
               </div>
 
               <div className="pacote-beneficios">
-                <h4>O que esta incluido:</h4>
+                <h4>O que está incluído:</h4>
                 <ul>
                   <li>
                     <Check size={16} className="icon-check" />
                     {pacote.publicacoes_oportunidades_ilimitadas
                       ? 'Oportunidades ilimitadas'
-                      : `Ate ${pacote.max_oportunidades_ativas} oportunidades ativas`}
+                      : `Até ${pacote.max_oportunidades_ativas} oportunidades ativas`}
                   </li>
                   <li>
                     <Check size={16} className="icon-check" />
                     {pacote.publicacoes_vagas_ilimitadas
                       ? 'Vagas ilimitadas'
-                      : `Ate ${pacote.max_vagas_ativas} vagas ativas`}
+                      : `Até ${pacote.max_vagas_ativas} vagas ativas`}
                   </li>
                   <li>
                     <Check size={16} className="icon-check" />
                     {pacote.consultorias_incluidas > 0
-                      ? `${pacote.consultorias_incluidas} consultoria(s) incluida(s)`
-                      : 'Sem consultorias incluidas'}
+                      ? `${pacote.consultorias_incluidas} consultoria(s) incluída(s)`
+                      : 'Sem consultorias incluídas'}
                   </li>
                   <li>
                     {pacote.suporte_prioritario
-                      ? <><Check size={16} className="icon-check" /> Suporte prioritario</>
-                      : <><X size={16} className="icon-x" /> Suporte padrao</>}
+                      ? <><Check size={16} className="icon-check" /> Suporte prioritário</>
+                      : <><X size={16} className="icon-x" /> Suporte padrão</>}
                   </li>
                 </ul>
 
                 {beneficios.length > 0 && (
                   <>
-                    <h4>Beneficios extras:</h4>
+                    <h4>Benefícios extras:</h4>
                     <ul className="beneficios-extras">
                       {beneficios.map((beneficio, idx) => (
                         <li key={`${pacote.id}-${idx}`}>
@@ -317,15 +317,16 @@ export function AssinaturaPage() {
 
               <div className="pacote-acoes">
                 {temAssinaturaAtiva ? (
-                  <button className="btn-assinar" disabled>
-                    Ja possui assinatura
+                  <button type="button" className="btn-assinar" disabled>
+                    Já possui assinatura
                   </button>
                 ) : solicitacaoPendente ? (
-                  <button className="btn-assinar" disabled>
-                    Solicitacao em analise
+                  <button type="button" className="btn-assinar" disabled>
+                    Solicitação em análise
                   </button>
                 ) : (
                   <button
+                    type="button"
                     className="btn-assinar"
                     onClick={() => handleAssinar(pacote)}
                     disabled={assinando}
@@ -346,9 +347,11 @@ export function AssinaturaPage() {
             <div className="assinatura-modal-header">
               <h3>Pagamento da Assinatura</h3>
               <button 
+                type="button"
                 className="btn-fechar" 
                 onClick={() => setModalPagamento(false)}
                 disabled={assinando}
+                aria-label="Fechar"
               >
                 ×
               </button>
@@ -366,12 +369,12 @@ export function AssinaturaPage() {
                 </div>
 
                 {/* Passos */}
-                <div className="passos-pagamento">
-                  <div className={`passo ${passoPagamento === 1 ? 'ativo' : ''}`}>
-                    <span className="numero">1</span>
+                <div className="passos-pagamento" role="list" aria-label="Etapas do pagamento">
+                  <div className={`passo ${passoPagamento === 1 ? 'ativo' : ''} ${passoPagamento > 1 ? 'concluido' : ''}`} role="listitem">
+                    <span className="numero">{passoPagamento > 1 ? '✓' : '1'}</span>
                     <span className="texto">Coordenadas</span>
                   </div>
-                  <div className={`passo ${passoPagamento === 2 ? 'ativo' : ''}`}>
+                  <div className={`passo ${passoPagamento === 2 ? 'ativo' : ''}`} role="listitem">
                     <span className="numero">2</span>
                     <span className="texto">Comprovativo</span>
                   </div>
@@ -520,7 +523,7 @@ export function AssinaturaPage() {
                       >
                         {assinando ? (
                           <>
-                            <Spinner size="sm" /> Enviando...
+                            <Spinner size={18} /> Enviando...
                           </>
                         ) : (
                           'Enviar Solicitação'

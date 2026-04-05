@@ -92,7 +92,7 @@ export default function InscricoesAdmin() {
     <div style={{ display: 'grid', gap: 20 }}>
       <div className="page-header">
         <div>
-          <h1 className="page-header__title">Inscrições de cursos</h1>
+          <h2 className="page-header__title">Inscrições de cursos</h2>
           <p className="page-header__sub">Analise comprovativos, documentos exigidos e aprove ou rejeite inscrições.</p>
         </div>
         <button 

@@ -160,6 +160,7 @@ const CoordenadaCard = ({ coordenada }) => {
             {coordenada.numero_formatado || coordenada.numero}
           </code>
           <button
+            type="button"
             onClick={() => copiarParaClipboard(coordenada.numero, 'numero')}
             style={{
               display: 'flex',
@@ -219,6 +220,7 @@ const CoordenadaCard = ({ coordenada }) => {
             {coordenada.titular}
           </span>
           <button
+            type="button"
             onClick={() => copiarParaClipboard(coordenada.titular, 'titular')}
             style={{
               display: 'flex',
@@ -452,6 +454,7 @@ const CoordenadasBancarias = ({ onContinuar, mostrarBotaoContinuar = true }) => 
       {mostrarBotaoContinuar && onContinuar && (
         <div style={{ textAlign: 'center', padding: '16px 0' }}>
           <button
+            type="button"
             onClick={onContinuar}
             style={{
               padding: '14px 32px',
