@@ -40,7 +40,7 @@ const departamentosDisponiveis = [
 const tiposContrato = ['efetivo', 'temporario', 'estagio', 'pj'];
 
 const cargosDisponiveis = [
-  'Administrador',
+  'Secretario',
   'Gestor Operacional',
   'Gestor de Negócios',
   'Analista de Investimentos',
@@ -295,8 +295,16 @@ const GestaoFuncionarios = () => {
   };
 
   const criar = async (payload) => {
-    await api.post('/admin/employees', payload);
-    toast.success('Funcionário criado com sucesso.');
+    const { data } = await api.post('/admin/employees', payload);
+    const resultado = data?.dados || data?.data || {};
+
+    if (resultado.email_enviado) {
+      toast.success('Funcionário criado e credenciais enviadas por email.');
+    } else {
+      const senha = resultado.password_temporaria ? ` Senha temporaria: ${resultado.password_temporaria}` : '';
+      toast.error(`Funcionário criado, mas o email com as credenciais falhou.${senha}`);
+    }
+
     carregar();
   };
 

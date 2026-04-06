@@ -16,6 +16,11 @@ const { sendEmployeeOnboardingEmail } = require('../utils/email');
 const bcrypt = require('bcrypt');
 
 const EMPLOYEE_DEFAULT_PASSWORD = process.env.EMPLOYEE_DEFAULT_PASSWORD || 'Ulezi@2026';
+const RESTRICTED_CARGOS = new Set(['administrador', 'admin']);
+
+const normalizeCargo = (cargo) => String(cargo || '').trim().toLowerCase();
+
+const isRestrictedCargo = (cargo) => RESTRICTED_CARGOS.has(normalizeCargo(cargo));
 
 const ensurePasswordChangeColumn = async (connection) => {
   try {
@@ -264,6 +269,11 @@ const createEmployee = async (req, res) => {
       await connection.rollback();
       return badRequest(res, 'Nome, email e cargo sÃ£o obrigatÃ³rios.');
     }
+
+    if (isRestrictedCargo(cargo)) {
+      await connection.rollback();
+      return badRequest(res, 'O cargo Administrador nao pode ser cadastrado por esta tela. Utilize Secretario ou outro cargo operacional.');
+    }
     
     // Verificar se email jÃ¡ existe
     const [existingUser] = await connection.execute(
@@ -304,11 +314,16 @@ const createEmployee = async (req, res) => {
     
     await connection.commit();
 
-    sendEmployeeOnboardingEmail({
+    const emailResult = await sendEmployeeOnboardingEmail({
       nome,
       email,
       passwordTemporaria: temporaryPassword,
-    }).catch((emailErr) => console.error('[EMPLOYEE_ONBOARDING_EMAIL]', emailErr));
+    }).catch((emailErr) => {
+      console.error('[EMPLOYEE_ONBOARDING_EMAIL]', emailErr);
+      return { success: false, error: emailErr.message };
+    });
+
+    const emailEnviado = Boolean(emailResult?.success) && !emailResult?.simulated;
     
     await log(req.user.id, 'CREATE_EMPLOYEE', 'employees', employeeId, { nome, email, cargo }, req);
     
@@ -316,8 +331,15 @@ const createEmployee = async (req, res) => {
       id: employeeId, 
       user_id: userId,
       password_temporaria: temporaryPassword,
-      message: 'FuncionÃ¡rio criado com sucesso.'
-    });
+      email_enviado: emailEnviado,
+      email_simulado: Boolean(emailResult?.simulated),
+      email_erro: emailResult?.success ? null : (emailResult?.error || 'Falha no envio do email.'),
+      message: emailEnviado
+        ? 'FuncionÃ¡rio criado com sucesso.'
+        : 'FuncionÃ¡rio criado, mas o email com as credenciais nÃ£o foi enviado.'
+    }, emailEnviado
+      ? 'FuncionÃ¡rio criado com sucesso.'
+      : 'FuncionÃ¡rio criado, mas o email com as credenciais nÃ£o foi enviado.');
     
   } catch (err) {
     await connection.rollback();
@@ -374,6 +396,11 @@ const updateEmployee = async (req, res) => {
         await connection.rollback();
         return badRequest(res, 'Email já registrado.');
       }
+    }
+
+    if (cargo !== undefined && isRestrictedCargo(cargo)) {
+      await connection.rollback();
+      return badRequest(res, 'O cargo Administrador nao pode ser cadastrado por esta tela. Utilize Secretario ou outro cargo operacional.');
     }
 
     const userUpdates = [];
