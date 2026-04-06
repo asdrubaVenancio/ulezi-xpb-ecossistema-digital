@@ -1198,49 +1198,27 @@ const completeMediationWithContract = async (req, res) => {
     );
 
     let contractId = null;
-    let contractPdfBuffer = null;
     let novoStatusInteresse = 'cancelado';
 
     if (resultado_final === 'sucesso') {
       const [existingContract] = await connection.execute(
-        'SELECT id, pdf_data FROM contracts WHERE interest_id = ? LIMIT 1',
+        'SELECT id FROM contracts WHERE interest_id = ? LIMIT 1',
         [mediation.interest_id]
       );
 
       if (existingContract.length) {
         contractId = existingContract[0].id;
-        contractPdfBuffer = existingContract[0].pdf_data || null;
       } else {
-        const contractData = {
-          id: `MED-${mediation.interest_id}`,
-          titulo: mediation.titulo_oportunidade,
-          nome_empresa: mediation.nome_empresa,
-          nif_empresa: mediation.nif_empresa,
-          email_empresa: mediation.email_empresa,
-          nome_investidor: mediation.nome_investidor,
-          email_investidor: mediation.email_investidor,
-          descricao_oportunidade: mediation.descricao_oportunidade,
-          tipo_oportunidade: mediation.tipo_oportunidade,
-          valor: mediation.valor_negociado || mediation.valor_oportunidade,
-        };
-
-        try {
-          contractPdfBuffer = await gerarContratoPDF(contractData);
-        } catch (pdfErr) {
-          console.error('[MEDIATION CONTRACT PDF]', pdfErr.message);
-        }
-
         const [contractResult] = await connection.execute(
           `INSERT INTO contracts
-           (interest_id, opportunity_id, investor_id, company_id, titulo, pdf_data, gerado_by, status)
-           VALUES (?, ?, ?, ?, ?, ?, ?, 'gerado')`,
+           (interest_id, opportunity_id, investor_id, company_id, titulo, gerado_by, status)
+           VALUES (?, ?, ?, ?, ?, ?, 'enviado')`,
           [
             mediation.interest_id,
             mediation.opportunity_id,
             mediation.investor_id,
             mediation.company_id,
             mediation.titulo_oportunidade,
-            contractPdfBuffer,
             req.user.id,
           ]
         );
@@ -1277,48 +1255,24 @@ const completeMediationWithContract = async (req, res) => {
     if (resultado_final === 'sucesso' && contractId) {
       await connection.execute(
         `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-         VALUES (?, 'contrato_gerado', 'Contrato gerado', ?)`,
+         VALUES (?, 'assinatura_contrato', 'Assinatura pendente de contrato', ?)`,
         [
           mediation.investor_id,
-          `O contrato da oportunidade "${mediation.titulo_oportunidade}" foi gerado e ja esta disponivel no seu perfil.`,
+          `O contrato da oportunidade "${mediation.titulo_oportunidade}" foi criado e aguarda a sua confirmacao de assinatura digital no sistema.`,
         ]
       );
 
       await connection.execute(
         `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-         VALUES (?, 'contrato_gerado', 'Contrato gerado', ?)`,
+         VALUES (?, 'assinatura_contrato', 'Assinatura pendente de contrato', ?)`,
         [
           mediation.company_user_id,
-          `O contrato da oportunidade "${mediation.titulo_oportunidade}" foi gerado e ja esta disponivel no perfil da empresa.`,
+          `O contrato da oportunidade "${mediation.titulo_oportunidade}" foi criado e aguarda a sua confirmacao de assinatura digital no sistema.`,
         ]
       );
     }
 
     await connection.commit();
-
-    const contractData = {
-      id: `MED-${mediation.interest_id}`,
-      titulo: mediation.titulo_oportunidade,
-      nome_empresa: mediation.nome_empresa,
-      nif_empresa: mediation.nif_empresa,
-      email_empresa: mediation.email_empresa,
-      nome_investidor: mediation.nome_investidor,
-      email_investidor: mediation.email_investidor,
-      descricao_oportunidade: mediation.descricao_oportunidade,
-      tipo_oportunidade: mediation.tipo_oportunidade,
-      valor: mediation.valor_negociado || mediation.valor_oportunidade,
-    };
-
-    if (resultado_final === 'sucesso' && contractId) {
-      await Promise.all([
-        sendContractEmail(mediation.email_empresa, mediation.nome_empresa, contractData, contractPdfBuffer)
-          .then(() => pool.execute('UPDATE contracts SET enviado_email_empresa = 1, status = "enviado" WHERE id = ?', [contractId]))
-          .catch((mailErr) => console.error('[MEDIATION CONTRACT EMAIL EMPRESA]', mailErr)),
-        sendContractEmail(mediation.email_investidor, mediation.nome_investidor, contractData, contractPdfBuffer)
-          .then(() => pool.execute('UPDATE contracts SET enviado_email_investidor = 1, status = "enviado" WHERE id = ?', [contractId]))
-          .catch((mailErr) => console.error('[MEDIATION CONTRACT EMAIL INVESTIDOR]', mailErr)),
-      ]);
-    }
 
     await Promise.all([
       sendMediationClosureEmail({
@@ -1345,7 +1299,7 @@ const completeMediationWithContract = async (req, res) => {
       message: 'Mediacao concluida com sucesso.',
       resultado: resultado_final,
       contract_id: contractId,
-      proximo_passo: resultado_final === 'sucesso' ? 'Contrato gerado e enviado para as partes' : 'Processo arquivado'
+      proximo_passo: resultado_final === 'sucesso' ? 'Contrato criado e enviado para assinatura digital das partes' : 'Processo arquivado'
     });
   } catch (err) {
     try {

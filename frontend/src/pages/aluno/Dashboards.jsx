@@ -41,7 +41,7 @@ import {
     extrairErro,
     investidorAPI
 } from '../../services/api';
-import { formatAOA, formatData } from '../../utils/constants';
+import { formatAOA, formatData, formatDataHora } from '../../utils/constants';
 
 function DashboardTabLoading({ label }) {
   return (
@@ -72,6 +72,75 @@ function DashboardHero({ variante, eyebrow, titulo, descricao, acao, destaque })
         {acao ? <div className="dashboard-hero__action">{acao}</div> : null}
       </div>
     </section>
+  );
+}
+
+function descarregarBlobPdf(blob, nomeFicheiro) {
+  const url = window.URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = nomeFicheiro;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => window.URL.revokeObjectURL(url), 1000);
+}
+
+function contratoTemPdfFinal(contrato) {
+  return Boolean(
+    contrato?.pdf_url ||
+    contrato?.pdf_data ||
+    ['assinado_ambos', 'concluido'].includes(String(contrato?.status || '').toLowerCase())
+  );
+}
+
+function obterResumoContrato(contrato, papel) {
+  const assinadoEmpresa = Boolean(contrato?.assinado_empresa);
+  const assinadoInvestidor = Boolean(contrato?.assinado_investidor);
+  const assinadoPorMim = papel === 'empresa' ? assinadoEmpresa : assinadoInvestidor;
+  const ambasAssinaturas = assinadoEmpresa && assinadoInvestidor;
+
+  let textoEstado = 'Aguardando assinatura das partes';
+  let tomEstado = 'var(--amarelo)';
+
+  if (ambasAssinaturas) {
+    textoEstado = contratoTemPdfFinal(contrato)
+      ? 'Contrato concluído e PDF final disponível'
+      : 'Assinaturas concluídas, PDF final em processamento';
+    tomEstado = 'var(--verde)';
+  } else if (assinadoPorMim) {
+    textoEstado = 'Aguardando confirmação da contraparte';
+    tomEstado = 'var(--ciano)';
+  } else if (papel === 'empresa' ? assinadoInvestidor : assinadoEmpresa) {
+    textoEstado = 'A contraparte já assinou. Falta a sua confirmação';
+    tomEstado = 'var(--laranja)';
+  }
+
+  return {
+    assinadoPorMim,
+    ambasAssinaturas,
+    podeAssinar: !assinadoPorMim && !ambasAssinaturas,
+    podeDownload: contratoTemPdfFinal(contrato),
+    textoEstado,
+    tomEstado,
+  };
+}
+
+function LinhaEstadoAssinatura({ contrato, papel }) {
+  const resumo = obterResumoContrato(contrato, papel);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <span style={{ fontSize: '0.8rem', color: resumo.tomEstado, fontWeight: 700 }}>
+        {resumo.textoEstado}
+      </span>
+      <span style={{ fontSize: '0.76rem', color: contrato.assinado_empresa ? 'var(--verde)' : 'var(--txt-4)' }}>
+        Empresa: {contrato.assinado_empresa ? formatDataHora(contrato.assinado_empresa_at) : 'Pendente'}
+      </span>
+      <span style={{ fontSize: '0.76rem', color: contrato.assinado_investidor ? 'var(--verde)' : 'var(--txt-4)' }}>
+        Investidor: {contrato.assinado_investidor ? formatDataHora(contrato.assinado_investidor_at) : 'Pendente'}
+      </span>
+    </div>
   );
 }
 
@@ -497,6 +566,7 @@ export function DashboardEmpresa() {
   const toast          = useToast();
   const [oportunidades, setOportunidades] = useState([]);
   const [servicos,      setServicos]      = useState([]);
+  const [contratos,     setContratos]     = useState([]);
   const [minhasVagas,   setMinhasVagas]   = useState([]);
   const [stats,         setStats]         = useState({});
   const [documentos,    setDocumentos]    = useState([]);
@@ -525,6 +595,8 @@ export function DashboardEmpresa() {
   const [agora,         setAgora]         = useState(Date.now());
   const [modalOportunidade, setModalOportunidade] = useState(false);
   const [submOportunidade, setSubmOportunidade] = useState(false);
+  const [assinandoContratoId, setAssinandoContratoId] = useState(null);
+  const [baixandoContratoId, setBaixandoContratoId] = useState(null);
   const [formOportunidade, setFormOportunidade] = useState({
     tipo: 'investimento',
     titulo: '',
@@ -549,11 +621,12 @@ export function DashboardEmpresa() {
 
   const carregar = useCallback(async () => {
     try {
-      const [st, op, sv, vg, dc, sub, cat] = await Promise.all([
+      const [st, op, sv, ct, vg, dc, sub, cat] = await Promise.all([
         empresaAPI.stats().catch(() => ({ data: { dados: {} } })),
         empresaAPI.oportunidades().catch(() => ({ data: { dados: [] } })),
         empresaAPI.servicos().catch(() => ({ data: { dados: { servicos: [] } } })),
-        empresaAPI.minhasVagas().catch(() => ({ data: { dados: { vagas: [] } } })),
+        empresaAPI.contratos().catch(() => ({ data: { dados: { contratos: [] } } })),
+        empresaAPI.minhasVagas().catch(() => ({ data: { dados: { vagas: [] } } })), 
         empresaAPI.documentos().catch(() => ({ data: { dados: [] } })),
         empresaAPI.minhaAssinatura().catch(() => ({ data: { dados: null } })),
         empresaAPI.categoriasServicos().catch(() => ({ data: { dados: [] } })),
@@ -561,6 +634,7 @@ export function DashboardEmpresa() {
       setStats(st.data.dados || {});
       setOportunidades(op.data.dados?.oportunidades || op.data.dados || []);
       setServicos(sv.data.dados?.servicos || sv.data.dados || []);
+      setContratos(ct.data.dados?.contratos || ct.data.dados || []);
       setMinhasVagas(vg.data.dados?.vagas || vg.data.dados || []);
       setDocumentos(dc.data.dados?.documentos || dc.data.dados || []);
       setAssinaturaInfo(sub.data.dados || null);
@@ -782,6 +856,38 @@ export function DashboardEmpresa() {
     } catch (e) { toast.erro(extrairErro(e)); }
   };
 
+  const assinarContrato = async (contrato) => {
+    const ok = await toast.confirmar({
+      titulo: 'Assinar contrato',
+      mensagem: 'Confirma a sua assinatura digital neste contrato? O PDF final será emitido automaticamente quando ambas as partes concluírem a confirmação.',
+      labelOk: 'Assinar contrato',
+    });
+    if (!ok) return;
+
+    setAssinandoContratoId(contrato.id);
+    try {
+      await empresaAPI.assinarContrato(contrato.id);
+      toast.sucesso('Assinatura registada com sucesso.');
+      await carregar();
+    } catch (e) {
+      toast.erro(extrairErro(e));
+    } finally {
+      setAssinandoContratoId(null);
+    }
+  };
+
+  const baixarContrato = async (contrato) => {
+    setBaixandoContratoId(contrato.id);
+    try {
+      const { data } = await empresaAPI.downloadContrato(contrato.id);
+      descarregarBlobPdf(data, `contrato_${contrato.id}.pdf`);
+    } catch (e) {
+      toast.erro(extrairErro(e));
+    } finally {
+      setBaixandoContratoId(null);
+    }
+  };
+
   // Cores de estado para vagas
   const estadoVaga = {
     pendente:  { label: 'Pendente',  bg: 'var(--amarelo-100)', color: '#92400E' },
@@ -919,6 +1025,9 @@ export function DashboardEmpresa() {
             </button>
             <button type="button" className={`tab-btn${abaActiva==='vagas'?' active':''}`} onClick={()=>setAbaActiva('vagas')}>
               <Briefcase size={14}/> Vagas de Emprego
+            </button>
+            <button type="button" className={`tab-btn${abaActiva==='contratos'?' active':''}`} onClick={()=>setAbaActiva('contratos')}>
+              <FileText size={14}/> Contratos
             </button>
             <button type="button" className={`tab-btn${abaActiva==='documentos'?' active':''}`} onClick={()=>setAbaActiva('documentos')}>
               <FileText size={14}/> Documentos
@@ -1103,6 +1212,73 @@ export function DashboardEmpresa() {
                 </div>
               )}
             </>
+          )}
+
+          {abaActiva === 'contratos' && (
+            contratos.length === 0 ? (
+              <EmptyState
+                icone={<FileText size={28}/>}
+                titulo="Sem contratos"
+                descricao="Os contratos de investimento vão aparecer aqui assim que a mediação gerar um documento para assinatura."
+              />
+            ) : (
+              <div className="table-container">
+                <table>
+                  <thead><tr><th>Contrato</th><th>Investidor</th><th>Valor</th><th>Estado</th><th>Assinaturas</th><th>Acções</th></tr></thead>
+                  <tbody>
+                    {contratos.map((contrato) => {
+                      const resumo = obterResumoContrato(contrato, 'empresa');
+                      return (
+                        <tr key={contrato.id}>
+                          <td>
+                            <div style={{ fontWeight: 700 }}>{contrato.numero_contrato || `CON-${contrato.id}`}</div>
+                            <div style={{ color: 'var(--txt-3)', fontSize: '0.82rem' }}>
+                              {contrato.titulo || contrato.oportunidade_titulo || 'Contrato de investimento'}
+                            </div>
+                            <div style={{ color: 'var(--txt-4)', fontSize: '0.76rem', marginTop: 4 }}>
+                              Criado em {formatData(contrato.criado_em || contrato.created_at)}
+                            </div>
+                          </td>
+                          <td style={{ fontWeight: 500 }}>{contrato.nome_investidor || 'Investidor'}</td>
+                          <td style={{ fontWeight: 700 }}>{formatAOA(contrato.valor_acordado || contrato.valor || 0)}</td>
+                          <td><BadgeStatus status={contrato.status} /></td>
+                          <td><LinhaEstadoAssinatura contrato={contrato} papel="empresa" /></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {resumo.podeAssinar && (
+                                <button
+                                  type="button"
+                                  className={`btn btn--primary btn--sm${assinandoContratoId === contrato.id ? ' btn--loading' : ''}`}
+                                  onClick={() => assinarContrato(contrato)}
+                                  disabled={assinandoContratoId === contrato.id}
+                                >
+                                  {assinandoContratoId !== contrato.id && 'Assinar contrato'}
+                                </button>
+                              )}
+                              {resumo.podeDownload && (
+                                <button
+                                  type="button"
+                                  className={`btn btn--secondary btn--sm${baixandoContratoId === contrato.id ? ' btn--loading' : ''}`}
+                                  onClick={() => baixarContrato(contrato)}
+                                  disabled={baixandoContratoId === contrato.id}
+                                >
+                                  {baixandoContratoId !== contrato.id && <><Download size={13}/> Baixar PDF</>}
+                                </button>
+                              )}
+                              {!resumo.podeAssinar && !resumo.podeDownload && (
+                                <span style={{ fontSize: '0.76rem', color: 'var(--txt-4)' }}>
+                                  {resumo.assinadoPorMim ? 'Aguardando a contraparte.' : 'Em preparação.'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
 
           {/* —— Documentos — */}
@@ -1362,6 +1538,8 @@ export function DashboardInvestidor() {
   const [contratos,   setContratos]   = useState([]);
   const [abaActiva,   setAbaActiva]   = useState('interesses');
   const [carregando,  setCarregando]  = useState(true);
+  const [assinandoContratoId, setAssinandoContratoId] = useState(null);
+  const [baixandoContratoId, setBaixandoContratoId] = useState(null);
 
   const carregar = useCallback(async () => {
     try {
@@ -1390,6 +1568,38 @@ export function DashboardInvestidor() {
       setInteresses(p => p.filter(i => i.id !== id));
       toast.sucesso('Interesse cancelado.');
     } catch (e) { toast.erro(extrairErro(e)); }
+  };
+
+  const assinarContrato = async (contrato) => {
+    const ok = await toast.confirmar({
+      titulo: 'Assinar contrato',
+      mensagem: 'Confirma a sua assinatura digital neste contrato? Assim que a empresa e o investidor confirmarem, o PDF final ficará disponível para download.',
+      labelOk: 'Assinar contrato',
+    });
+    if (!ok) return;
+
+    setAssinandoContratoId(contrato.id);
+    try {
+      await investidorAPI.assinarContrato(contrato.id);
+      toast.sucesso('Assinatura registada com sucesso.');
+      await carregar();
+    } catch (e) {
+      toast.erro(extrairErro(e));
+    } finally {
+      setAssinandoContratoId(null);
+    }
+  };
+
+  const baixarContrato = async (contrato) => {
+    setBaixandoContratoId(contrato.id);
+    try {
+      const { data } = await investidorAPI.downloadContrato(contrato.id);
+      descarregarBlobPdf(data, `contrato_${contrato.id}.pdf`);
+    } catch (e) {
+      toast.erro(extrairErro(e));
+    } finally {
+      setBaixandoContratoId(null);
+    }
   };
 
   const totalInvestido = interesses
@@ -1479,24 +1689,57 @@ export function DashboardInvestidor() {
             ) : (
               <div className="table-container">
                 <table>
-                  <thead><tr><th>Nº Contrato</th><th>Título</th><th>Valor</th><th>Estado</th><th>Data</th><th></th></tr></thead>
+                  <thead><tr><th>Nº Contrato</th><th>Título</th><th>Valor</th><th>Estado</th><th>Assinaturas</th><th>Acções</th></tr></thead>
                   <tbody>
-                    {contratos.map(c => (
-                      <tr key={c.id}>
-                        <td style={{ fontSize:'0.8rem', color:'var(--txt-3)', fontWeight:600 }}>{c.numero_contrato || `CON-${c.id}`}</td>
-                        <td style={{ fontWeight:500 }}>{c.titulo || c.oportunidade_titulo || 'Contrato de investimento'}</td>
-                        <td style={{ fontWeight:700 }}>{formatAOA(c.valor_acordado || c.valor || 0)}</td>
-                        <td><BadgeStatus status={c.status} /></td>
-                        <td style={{ color:'var(--txt-3)', fontSize:'0.8rem' }}>{formatData(c.criado_em || c.created_at)}</td>
-                        <td>
-                          {c.pdf_url && (
-                            <a href={c.pdf_url} target="_blank" rel="noreferrer" className="btn btn--secondary btn--sm">
-                              <Download size={13}/> PDF
-                            </a>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    {contratos.map(c => {
+                      const resumo = obterResumoContrato(c, 'investidor');
+                      return (
+                        <tr key={c.id}>
+                          <td>
+                            <div style={{ fontSize:'0.8rem', color:'var(--txt-3)', fontWeight:600 }}>{c.numero_contrato || `CON-${c.id}`}</div>
+                            <div style={{ color:'var(--txt-4)', fontSize:'0.76rem', marginTop:4 }}>
+                              Criado em {formatData(c.criado_em || c.created_at)}
+                            </div>
+                          </td>
+                          <td>
+                            <div style={{ fontWeight:500 }}>{c.titulo || c.oportunidade_titulo || 'Contrato de investimento'}</div>
+                            <div style={{ color:'var(--txt-3)', fontSize:'0.82rem', marginTop:4 }}>{c.nome_empresa || 'Empresa'}</div>
+                          </td>
+                          <td style={{ fontWeight:700 }}>{formatAOA(c.valor_acordado || c.valor || 0)}</td>
+                          <td><BadgeStatus status={c.status} /></td>
+                          <td><LinhaEstadoAssinatura contrato={c} papel="investidor" /></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                              {resumo.podeAssinar && (
+                                <button
+                                  type="button"
+                                  className={`btn btn--primary btn--sm${assinandoContratoId === c.id ? ' btn--loading' : ''}`}
+                                  onClick={() => assinarContrato(c)}
+                                  disabled={assinandoContratoId === c.id}
+                                >
+                                  {assinandoContratoId !== c.id && 'Assinar contrato'}
+                                </button>
+                              )}
+                              {resumo.podeDownload && (
+                                <button
+                                  type="button"
+                                  className={`btn btn--secondary btn--sm${baixandoContratoId === c.id ? ' btn--loading' : ''}`}
+                                  onClick={() => baixarContrato(c)}
+                                  disabled={baixandoContratoId === c.id}
+                                >
+                                  {baixandoContratoId !== c.id && <><Download size={13}/> Baixar PDF</>}
+                                </button>
+                              )}
+                              {!resumo.podeAssinar && !resumo.podeDownload && (
+                                <span style={{ fontSize: '0.76rem', color: 'var(--txt-4)' }}>
+                                  {resumo.assinadoPorMim ? 'Aguardando a empresa.' : 'Em preparação.'}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

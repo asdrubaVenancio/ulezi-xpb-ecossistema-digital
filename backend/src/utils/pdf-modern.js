@@ -2,6 +2,7 @@ const PDFDocument = require('pdfkit');
 
 const COLORS = {
   primary: '#1FA7C9',
+  primaryDark: '#0F5F79',
   text: '#374151',
   muted: '#6B7280',
   border: '#D1D5DB',
@@ -18,6 +19,18 @@ const money = (value) => `${Number(value || 0).toLocaleString('pt-AO', {
 const dateText = (value) => {
   const date = value ? new Date(value) : new Date();
   return date.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+};
+
+const dateTimeText = (value) => {
+  if (!value) return 'Pendente';
+  const date = new Date(value);
+  return date.toLocaleString('pt-PT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 const buildDoc = (meta, title) => {
@@ -41,18 +54,29 @@ const ensureSpace = (doc, height = 120) => {
 
 const drawHeader = (doc, title) => {
   doc.save();
-  doc.rect(0, 0, doc.page.width, 84).fill(COLORS.primary);
-  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(24).text('ULEZI XPB', 50, 24);
-  doc.font('Helvetica').fontSize(10).text('Formacao, negocios e investimento', 50, 52);
-  doc.text('www.ulezixpb.com', 50, 66);
+  doc.rect(0, 0, doc.page.width, 96).fill(COLORS.primary);
+  doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(26).text('ULEZI XPB', 50, 24);
+  doc.font('Helvetica').fontSize(11).text('Plataforma de Formacao Profissional e Investimento', 50, 54);
+  doc.fontSize(10).text('www.ulezixpb.com', doc.page.width - 180, 26, { width: 130, align: 'right' });
+  doc.text('info@ulezixpb.com', doc.page.width - 180, 40, { width: 130, align: 'right' });
+  doc.text('+244 923 000 000', doc.page.width - 180, 54, { width: 130, align: 'right' });
   doc.restore();
 
-  doc.fillColor(COLORS.text).font('Helvetica-Bold').fontSize(19).text(title, 50, 108, {
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(20).text(title, 50, 122, {
     width: doc.page.width - 100,
     align: 'center',
   });
-  doc.moveTo(50, 138).lineTo(doc.page.width - 50, 138).strokeColor(COLORS.primary).lineWidth(1.5).stroke();
-  doc.y = 155;
+  doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted).text(
+    'Documento formal emitido pela plataforma ULEZI XPB.',
+    50,
+    148,
+    {
+      width: doc.page.width - 100,
+      align: 'center',
+    }
+  );
+  doc.moveTo(50, 174).lineTo(doc.page.width - 50, 174).strokeColor(COLORS.primary).lineWidth(1.5).stroke();
+  doc.y = 194;
 };
 
 const drawFooter = (doc, label) => {
@@ -88,8 +112,8 @@ const rowsSection = (doc, title, rows) => {
 
 const boxSection = (doc, title, rows, fillColor = COLORS.highlight) => {
   const items = rows.filter(([, value]) => value !== undefined && value !== null && value !== '');
-  if (!items.length) return;
-  const height = 42 + (items.length * 18);
+  if (!items.length) return 0;
+  const height = 54 + (items.length * 18);
   ensureSpace(doc, height + 18);
   const top = doc.y;
 
@@ -97,14 +121,15 @@ const boxSection = (doc, title, rows, fillColor = COLORS.highlight) => {
   doc.roundedRect(45, top, doc.page.width - 90, height, 8).fillAndStroke(fillColor, COLORS.border);
   doc.restore();
 
-  doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(12).text(title, 60, top + 12);
-  let y = top + 32;
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(12).text(title, 60, top + 14);
+  let y = top + 38;
   items.forEach(([label, value]) => {
     doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text(label, 60, y, { width: 140 });
     doc.font('Helvetica').fillColor(COLORS.muted).text(String(value), 195, y, { width: doc.page.width - 255 });
     y += 18;
   });
   doc.y = top + height + 14;
+  return height;
 };
 
 const paragraphSection = (doc, title, body) => {
@@ -137,21 +162,57 @@ const bulletSection = (doc, title, bullets) => {
 };
 
 const signatureSection = (doc, columns) => {
-  ensureSpace(doc, 120);
-  doc.fillColor(COLORS.primary).font('Helvetica-Bold').fontSize(12).text('ASSINATURAS', 50, doc.y);
-  doc.moveDown(1.2);
-  const baseY = doc.y;
-  const width = 210;
-  const gap = 40;
+  ensureSpace(doc, 210);
+  doc.fillColor(COLORS.primaryDark).font('Helvetica-Bold').fontSize(12).text('ASSINATURAS DAS PARTES', 50, doc.y);
+  doc.moveDown(0.35);
+  doc.font('Helvetica').fontSize(9.5).fillColor(COLORS.muted).text(
+    'As assinaturas abaixo representam a confirmacao eletronicamente registada no sistema para validacao deste contrato.',
+    50,
+    doc.y,
+    {
+      width: doc.page.width - 100,
+      align: 'left',
+      lineGap: 2,
+    }
+  );
+  doc.moveDown(1.1);
+
+  const top = doc.y;
+  const width = 220;
+  const height = 118;
+  const gap = 22;
 
   columns.forEach((column, index) => {
-    const x = 55 + (index * (width + gap));
-    doc.moveTo(x, baseY + 28).lineTo(x + width, baseY + 28).strokeColor(COLORS.text).lineWidth(1).stroke();
-    doc.font('Helvetica-Bold').fontSize(10).fillColor(COLORS.text).text(column.label, x, baseY + 34, { width });
-    doc.font('Helvetica').fontSize(10).fillColor(COLORS.muted).text(column.name, x, baseY + 48, { width });
+    const x = 50 + (index * (width + gap));
+    doc.save();
+    doc.roundedRect(x, top, width, height, 10).fillAndStroke('#FFFFFF', COLORS.border);
+    doc.restore();
+
+    doc.font('Helvetica-Bold').fontSize(11).fillColor(COLORS.primaryDark).text(column.label, x + 14, top + 14, {
+      width: width - 28,
+    });
+    doc.font('Helvetica').fontSize(10).fillColor(COLORS.text).text(column.name, x + 14, top + 34, {
+      width: width - 28,
+    });
+
+    doc.font('Helvetica').fontSize(9).fillColor(COLORS.muted).text(
+      `Estado: ${column.signed ? 'Assinatura confirmada' : 'Pendente de confirmacao'}`,
+      x + 14,
+      top + 54,
+      { width: width - 28 }
+    );
+    doc.text(`Data da confirmacao: ${column.signedAt ? dateTimeText(column.signedAt) : 'Pendente'}`, x + 14, top + 70, {
+      width: width - 28,
+    });
+
+    doc.moveTo(x + 14, top + 100).lineTo(x + width - 14, top + 100).strokeColor(COLORS.text).lineWidth(1).stroke();
+    doc.font('Helvetica').fontSize(8.5).fillColor(COLORS.muted).text('Assinatura digital validada no sistema', x + 14, top + 104, {
+      width: width - 28,
+      align: 'center',
+    });
   });
 
-  doc.moveDown(5);
+  doc.y = top + height + 18;
 };
 
 const gerarReciboPDF = (data) => new Promise((resolve, reject) => {
@@ -254,29 +315,31 @@ const gerarContratoPDF = (data) => new Promise((resolve, reject) => {
   drawHeader(doc, 'CONTRATO DE INVESTIMENTO');
   boxSection(doc, 'IDENTIFICACAO DO DOCUMENTO', [
     ['Referencia', `INV-${data.id || 'N/D'}`],
-    ['Data de emissao', dateText(new Date())],
+    ['Data de emissao', dateText(data.data_emissao || new Date())],
     ['Titulo da oportunidade', data.titulo || data.titulo_oportunidade || 'N/D'],
+    ['Estado documental', data.estado_documento || 'Assinado digitalmente'],
   ]);
-  rowsSection(doc, 'PARTE 1 - EMPRESA', [
+
+  boxSection(doc, 'PRIMEIRA PARTE - EMPRESA', [
     ['Nome da empresa', data.nome_empresa || 'N/D'],
     ['NIF', data.nif_empresa || 'Nao informado'],
     ['Email', data.email_empresa || 'Nao informado'],
     ['Telefone', data.telefone_empresa || 'Nao informado'],
     ['Endereco', data.endereco_empresa || 'Nao informado'],
-  ]);
-  rowsSection(doc, 'PARTE 2 - INVESTIDOR', [
+  ], '#F8FAFC');
+  boxSection(doc, 'SEGUNDA PARTE - INVESTIDOR', [
     ['Nome do investidor', data.nome_investidor || 'N/D'],
     ['Email', data.email_investidor || 'Nao informado'],
     ['Telefone', data.telefone_investidor || 'Nao informado'],
     ['Tipo de investidor', data.tipo_investidor || 'Nao informado'],
     ['Documento', data.documento_investidor || 'Nao informado'],
-  ]);
-  rowsSection(doc, 'DETALHES DO ACORDO', [
+  ], '#F8FAFC');
+  boxSection(doc, 'DETALHES DO ACORDO', [
     ['Tipo de investimento', data.tipo_oportunidade || 'Nao informado'],
     ['Valor negociado', money(data.valor)],
     ['Percentagem', data.percentagem || 'Nao definida'],
     ['Prazo de retorno', data.prazo_retorno || 'Nao definido'],
-  ]);
+  ], '#F8FAFC');
   paragraphSection(doc, 'DESCRICAO DA OPORTUNIDADE', data.descricao_oportunidade || data.descricao);
   bulletSection(doc, 'CLAUSULAS PRINCIPAIS', [
     'As partes reconhecem que este documento formaliza o acordo obtido no processo de mediacao.',
@@ -286,8 +349,18 @@ const gerarContratoPDF = (data) => new Promise((resolve, reject) => {
     'O contrato entra em vigor na data da assinatura pelas partes envolvidas.',
   ]);
   signatureSection(doc, [
-    { label: 'Representante da empresa', name: data.nome_empresa || 'Empresa' },
-    { label: 'Investidor', name: data.nome_investidor || 'Investidor' },
+    {
+      label: 'Representante da empresa',
+      name: data.nome_representante_empresa || data.nome_empresa || 'Empresa',
+      signed: Boolean(data.assinado_empresa),
+      signedAt: data.assinado_empresa_at,
+    },
+    {
+      label: 'Investidor',
+      name: data.nome_investidor || 'Investidor',
+      signed: Boolean(data.assinado_investidor),
+      signedAt: data.assinado_investidor_at,
+    },
   ]);
   drawFooter(doc, 'Contrato de investimento');
   doc.end();

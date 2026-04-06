@@ -683,7 +683,27 @@ const listAdminContracts = async (req, res) => {
   try {
     const page  = parseInt(req.query.page  || 1);
     const limit = parseInt(req.query.limit || 50);
+    const search = (req.query.search || req.query.pesquisa || '').trim();
+    const status = (req.query.status || '').trim();
     const offset = (page - 1) * limit;
+    const params = [];
+    const where = [];
+
+    if (search) {
+      where.push('(c.titulo LIKE ? OR cp.nome_empresa LIKE ? OR ui.nome LIKE ? OR io.titulo LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    if (status) {
+      if (status === 'assinado_ambos') {
+        where.push('c.assinado_empresa = 1 AND c.assinado_investidor = 1');
+      } else {
+        where.push('c.status = ?');
+        params.push(status);
+      }
+    }
+
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
     const [rows] = await pool.execute(
       `SELECT c.id, c.titulo, c.status, c.created_at,
@@ -695,19 +715,32 @@ const listAdminContracts = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id = c.company_id
        LEFT JOIN users ui ON ui.id = c.investor_id
        LEFT JOIN investment_opportunities io ON io.id = c.opportunity_id
-       ORDER BY c.created_at DESC
-       LIMIT ${limit} OFFSET ${offset}`
+       ${whereSql}
+        ORDER BY c.created_at DESC
+        LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
-    const [[{ total }]] = await pool.execute('SELECT COUNT(*) as total FROM contracts');
+    const [[{ total }]] = await pool.execute(
+      `SELECT COUNT(*) as total
+       FROM contracts c
+       LEFT JOIN company_profiles cp ON cp.id = c.company_id
+       LEFT JOIN users ui ON ui.id = c.investor_id
+       LEFT JOIN investment_opportunities io ON io.id = c.opportunity_id
+       ${whereSql}`,
+      params
+    );
 
     return success(res, {
       contratos: rows.map((row) => ({
         ...row,
+        status: row.assinado_empresa && row.assinado_investidor ? 'assinado_ambos' : row.status,
         criado_em: row.created_at,
       })),
       total,
       pagina: page,
+      limite: limit,
+      total_paginas: Math.max(1, Math.ceil(total / limit)),
     });
   } catch (err) {
     return error(res, 'Erro ao listar contratos.', 500);

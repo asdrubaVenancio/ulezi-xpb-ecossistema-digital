@@ -1620,24 +1620,79 @@ export function ContratosReal() {
   const toast = useToast();
   const [contratos, setContratos] = useState([]);
   const [carregando, setCarregando] = useState(true);
+  const [abrindoContratoId, setAbrindoContratoId] = useState(null);
+  const [pesquisa, setPesquisa] = useState('');
+  const [estado, setEstado] = useState('');
+  const [pagina, setPagina] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPaginas, setTotalPaginas] = useState(1);
+  const limite = 12;
 
   const carregar = useCallback(async () => {
     setCarregando(true);
     try {
-      const { data } = await adminAPI.contratos({ limite: 50 });
+      const { data } = await adminAPI.contratos({
+        limite,
+        page: pagina,
+        pesquisa: pesquisa || undefined,
+        status: estado || undefined,
+      });
       setContratos(data.dados?.contratos || []);
+      setTotal(data.dados?.total || 0);
+      setTotalPaginas(data.dados?.total_paginas || 1);
     } catch (e) {
       toast.erro('Erro ao carregar contratos: ' + extrairErro(e));
     } finally {
       setCarregando(false);
     }
-  }, [toast]);
+  }, [toast, pagina, pesquisa, estado]);
 
   useEffect(() => { carregar(); }, [carregar]);
 
+  const verContrato = useCallback(async (contratoId) => {
+    try {
+      setAbrindoContratoId(contratoId);
+      const { data } = await adminAPI.verContrato(contratoId);
+      const pdfUrl = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+      window.open(pdfUrl, '_blank', 'noopener,noreferrer');
+      window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+    } catch (e) {
+      toast.erro('Erro ao abrir contrato: ' + extrairErro(e));
+    } finally {
+      setAbrindoContratoId(null);
+    }
+  }, [toast]);
+
   return (
     <div>
-      <div className="admin-toolbar admin-toolbar--end" style={{ marginBottom: 16 }}>
+      <div className="admin-toolbar" style={{ marginBottom: 16, gap: 12, flexWrap: 'wrap' }}>
+        <div className="form-input-wrapper" style={{ minWidth: 280, flex: '1 1 320px' }}>
+          <Search size={16}/>
+          <input
+            className="form-input form-input--icon"
+            placeholder="Pesquisar por título, empresa ou investidor"
+            value={pesquisa}
+            onChange={(e) => {
+              setPesquisa(e.target.value);
+              setPagina(1);
+            }}
+          />
+        </div>
+        <select
+          className="form-select"
+          style={{ width: 220 }}
+          value={estado}
+          onChange={(e) => {
+            setEstado(e.target.value);
+            setPagina(1);
+          }}
+        >
+          <option value="">Todos os estados</option>
+          <option value="enviado">Enviado</option>
+          <option value="assinado_empresa">Assinado pela empresa</option>
+          <option value="assinado_investidor">Assinado pelo investidor</option>
+          <option value="assinado_ambos">Assinado por ambas as partes</option>
+        </select>
         <button type="button" className="btn btn--secondary btn--sm" onClick={carregar}>
           <RefreshCw size={14}/> Actualizar
         </button>
@@ -1646,6 +1701,10 @@ export function ContratosReal() {
       {carregando ? <PageLoader /> : contratos.length === 0 ? (
         <EmptyState icone={<FileText size={28}/>} titulo="Sem contratos" descricao="Os contratos gerados aparecero aqui."/>
       ) : (
+        <>
+        <div style={{ color: 'var(--txt-3)', fontSize: '0.82rem', marginBottom: 12 }}>
+          {total} contrato(s) encontrado(s)
+        </div>
         <div className="table-container">
           <table>
             <thead>
@@ -1656,6 +1715,7 @@ export function ContratosReal() {
                 <th>Estado</th>
                 <th>Assinaturas</th>
                 <th>Data</th>
+                <th>Ações</th>
               </tr>
             </thead>
             <tbody>
@@ -1669,11 +1729,43 @@ export function ContratosReal() {
                     Empresa: {c.assinado_empresa ? 'Sim' : 'No'} | Investidor: {c.assinado_investidor ? 'Sim' : 'No'}
                   </td>
                   <td style={{ color: 'var(--txt-3)', fontSize: '0.82rem' }}>{formatData(c.criado_em || c.created_at)}</td>
+                  <td>
+                    <button
+                      type="button"
+                      className={`btn btn--secondary btn--sm${abrindoContratoId === c.id ? ' btn--loading' : ''}`}
+                      onClick={() => verContrato(c.id)}
+                      disabled={abrindoContratoId === c.id}
+                    >
+                      {abrindoContratoId !== c.id && <><Eye size={14}/> Ver contrato</>}
+                    </button>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        <div className="admin-toolbar admin-toolbar--end" style={{ marginTop: 16, gap: 12 }}>
+          <span style={{ color: 'var(--txt-3)', fontSize: '0.82rem' }}>
+            Página {pagina} de {totalPaginas}
+          </span>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => setPagina((atual) => Math.max(1, atual - 1))}
+            disabled={pagina <= 1}
+          >
+            Anterior
+          </button>
+          <button
+            type="button"
+            className="btn btn--secondary btn--sm"
+            onClick={() => setPagina((atual) => Math.min(totalPaginas, atual + 1))}
+            disabled={pagina >= totalPaginas}
+          >
+            Próxima
+          </button>
+        </div>
+        </>
       )}
     </div>
   );

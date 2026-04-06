@@ -10,6 +10,7 @@ const {
 } = require('../utils/email');
 const { sendWhatsApp } = require('../utils/whatsapp');
 const { log } = require('../utils/audit');
+const { createNotification } = require('../services/notification.service');
 
 const normalizeCompanyStatus = (status) => ({
   pendente: 'pending',
@@ -25,6 +26,178 @@ const ensureMediationRuntimeSchema = async (connection) => {
   try {
     await executor.execute('ALTER TABLE mediations MODIFY COLUMN employee_id INT UNSIGNED NULL');
   } catch (_) {}
+};
+
+const getContractPartiesDataByInterest = async (interestId) => {
+  const [rows] = await pool.execute(
+    `SELECT ii.id as interest_id,
+            ii.investor_id,
+            u_inv.nome as nome_investidor,
+            u_inv.email as email_investidor,
+            u_inv.telefone as tel_investidor,
+            NULL as tipo_investidor,
+            NULL as documento_investidor,
+            io.id as opportunity_id,
+            io.titulo as titulo_oportunidade,
+            io.descricao as desc_oportunidade,
+            io.tipo as tipo_oportunidade,
+            io.valor,
+            cp.id as company_id,
+            cp.user_id as company_user_id,
+            cp.nome_empresa,
+            cp.nif as nif_empresa,
+            cp.endereco as endereco_empresa,
+            u_comp.email as email_empresa,
+            u_comp.telefone as tel_empresa
+     FROM investor_interests ii
+     LEFT JOIN users u_inv ON u_inv.id = ii.investor_id
+     LEFT JOIN investor_profiles ip ON ip.user_id = ii.investor_id
+     LEFT JOIN investment_opportunities io ON io.id = ii.opportunity_id
+     LEFT JOIN company_profiles cp ON cp.id = io.company_id
+     LEFT JOIN users u_comp ON u_comp.id = cp.user_id
+     WHERE ii.id = ?
+     LIMIT 1`,
+    [interestId]
+  );
+
+  return rows[0] || null;
+};
+
+const getContractPdfPayload = async (contractId) => {
+  const [rows] = await pool.execute(
+    `SELECT c.*,
+            cp.user_id as company_user_id,
+            cp.nome_empresa,
+            cp.nif as nif_empresa,
+            cp.endereco as endereco_empresa,
+            u_comp.nome as nome_representante_empresa,
+            u_comp.email as email_empresa,
+            u_comp.telefone as tel_empresa,
+            u_inv.nome as nome_investidor,
+            u_inv.email as email_investidor,
+            u_inv.telefone as tel_investidor,
+            NULL as tipo_investidor,
+            NULL as documento_investidor,
+            io.titulo as titulo_oportunidade,
+            io.descricao as desc_oportunidade,
+            io.tipo as tipo_oportunidade,
+            io.valor as valor_oportunidade
+     FROM contracts c
+     LEFT JOIN company_profiles cp ON cp.id = c.company_id
+     LEFT JOIN users u_comp ON u_comp.id = cp.user_id
+     LEFT JOIN users u_inv ON u_inv.id = c.investor_id
+     LEFT JOIN investor_profiles ip ON ip.user_id = c.investor_id
+     LEFT JOIN investment_opportunities io ON io.id = c.opportunity_id
+     WHERE c.id = ?
+     LIMIT 1`,
+    [contractId]
+  );
+
+  const contract = rows[0];
+  if (!contract) return null;
+
+  return {
+    id: contract.id,
+    titulo: contract.titulo || contract.titulo_oportunidade,
+    titulo_oportunidade: contract.titulo_oportunidade,
+    nome_empresa: contract.nome_empresa,
+    nome_representante_empresa: contract.nome_representante_empresa,
+    nif_empresa: contract.nif_empresa,
+    email_empresa: contract.email_empresa,
+    telefone_empresa: contract.tel_empresa,
+    endereco_empresa: contract.endereco_empresa,
+    nome_investidor: contract.nome_investidor,
+    email_investidor: contract.email_investidor,
+    telefone_investidor: contract.tel_investidor,
+    tipo_investidor: contract.tipo_investidor,
+    documento_investidor: contract.documento_investidor,
+    descricao_oportunidade: contract.desc_oportunidade,
+    tipo_oportunidade: contract.tipo_oportunidade,
+    valor: contract.valor || contract.valor_oportunidade,
+    assinado_empresa: contract.assinado_empresa,
+    assinado_empresa_at: contract.assinado_empresa_at,
+    assinado_investidor: contract.assinado_investidor,
+    assinado_investidor_at: contract.assinado_investidor_at,
+    data_emissao: new Date(),
+    estado_documento: 'Assinado digitalmente pelas partes',
+  };
+};
+
+const getResolvedContractStatus = (contract) => {
+  if (contract?.assinado_empresa && contract?.assinado_investidor) {
+    return 'assinado_ambos';
+  }
+  return contract?.status || 'pendente';
+};
+
+const finalizeContractIfReady = async (contractId) => {
+  const payload = await getContractPdfPayload(contractId);
+  if (!payload) return null;
+
+  const [rows] = await pool.execute(
+    `SELECT c.*, cp.user_id as company_user_id
+     FROM contracts c
+     LEFT JOIN company_profiles cp ON cp.id = c.company_id
+     WHERE c.id = ?
+     LIMIT 1`,
+    [contractId]
+  );
+
+  const contract = rows[0];
+  if (!contract) return null;
+
+  const bothSigned = Boolean(contract.assinado_empresa && contract.assinado_investidor);
+  if (!bothSigned) {
+    if (contract.status !== getResolvedContractStatus(contract)) {
+      await pool.execute('UPDATE contracts SET status=? WHERE id=?', [getResolvedContractStatus(contract), contractId]);
+      contract.status = getResolvedContractStatus(contract);
+    }
+    return contract;
+  }
+
+  let pdfBuffer = contract.pdf_data || null;
+  if (!pdfBuffer) {
+    pdfBuffer = await gerarContratoPDF(payload);
+  }
+
+  await pool.execute(
+    'UPDATE contracts SET status="assinado_ambos", pdf_data=? WHERE id=?',
+    [pdfBuffer, contractId]
+  );
+  if (contract.interest_id) {
+    await pool.execute('UPDATE investor_interests SET status="aprovado" WHERE id=?', [contract.interest_id]);
+  }
+
+  return {
+    ...contract,
+    status: 'assinado_ambos',
+    pdf_data: pdfBuffer,
+  };
+};
+
+const normalizeContractRow = (row) => ({
+  ...row,
+  status: getResolvedContractStatus(row),
+});
+
+const notifyContractSignatureRequest = async ({ contractId, companyUserId, investorId, titulo }) => {
+  const link = `/contratos/${contractId}`;
+  await Promise.all([
+    companyUserId ? createNotification(
+      companyUserId,
+      'assinatura_contrato',
+      'Assinatura pendente de contrato',
+      `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
+      link
+    ) : Promise.resolve(),
+    investorId ? createNotification(
+      investorId,
+      'assinatura_contrato',
+      'Assinatura pendente de contrato',
+      `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
+      link
+    ) : Promise.resolve(),
+  ]);
 };
 
 /** POST /api/companies/documents - Upload de documentos */
@@ -545,6 +718,40 @@ const adminListInterests = async (req, res) => {
 const generateContract = async (req, res) => {
   try {
     const { id: interestId } = req.params;
+    const newContractFlowData = await getContractPartiesDataByInterest(interestId);
+
+    if (!newContractFlowData) return notFound(res, 'Interesse nÃƒÂ£o encontrado.');
+
+    const [existingContract] = await pool.execute('SELECT id FROM contracts WHERE interest_id=?', [interestId]);
+    if (existingContract.length) return badRequest(res, 'Contrato jÃƒÂ¡ gerado para este interesse.');
+
+    const [createdContract] = await pool.execute(
+      `INSERT INTO contracts (interest_id, opportunity_id, investor_id, company_id, titulo, gerado_by, status)
+       VALUES (?,?,?,?,?,?,'enviado')`,
+      [
+        interestId,
+        newContractFlowData.opportunity_id,
+        newContractFlowData.investor_id,
+        newContractFlowData.company_id,
+        newContractFlowData.titulo_oportunidade,
+        req.user.id,
+      ]
+    );
+
+    await pool.execute('UPDATE investor_interests SET status="em_analise" WHERE id=?', [interestId]);
+    await notifyContractSignatureRequest({
+      contractId: createdContract.insertId,
+      companyUserId: newContractFlowData.company_user_id,
+      investorId: newContractFlowData.investor_id,
+      titulo: newContractFlowData.titulo_oportunidade,
+    });
+
+    await log(req.user.id, 'GENERATE_CONTRACT', 'contracts', createdContract.insertId, { interestId }, req);
+    return created(
+      res,
+      { contract_id: createdContract.insertId, status: 'enviado' },
+      'Contrato criado. As partes foram notificadas no sistema para confirmar a assinatura digital antes da emissao do PDF final.'
+    );
 
     const [interests] = await pool.execute(
       `SELECT ii.*, 
@@ -634,11 +841,26 @@ const downloadContract = async (req, res) => {
                       contract.company_user_id === userId;
 
     if (!canAccess) return res.status(403).json({ success: false, message: 'Acesso negado.' });
+    let resolvedContract = normalizeContractRow(contract);
+    if (!resolvedContract.pdf_data && resolvedContract.assinado_empresa && resolvedContract.assinado_investidor) {
+      try {
+        const finalized = await finalizeContractIfReady(id);
+        if (finalized) {
+          resolvedContract = normalizeContractRow(finalized);
+        }
+      } catch (finalizeErr) {
+        console.error('[CONTRACT FINALIZE DOWNLOAD]', finalizeErr.message);
+      }
+    }
 
-    if (contract.pdf_data) {
+    if (!resolvedContract.pdf_data) {
+      return badRequest(res, 'O PDF final do contrato ainda nao esta disponivel. Aguarde a assinatura digital de ambas as partes.');
+    }
+
+    if (resolvedContract.pdf_data) {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="contrato_${id}.pdf"`);
-      return res.send(contract.pdf_data);
+      return res.send(resolvedContract.pdf_data);
     }
     return notFound(res, 'PDF nÃ£o disponÃ­vel.');
   } catch (err) {
@@ -660,6 +882,88 @@ const signContract = async (req, res) => {
     );
     if (!rows.length) return notFound(res, 'Contrato nÃ£o encontrado.');
     const contract = rows[0];
+
+    let nextStatus = '';
+    let signerRoleLabel = '';
+    if (role === 'investor' && contract.investor_id === userId && !contract.assinado_investidor) {
+      nextStatus = 'assinado_investidor';
+      signerRoleLabel = 'investidor';
+      await pool.execute(
+        'UPDATE contracts SET assinado_investidor=1, assinado_investidor_at=NOW(), status=? WHERE id=?',
+        [nextStatus, id]
+      );
+    } else if (role === 'company' && contract.company_user_id === userId && !contract.assinado_empresa) {
+      nextStatus = 'assinado_empresa';
+      signerRoleLabel = 'empresa';
+      await pool.execute(
+        'UPDATE contracts SET assinado_empresa=1, assinado_empresa_at=NOW(), status=? WHERE id=?',
+        [nextStatus, id]
+      );
+    } else {
+      return badRequest(res, 'NÃƒÂ£o pode assinar este contrato ou jÃƒÂ¡ foi assinado.');
+    }
+
+    const [updatedContracts] = await pool.execute('SELECT * FROM contracts WHERE id=?', [id]);
+    const updatedContract = updatedContracts[0];
+
+    if (updatedContract.assinado_empresa && updatedContract.assinado_investidor) {
+      const pdfPayload = await getContractPdfPayload(id);
+      let pdfBuffer = null;
+
+      try {
+        pdfBuffer = await gerarContratoPDF(pdfPayload);
+      } catch (pdfErr) {
+        console.error('[PDF CONTRACT FINAL]', pdfErr.message);
+      }
+
+      await pool.execute('UPDATE contracts SET status="assinado_ambos", pdf_data=? WHERE id=?', [pdfBuffer, id]);
+      await pool.execute('UPDATE investor_interests SET status="aprovado" WHERE id=?', [contract.interest_id]);
+
+      await Promise.all([
+        contract.company_user_id ? createNotification(
+          contract.company_user_id,
+          'contrato_assinado',
+          'Contrato validado',
+          `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
+          `/contratos/${id}`
+        ) : Promise.resolve(),
+        contract.investor_id ? createNotification(
+          contract.investor_id,
+          'contrato_assinado',
+          'Contrato validado',
+          `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
+          `/contratos/${id}`
+        ) : Promise.resolve(),
+      ]);
+
+      if (pdfBuffer && pdfPayload) {
+        Promise.all([
+          sendContractEmail(pdfPayload.email_empresa, pdfPayload.nome_empresa, pdfPayload, pdfBuffer)
+            .then(() => pool.execute('UPDATE contracts SET enviado_email_empresa=1 WHERE id=?', [id]))
+            .catch((mailErr) => console.error('[CONTRACT EMAIL EMPRESA FINAL]', mailErr)),
+          sendContractEmail(pdfPayload.email_investidor, pdfPayload.nome_investidor, pdfPayload, pdfBuffer)
+            .then(() => pool.execute('UPDATE contracts SET enviado_email_investidor=1 WHERE id=?', [id]))
+            .catch((mailErr) => console.error('[CONTRACT EMAIL INVESTIDOR FINAL]', mailErr)),
+        ]).catch(() => {});
+      }
+
+      await log(userId, 'SIGN_CONTRACT', 'contracts', id, { status: 'assinado_ambos' }, req);
+      return success(res, null, 'Contrato assinado com sucesso. O PDF final foi emitido.');
+    }
+
+    const targetUserId = signerRoleLabel === 'empresa' ? contract.investor_id : contract.company_user_id;
+    if (targetUserId) {
+      await createNotification(
+        targetUserId,
+        'assinatura_contrato',
+        'Assinatura pendente de contrato',
+        `A contraparte ja confirmou a assinatura do contrato #${id}. Falta agora a sua confirmacao digital para concluir o documento.`,
+        `/contratos/${id}`
+      );
+    }
+
+    await log(userId, 'SIGN_CONTRACT', 'contracts', id, { status: nextStatus }, req);
+    return success(res, null, 'Assinatura registada com sucesso. O contrato sera emitido apos a confirmacao da outra parte.');
 
     let updateField = '';
     if (role === 'investor' && contract.investor_id === userId && !contract.assinado_investidor) {
@@ -1104,7 +1408,7 @@ const getEmpresaContratos = async (req, res) => {
       [cp.id]
     );
 
-    return success(res, { contratos: rows });
+    return success(res, { contratos: rows.map(normalizeContractRow) });
   } catch (err) {
     return error(res, 'Erro ao listar contratos.', 500);
   }
@@ -1157,7 +1461,7 @@ const getInvestidorContratos = async (req, res) => {
        ORDER BY c.created_at DESC`,
       [req.user.id]
     );
-    return success(res, { contratos: rows });
+    return success(res, { contratos: rows.map(normalizeContractRow) });
   } catch (err) {
     return error(res, 'Erro ao listar contratos.', 500);
   }
