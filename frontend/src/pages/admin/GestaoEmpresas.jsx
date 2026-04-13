@@ -2,7 +2,7 @@ import { Building2, CalendarClock, CheckCircle2, Eye, FileText, ShieldAlert, XCi
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Modal } from '../../components/ui';
-import { adminAPI, extrairErro } from '../../services/api';
+import { adminAPI, BACKEND_BASE_URL, extrairErro } from '../../services/api';
 import {
   badgeEstado,
   BadgeModulo,
@@ -107,7 +107,7 @@ const GestaoEmpresas = () => {
         };
       });
 
-      window.open(`http://localhost:5000${url}`, '_blank', 'noopener,noreferrer');
+      window.open(`${BACKEND_BASE_URL}${url}`, '_blank', 'noopener,noreferrer');
     } catch (erro) {
       toast.error(`Erro ao abrir documento: ${extrairErro(erro)}`);
     }

@@ -102,6 +102,8 @@ source database/schema.sql
 source database/seed.sql
 ```
 
+Para o deploy do estado real actual do sistema, prefira importar [bd.sql](/c:/projetos/ulezi-xpb-v2/ulezi-xpb%20-%20Cópia/database/bd.sql), pois ele reflecte a base local em uso e está mais alinhado com o código recente do que o `schema.sql`.
+
 ### 2. Backend
 
 ```bash
@@ -223,6 +225,15 @@ Antes de usar em ambiente real:
 - altere todas as credenciais iniciais
 - configure SMTP real
 - configure integracao real de WhatsApp, se necessario
+
+Observacao:
+
+- o utilizador administrador deve vir da seed ou da base importada
+- o administrador nao deve ser criado manualmente pelo fluxo normal da aplicacao
+
+## Deploy
+
+Para deploy via Git + SSH na Hostinger, consulte [DEPLOY_HOSTINGER_SSH.md](/c:/projetos/ulezi-xpb-v2/ulezi-xpb%20-%20Cópia/docs/DEPLOY_HOSTINGER_SSH.md).
 
 ## Modulos do sistema
 

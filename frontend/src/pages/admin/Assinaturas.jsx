@@ -12,7 +12,7 @@ import {
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Modal } from '../../components/ui';
-import { adminAPI, extrairErro } from '../../services/api';
+import { adminAPI, BACKEND_BASE_URL, extrairErro } from '../../services/api';
 import {
   badgeEstado,
   BadgeModulo,
@@ -297,7 +297,7 @@ const Assinaturas = () => {
         return;
       }
 
-      window.open(`http://localhost:5000${url}`, '_blank', 'noopener,noreferrer');
+      window.open(`${BACKEND_BASE_URL}${url}`, '_blank', 'noopener,noreferrer');
 
       setAssinaturaAnalisada((atual) => (
         atual?.id === assinatura.id

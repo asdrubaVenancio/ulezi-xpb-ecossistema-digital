@@ -2,7 +2,7 @@ import { CalendarDays, CheckCircle2, Eye, MapPinned, PlusCircle, ShieldAlert } f
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'react-hot-toast';
 import { Modal } from '../../components/ui';
-import api, { extrairErro } from '../../services/api';
+import api, { BACKEND_BASE_URL, extrairErro } from '../../services/api';
 import {
   badgeEstado,
   BadgeModulo,
@@ -281,7 +281,7 @@ const GestaoVisitas = () => {
                           <div style={{ fontWeight: 700 }}>{documento.tipo}</div>
                           <div style={{ color: 'var(--txt-3)', fontSize: '0.82rem' }}>{documento.nome_ficheiro}</div>
                         </div>
-                        <a className="btn btn--secondary btn--sm" href={`http://localhost:5000${documento.url_ficheiro}`} target="_blank" rel="noreferrer">
+                        <a className="btn btn--secondary btn--sm" href={`${BACKEND_BASE_URL}${documento.url_ficheiro}`} target="_blank" rel="noreferrer">
                           Abrir
                         </a>
                       </div>
