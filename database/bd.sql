@@ -309,6 +309,8 @@ CREATE TABLE IF NOT EXISTS `company_profiles` (
   `municipio` varchar(100) DEFAULT NULL,
   `endereco` text,
   `website` varchar(255) DEFAULT NULL,
+  `tipo_empresa` enum('empresa','consultoria') NOT NULL DEFAULT 'empresa',
+  `consultoria_descricao` text,
   `is_approved` tinyint(1) DEFAULT '0',
   `approved_by` int unsigned DEFAULT NULL,
   `approved_at` datetime DEFAULT NULL,
@@ -1195,7 +1197,7 @@ CREATE TABLE IF NOT EXISTS `subscription_packages` (
   `approved_at` datetime DEFAULT NULL,
   `motivo_rejeicao` text,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `slug` (`slug`)
+  UNIQUE KEY `slug_categoria` (`slug`, `package_category`)
 ) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 -- A despejar dados para tabela ulezi2_xpb.subscription_packages: ~2 rows (aproximadamente)
@@ -1397,6 +1399,176 @@ INSERT INTO `users` (`id`, `nome`, `email`, `telefone`, `password_hash`, `role`,
 	(10, 'Nuno Almeida', 'maiertenta@gmail.com', '950680880', '$2a$12$SZYVYZYymsTXip3Z/ptCvuSk4q5sAf5xTifZmvmJrhkujVNRVLSaq', 'investor', 'ativo', 0, NULL, '2026-04-06 08:38:14', '2026-04-06 08:38:14', 0),
 	(12, 'Carlos Henriques', 'asdrubavenancio@yahoo.com', '909411670', '$2a$12$vqiCCMVY2xMTCZnMzWb.7eaFd3lakMJuza2iOSeT9nwTiWvTkrf3W', 'employee', 'ativo', 1, NULL, '2026-04-06 13:03:31', '2026-04-06 13:09:52', 0),
 	(13, 'Irineu ', 'solimpo@gmail.com', '929411678', '$2a$12$tKpkwAaGwmlspvHfgRSSP.duSTG9uRofJj9lRB44pUyvb5I30r1iC', 'company', 'ativo', 0, NULL, '2026-04-06 13:54:22', '2026-04-06 13:54:22', 0);
+
+-- ============================================================
+-- AJUSTES FINAIS DO MODULO DE CONSULTORIA E ASSINATURAS
+-- Mantem o dump pronto para teste com empresas de consultoria,
+-- agenda semanal, creditos de consultoria e recargas.
+-- ============================================================
+
+ALTER TABLE `subscription_packages`
+  ADD COLUMN `package_category` enum('empresa','consultoria','recarga_consultoria') NOT NULL DEFAULT 'empresa' AFTER `nome`,
+  ADD COLUMN `target_role` enum('company','investor','consultancy','all') NOT NULL DEFAULT 'company' AFTER `package_category`,
+  ADD COLUMN `consultation_recharge_credits` int NOT NULL DEFAULT '0' AFTER `consultorias_incluidas`;
+
+ALTER TABLE `consultations`
+  ADD COLUMN `consultancy_company_id` int unsigned DEFAULT NULL AFTER `user_id`,
+  ADD COLUMN `requester_company_id` int unsigned DEFAULT NULL AFTER `consultancy_company_id`,
+  ADD COLUMN `requested_by_role` enum('company','investor') NOT NULL DEFAULT 'company' AFTER `requester_company_id`,
+  ADD COLUMN `slot_date` date DEFAULT NULL AFTER `preferencia_horario`,
+  ADD COLUMN `slot_confirmed_at` datetime DEFAULT NULL AFTER `slot_date`,
+  ADD COLUMN `credits_consumed` int NOT NULL DEFAULT '0' AFTER `valor`,
+  ADD COLUMN `credit_source` enum('assinatura','recarga','manual') DEFAULT NULL AFTER `credits_consumed`,
+  ADD COLUMN `request_channel` enum('plataforma','admin') NOT NULL DEFAULT 'plataforma' AFTER `credit_source`,
+  ADD COLUMN `requested_at` datetime DEFAULT NULL AFTER `request_channel`;
+
+ALTER TABLE `consultations`
+  MODIFY COLUMN `status` enum('pendente','agendada','confirmada','realizada','cancelada','rejeitada') DEFAULT 'pendente';
+
+ALTER TABLE `consultations`
+  ADD KEY `idx_consultations_consultancy_company` (`consultancy_company_id`),
+  ADD KEY `idx_consultations_slot` (`slot_date`,`hora_inicio`,`status`),
+  ADD CONSTRAINT `fk_consultations_consultancy_company` FOREIGN KEY (`consultancy_company_id`) REFERENCES `company_profiles` (`id`) ON DELETE SET NULL,
+  ADD CONSTRAINT `fk_consultations_requester_company` FOREIGN KEY (`requester_company_id`) REFERENCES `company_profiles` (`id`) ON DELETE SET NULL;
+
+CREATE TABLE IF NOT EXISTS `consultation_credit_transactions` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `owner_user_id` int unsigned NOT NULL,
+  `owner_company_id` int unsigned DEFAULT NULL,
+  `subscription_id` int unsigned DEFAULT NULL,
+  `package_id` int unsigned DEFAULT NULL,
+  `consultation_id` int unsigned DEFAULT NULL,
+  `transaction_type` enum('assinatura','recarga','consumo','ajuste') NOT NULL,
+  `quantity` int NOT NULL,
+  `unit_value` decimal(12,2) DEFAULT NULL,
+  `total_value` decimal(12,2) DEFAULT NULL,
+  `description` varchar(255) DEFAULT NULL,
+  `metadata` json DEFAULT NULL,
+  `created_by` int unsigned DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_consultation_credit_owner` (`owner_user_id`,`owner_company_id`),
+  KEY `fk_consultation_credit_owner_company` (`owner_company_id`),
+  KEY `fk_consultation_credit_subscription` (`subscription_id`),
+  KEY `fk_consultation_credit_package` (`package_id`),
+  KEY `fk_consultation_credit_creator` (`created_by`),
+  CONSTRAINT `fk_consultation_credit_creator` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_consultation_credit_owner_company` FOREIGN KEY (`owner_company_id`) REFERENCES `company_profiles` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_consultation_credit_owner_user` FOREIGN KEY (`owner_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_consultation_credit_package` FOREIGN KEY (`package_id`) REFERENCES `subscription_packages` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_consultation_credit_subscription` FOREIGN KEY (`subscription_id`) REFERENCES `subscriptions` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `consultation_recharge_requests` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `requester_user_id` int unsigned NOT NULL,
+  `requester_company_id` int unsigned DEFAULT NULL,
+  `package_id` int unsigned NOT NULL,
+  `quantity` int NOT NULL DEFAULT '0',
+  `unit_value` decimal(12,2) DEFAULT NULL,
+  `total_value` decimal(12,2) DEFAULT NULL,
+  `status` enum('pendente','aprovado','rejeitado') NOT NULL DEFAULT 'pendente',
+  `payment_reference` varchar(120) DEFAULT NULL,
+  `proof_url` varchar(255) DEFAULT NULL,
+  `notes` text,
+  `approved_by` int unsigned DEFAULT NULL,
+  `approved_at` datetime DEFAULT NULL,
+  `rejection_reason` text,
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_consultation_recharge_status` (`status`,`created_at`),
+  KEY `fk_consultation_recharge_company` (`requester_company_id`),
+  KEY `fk_consultation_recharge_package` (`package_id`),
+  KEY `fk_consultation_recharge_approved_by` (`approved_by`),
+  CONSTRAINT `fk_consultation_recharge_approved_by` FOREIGN KEY (`approved_by`) REFERENCES `users` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_consultation_recharge_company` FOREIGN KEY (`requester_company_id`) REFERENCES `company_profiles` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_consultation_recharge_package` FOREIGN KEY (`package_id`) REFERENCES `subscription_packages` (`id`) ON DELETE RESTRICT,
+  CONSTRAINT `fk_consultation_recharge_user` FOREIGN KEY (`requester_user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS `consultancy_availability` (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `company_id` int unsigned NOT NULL,
+  `dia_semana` tinyint NOT NULL,
+  `hora_inicio` time NOT NULL,
+  `hora_fim` time NOT NULL,
+  `capacidade_atendimentos` int NOT NULL DEFAULT '1',
+  `duracao_slot_minutos` int NOT NULL DEFAULT '60',
+  `is_active` tinyint(1) NOT NULL DEFAULT '1',
+  `created_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_consultancy_availability_company` (`company_id`),
+  KEY `idx_consultancy_availability_day` (`dia_semana`,`is_active`),
+  CONSTRAINT `fk_consultancy_availability_company` FOREIGN KEY (`company_id`) REFERENCES `company_profiles` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+UPDATE `company_profiles`
+SET `tipo_empresa` = 'consultoria',
+    `consultoria_descricao` = COALESCE(`consultoria_descricao`, 'Consultoria empresarial validada pela plataforma.'),
+    `sector` = NULL
+WHERE `id` IN (3, 4);
+
+UPDATE `subscription_packages`
+SET `package_category` = 'empresa',
+    `target_role` = 'company',
+    `consultation_recharge_credits` = 0
+WHERE `id` IN (1, 2);
+
+INSERT INTO `subscription_packages`
+  (`slug`, `nome`, `package_category`, `target_role`, `descricao`, `preco`, `moeda`, `duracao_dias`, `duracao_meses`, `consultorias_incluidas`, `consultation_recharge_credits`, `publicacoes_oportunidades_ilimitadas`, `max_oportunidades_ativas`, `publicacoes_vagas_ilimitadas`, `max_vagas_ativas`, `beneficios`, `is_active`, `ordem`, `status`)
+SELECT
+  'consultoria-essencial',
+  'Consultoria Essencial',
+  'consultoria',
+  'consultancy',
+  'Plano especÃ­fico para empresas de consultoria operarem com agenda e dashboard dedicados.',
+  35000.00,
+  'AOA',
+  30,
+  1,
+  0,
+  0,
+  1,
+  3,
+  1,
+  3,
+  JSON_ARRAY('Perfil de consultoria listado', 'Agenda semanal', 'Recebimento de solicitaÃ§Ãµes'),
+  1,
+  3,
+  'ativo'
+FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM `subscription_packages` WHERE `slug` = 'consultoria-essencial'
+);
+
+INSERT INTO `subscription_packages`
+  (`slug`, `nome`, `package_category`, `target_role`, `descricao`, `preco`, `moeda`, `duracao_dias`, `duracao_meses`, `consultorias_incluidas`, `consultation_recharge_credits`, `publicacoes_oportunidades_ilimitadas`, `max_oportunidades_ativas`, `publicacoes_vagas_ilimitadas`, `max_vagas_ativas`, `beneficios`, `is_active`, `ordem`, `status`)
+SELECT
+  'recarga-consultoria-5',
+  'Recarga de 5 Consultorias',
+  'recarga_consultoria',
+  'all',
+  'Pacote de recarga para repor crÃ©ditos de consultoria de empresas e investidores.',
+  15000.00,
+  'AOA',
+  30,
+  1,
+  0,
+  5,
+  0,
+  0,
+  0,
+  0,
+  JSON_ARRAY('Recarga manual de 5 crÃ©ditos de consultoria'),
+  1,
+  4,
+  'ativo'
+FROM DUAL
+WHERE NOT EXISTS (
+  SELECT 1 FROM `subscription_packages` WHERE `slug` = 'recarga-consultoria-5'
+);
 
 /*!40103 SET TIME_ZONE=IFNULL(@OLD_TIME_ZONE, 'system') */;
 /*!40101 SET SQL_MODE=IFNULL(@OLD_SQL_MODE, '') */;

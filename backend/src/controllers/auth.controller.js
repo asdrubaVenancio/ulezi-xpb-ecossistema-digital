@@ -84,6 +84,7 @@ const register = async (req, res) => {
       descricao,
       sector,
       nif,
+      tipo_empresa,
       is_public,
     } = req.body;
     const role = normalizeRole(req.body.role);
@@ -127,9 +128,24 @@ const register = async (req, res) => {
       );
     } else if (role === 'company') {
       const companyName = nome_empresa || nomeEmpresa || nome;
+      const tipoEmpresaNormalizado = tipo_empresa === 'consultoria' ? 'consultoria' : 'empresa';
+      const sectorNormalizado = tipoEmpresaNormalizado === 'consultoria' ? null : (sector || null);
+
       const [companyResult] = await pool.execute(
-        'INSERT INTO company_profiles (user_id, nome_empresa, nif, descricao, sector, provincia, municipio) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [userId, companyName, nif || null, descricao || null, sector || null, provincia || null, municipio || null]
+        `INSERT INTO company_profiles
+         (user_id, nome_empresa, nif, descricao, consultoria_descricao, sector, provincia, municipio, tipo_empresa)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          userId,
+          companyName,
+          nif || null,
+          descricao || null,
+          (tipoEmpresaNormalizado === 'consultoria' ? descricao : null) || null,
+          sectorNormalizado,
+          provincia || null,
+          municipio || null,
+          tipoEmpresaNormalizado,
+        ]
       );
       const companyProfileId = companyResult.insertId;
 
@@ -325,14 +341,36 @@ const updateProfile = async (req, res) => {
       );
     } else if (role === 'company' && Object.keys(profileFields).length > 0) {
       const { descricao, sector, provincia, municipio, endereco, website, is_public } = profileFields;
+      const [[company]] = await pool.execute(
+        'SELECT tipo_empresa FROM company_profiles WHERE user_id = ? LIMIT 1',
+        [userId]
+      );
+      const sectorNormalizado = company?.tipo_empresa === 'consultoria' ? null : (sector || null);
+
       await pool.execute(
         `UPDATE company_profiles SET 
           descricao=COALESCE(?,descricao), sector=COALESCE(?,sector),
           provincia=COALESCE(?,provincia), municipio=COALESCE(?,municipio),
           endereco=COALESCE(?,endereco), website=COALESCE(?,website),
           is_public=COALESCE(?,is_public) WHERE user_id=?`,
-        [descricao||null, sector||null, provincia||null, municipio||null, endereco||null, website||null, is_public!=null?is_public:null, userId]
+        [
+          descricao || null,
+          sectorNormalizado,
+          provincia || null,
+          municipio || null,
+          endereco || null,
+          website || null,
+          is_public != null ? is_public : null,
+          userId,
+        ]
       );
+
+      if (company?.tipo_empresa === 'consultoria') {
+        await pool.execute(
+          'UPDATE company_profiles SET sector = NULL WHERE user_id = ?',
+          [userId]
+        );
+      }
     }
 
     await log(userId, 'UPDATE_PROFILE', 'users', userId, null, req);

@@ -120,12 +120,15 @@ const createPackage = async (req, res) => {
     const {
       slug,
       nome,
+      package_category = 'empresa',
+      target_role = 'company',
       descricao,
       preco,
       moeda = 'AOA',
       duracao_dias = 30,
       duracao_meses = 1,
       consultorias_incluidas = 0,
+      consultation_recharge_credits = 0,
       max_oportunidades_ativas = 3,
       max_vagas_ativas = 3,
       publicacoes_oportunidades_ilimitadas = false,
@@ -140,13 +143,13 @@ const createPackage = async (req, res) => {
       return badRequest(res, 'Slug, nome e preço são obrigatórios.');
     }
 
-    // Verificar slug único
+    // Verificar slug único (por categoria - slugs podem repetir em categorias diferentes)
     const [existing] = await pool.execute(
-      'SELECT id FROM subscription_packages WHERE slug = ?',
-      [slug]
+      'SELECT id FROM subscription_packages WHERE slug = ? AND package_category = ?',
+      [slug, package_category]
     );
     if (existing.length) {
-      return badRequest(res, 'Já existe um pacote com este slug.');
+      return badRequest(res, 'Já existe um pacote com este slug na mesma categoria.');
     }
 
     // Definir status baseado no role do criador
@@ -155,14 +158,14 @@ const createPackage = async (req, res) => {
 
     const [result] = await pool.execute(
       `INSERT INTO subscription_packages 
-       (slug, nome, descricao, preco, moeda, duracao_dias, duracao_meses,
-        consultorias_incluidas, max_oportunidades_ativas, max_vagas_ativas,
+       (slug, nome, package_category, target_role, descricao, preco, moeda, duracao_dias, duracao_meses,
+        consultorias_incluidas, consultation_recharge_credits, max_oportunidades_ativas, max_vagas_ativas,
         publicacoes_oportunidades_ilimitadas, publicacoes_vagas_ilimitadas,
         suporte_prioritario, beneficios, status, created_by, ordem)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        slug, nome, descricao || null, preco, moeda, duracao_dias, duracao_meses,
-        consultorias_incluidas, max_oportunidades_ativas, max_vagas_ativas,
+        slug, nome, package_category, target_role, descricao || null, preco, moeda, duracao_dias, duracao_meses,
+        consultorias_incluidas, consultation_recharge_credits, max_oportunidades_ativas, max_vagas_ativas,
         publicacoes_oportunidades_ilimitadas ? 1 : 0,
         publicacoes_vagas_ilimitadas ? 1 : 0,
         suporte_prioritario ? 1 : 0,
@@ -194,10 +197,10 @@ const createPackage = async (req, res) => {
     return success(res, {
       id: result.insertId,
       status,
-      mensagem: isEmployee 
-        ? 'Pacote criado e aguarda aprovação do administrador.' 
+      mensagem: isEmployee
+        ? 'Pacote criado e aguarda aprovação do administrador.'
         : 'Pacote criado com sucesso.'
-    }, 201);
+    }, undefined, 201);
 
   } catch (err) {
     console.error('[CREATE_PACKAGE]', err);
@@ -230,8 +233,8 @@ const updatePackage = async (req, res) => {
 
     // Campos permitidos
     const allowedFields = [
-      'nome', 'descricao', 'preco', 'moeda', 'duracao_dias', 'duracao_meses',
-      'consultorias_incluidas', 'max_oportunidades_ativas', 'max_vagas_ativas',
+      'nome', 'package_category', 'target_role', 'descricao', 'preco', 'moeda', 'duracao_dias', 'duracao_meses',
+      'consultorias_incluidas', 'consultation_recharge_credits', 'max_oportunidades_ativas', 'max_vagas_ativas',
       'publicacoes_oportunidades_ilimitadas', 'publicacoes_vagas_ilimitadas',
       'suporte_prioritario', 'beneficios', 'ordem', 'is_active'
     ];
@@ -362,14 +365,31 @@ const deletePackage = async (req, res) => {
  */
 const listActivePackages = async (req, res) => {
   try {
+    const role = req.user.role;
+    let companyType = null;
+
+    if (role === 'company') {
+      const [[company]] = await pool.execute(
+        'SELECT tipo_empresa FROM company_profiles WHERE user_id = ? LIMIT 1',
+        [req.user.id]
+      );
+      companyType = company?.tipo_empresa || 'empresa';
+    }
+
     const [packages] = await pool.execute(
-      `SELECT id, slug, nome, descricao, preco, moeda, duracao_dias, duracao_meses,
-              consultorias_incluidas, max_oportunidades_ativas, max_vagas_ativas,
+      `SELECT id, slug, nome, package_category, target_role, descricao, preco, moeda, duracao_dias, duracao_meses,
+              consultorias_incluidas, consultation_recharge_credits, max_oportunidades_ativas, max_vagas_ativas,
               publicacoes_oportunidades_ilimitadas, publicacoes_vagas_ilimitadas,
               suporte_prioritario, beneficios, ordem
        FROM subscription_packages
        WHERE status = 'ativo' AND is_active = 1
-       ORDER BY ordem ASC, preco ASC`
+         AND (
+           (? = 'company' AND ? = 'empresa' AND target_role IN ('company', 'all') AND package_category IN ('empresa', 'recarga_consultoria'))
+           OR (? = 'company' AND ? = 'consultoria' AND target_role IN ('consultancy', 'all') AND package_category IN ('consultoria', 'recarga_consultoria'))
+           OR (? = 'investor' AND target_role IN ('investor', 'all') AND package_category = 'recarga_consultoria')
+         )
+       ORDER BY ordem ASC, preco ASC`,
+      [role, companyType, role, companyType, role]
     );
 
     return success(res, {

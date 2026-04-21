@@ -58,6 +58,7 @@ const schemaRegistar = z.object({
     errorMap: () => ({ message: 'Seleccione o tipo de conta' }),
   }),
   nome_empresa: z.string().optional().or(z.literal('')),
+  tipo_empresa: z.enum(['empresa', 'consultoria']).default('empresa'),
   provincia: z.string().optional().or(z.literal('')),
   municipio: z.string().optional().or(z.literal('')),
   sector_custom: z.string().optional().or(z.literal('')),
@@ -266,6 +267,7 @@ export function Registar() {
       role: 'student',
       telefone: '',
       nome_empresa: '',
+      tipo_empresa: 'empresa',
       provincia: '',
       municipio: '',
       sector_custom: '',
@@ -275,6 +277,8 @@ export function Registar() {
   });
 
   const roleAtual = watch('role');
+  const tipoEmpresaAtual = watch('tipo_empresa');
+  const ehConsultoria = roleAtual === 'company' && tipoEmpresaAtual === 'consultoria';
   const senhaAtual = watch('password');
   const tituloNome = useMemo(() => {
     if (roleAtual === 'company') return 'Nome do responsável';
@@ -309,10 +313,12 @@ export function Registar() {
       }
 
       if (dados.role === 'company') {
-        const sectorFinal = [
-          ...sectoresSelecionados,
-          ...(dados.sector_custom ? [dados.sector_custom.trim()] : []),
-        ].filter(Boolean).join(', ');
+        const sectorFinal = ehConsultoria
+          ? ''
+          : [
+            ...sectoresSelecionados,
+            ...(dados.sector_custom ? [dados.sector_custom.trim()] : []),
+          ].filter(Boolean).join(', ');
 
         if (!documentosEmpresa.documento_alvara || !documentosEmpresa.documento_nif || !documentosEmpresa.documento_certidao || !documentosEmpresa.documento_identificacao) {
           toast.erro('Anexe todos os documentos obrigatórios da empresa antes de concluir o registo.');
@@ -320,6 +326,7 @@ export function Registar() {
         }
 
         payload.append('nome_empresa', dados.nome_empresa || '');
+        payload.append('tipo_empresa', dados.tipo_empresa || 'empresa');
         if (dados.provincia) payload.append('provincia', dados.provincia);
         if (dados.municipio) payload.append('municipio', dados.municipio);
         if (sectorFinal) payload.append('sector', sectorFinal);
@@ -336,7 +343,7 @@ export function Registar() {
     } catch (e) {
       toast.erro(extrairErro(e));
     }
-  }, [documentosEmpresa, sectoresSelecionados, toast]);
+  }, [documentosEmpresa, ehConsultoria, sectoresSelecionados, toast]);
 
   const atualizarDocumentoEmpresa = (campo, ficheiro) => {
     setDocumentosEmpresa((anterior) => ({
@@ -353,7 +360,9 @@ export function Registar() {
     ));
   };
 
-  const totalSetoresSelecionados = sectoresSelecionados.length + (watch('sector_custom')?.trim() ? 1 : 0);
+  const totalSetoresSelecionados = ehConsultoria
+    ? 0
+    : sectoresSelecionados.length + (watch('sector_custom')?.trim() ? 1 : 0);
 
   if (sucesso) {
     return (
@@ -464,6 +473,20 @@ export function Registar() {
                   </div>
                 )}
 
+                {roleAtual === 'company' && (
+                  <div className="form-group">
+                    <label className="form-label">Tipo de conta empresarial</label>
+                    <select
+                      className="form-input"
+                      {...register('tipo_empresa')}
+                    >
+                      <option value="empresa">Empresa</option>
+                      <option value="consultoria">Empresa de consultoria</option>
+                    </select>
+                    <span className="form-hint">Seleccione consultoria para activar o fluxo de validação, assinatura e agenda próprios deste módulo.</span>
+                  </div>
+                )}
+
                 <div className="form-group">
                   <label className="form-label">E-mail</label>
                   <div className="form-input-wrapper">
@@ -529,10 +552,14 @@ export function Registar() {
                 <div className="auth-section__header auth-section__header--split">
                   <div>
                     <h2 className="auth-section__title">Perfil empresarial</h2>
-                    <p className="auth-section__desc">Defina os sectores da empresa e envie já a documentação para avaliação administrativa.</p>
+                    <p className="auth-section__desc">
+                      {ehConsultoria
+                        ? 'As empresas de consultoria não precisam preencher sectores. Envie a documentação obrigatória para validação administrativa.'
+                        : 'Defina os sectores da empresa e envie já a documentação para avaliação administrativa.'}
+                    </p>
                   </div>
                   <div className="auth-section__meta">
-                    <span className="badge badge--ciano">{totalSetoresSelecionados} setor(es)</span>
+                    {!ehConsultoria && <span className="badge badge--ciano">{totalSetoresSelecionados} setor(es)</span>}
                     <span className="badge badge--amarelo">4 documentos obrigatórios</span>
                   </div>
                 </div>
@@ -552,51 +579,60 @@ export function Registar() {
                     <CampoErro erro={errors.nif} />
                   </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Outro setor</label>
-                    <div className="form-input-wrapper">
-                      <Building2 size={16} />
-                      <input
-                        type="text"
-                        className={`form-input form-input--icon${errors.sector_custom ? ' form-input--error' : ''}`}
-                        placeholder="Escreva um setor adicional se nao existir"
-                        {...register('sector_custom')}
-                      />
-                    </div>
-                    <CampoErro erro={errors.sector_custom} />
-                  </div>
-                </div>
-
-                <div className="form-group">
-                  <label className="form-label">Setores de atividade</label>
-                  <div className="sector-picker">
-                    {SECTORES_EMPRESA.map((sector) => {
-                      const ativo = sectoresSelecionados.includes(sector);
-                      return (
-                        <button
-                          key={sector}
-                          type="button"
-                          className={`sector-chip${ativo ? ' sector-chip--active' : ''}`}
-                          onClick={() => alternarSector(sector)}
-                        >
-                          <span>{sector}</span>
-                          {ativo && <Check size={14} />}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <span className="form-hint">Pode seleccionar varios setores. Caso precise, use tambem o campo "Outro setor".</span>
-                  {totalSetoresSelecionados > 0 && (
-                    <div className="sector-selection-summary">
-                      {sectoresSelecionados.map((sector) => (
-                        <span key={sector} className="badge badge--ciano">{sector}</span>
-                      ))}
-                      {watch('sector_custom')?.trim() && (
-                        <span className="badge badge--laranja">{watch('sector_custom').trim()}</span>
-                      )}
+                  {!ehConsultoria && (
+                    <div className="form-group">
+                      <label className="form-label">Outro setor</label>
+                      <div className="form-input-wrapper">
+                        <Building2 size={16} />
+                        <input
+                          type="text"
+                          className={`form-input form-input--icon${errors.sector_custom ? ' form-input--error' : ''}`}
+                          placeholder="Escreva um setor adicional se nao existir"
+                          {...register('sector_custom')}
+                        />
+                      </div>
+                      <CampoErro erro={errors.sector_custom} />
                     </div>
                   )}
                 </div>
+
+                {!ehConsultoria ? (
+                  <div className="form-group">
+                    <label className="form-label">Setores de atividade</label>
+                    <div className="sector-picker">
+                      {SECTORES_EMPRESA.map((sector) => {
+                        const ativo = sectoresSelecionados.includes(sector);
+                        return (
+                          <button
+                            key={sector}
+                            type="button"
+                            className={`sector-chip${ativo ? ' sector-chip--active' : ''}`}
+                            onClick={() => alternarSector(sector)}
+                          >
+                            <span>{sector}</span>
+                            {ativo && <Check size={14} />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    <span className="form-hint">Pode seleccionar varios setores. Caso precise, use tambem o campo "Outro setor".</span>
+                    {totalSetoresSelecionados > 0 && (
+                      <div className="sector-selection-summary">
+                        {sectoresSelecionados.map((sector) => (
+                          <span key={sector} className="badge badge--ciano">{sector}</span>
+                        ))}
+                        {watch('sector_custom')?.trim() && (
+                          <span className="badge badge--laranja">{watch('sector_custom').trim()}</span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="form-group">
+                    <label className="form-label">Setores de atividade</label>
+                    <div className="form-hint">Este campo não é obrigatório para empresas do tipo consultoria.</div>
+                  </div>
+                )}
 
                 <div className="auth-upload-grid">
                   {[

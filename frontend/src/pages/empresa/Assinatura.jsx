@@ -156,6 +156,8 @@ export function AssinaturaPage() {
   const diasRestantes = assinaturaAtual
     ? Math.ceil((new Date(assinaturaAtual.data_fim) - new Date()) / (1000 * 60 * 60 * 24))
     : 0;
+  const ehAssinaturaConsultoria = assinaturaAtual?.package_category === 'consultoria' ||
+                                  assinaturaAtual?.package_category === 'recarga_consultoria';
 
   return (
     <div className="assinatura-page">
@@ -191,14 +193,18 @@ export function AssinaturaPage() {
               <div className="plano-uso">
                 <h5>Uso atual do pacote:</h5>
                 <ul>
-                  <li>
-                    <Briefcase size={14} />
-                    Oportunidades: {minhaAssinatura?.uso?.oportunidades_ativas || 0} / {minhaAssinatura?.uso?.limite_oportunidades || 'ilimitado'}
-                  </li>
-                  <li>
-                    <Users size={14} />
-                    Vagas: {minhaAssinatura?.uso?.vagas_ativas || 0} / {minhaAssinatura?.uso?.limite_vagas || 'ilimitado'}
-                  </li>
+                  {!ehAssinaturaConsultoria && (
+                    <>
+                      <li>
+                        <Briefcase size={14} />
+                        Oportunidades: {minhaAssinatura?.uso?.oportunidades_ativas || 0} / {minhaAssinatura?.uso?.limite_oportunidades || 'ilimitado'}
+                      </li>
+                      <li>
+                        <Users size={14} />
+                        Vagas: {minhaAssinatura?.uso?.vagas_ativas || 0} / {minhaAssinatura?.uso?.limite_vagas || 'ilimitado'}
+                      </li>
+                    </>
+                  )}
                   <li>
                     <FileText size={14} />
                     Consultorias: {minhaAssinatura?.uso?.consultorias_usadas || 0} / {minhaAssinatura?.uso?.limite_consultorias || 'ilimitado'}
@@ -275,18 +281,22 @@ export function AssinaturaPage() {
               <div className="pacote-beneficios">
                 <h4>O que está incluído:</h4>
                 <ul>
-                  <li>
-                    <Check size={16} className="icon-check" />
-                    {pacote.publicacoes_oportunidades_ilimitadas
-                      ? 'Oportunidades ilimitadas'
-                      : `Até ${pacote.max_oportunidades_ativas} oportunidades ativas`}
-                  </li>
-                  <li>
-                    <Check size={16} className="icon-check" />
-                    {pacote.publicacoes_vagas_ilimitadas
-                      ? 'Vagas ilimitadas'
-                      : `Até ${pacote.max_vagas_ativas} vagas ativas`}
-                  </li>
+                  {pacote.package_category !== 'consultoria' && pacote.package_category !== 'recarga_consultoria' && (
+                    <>
+                      <li>
+                        <Check size={16} className="icon-check" />
+                        {pacote.publicacoes_oportunidades_ilimitadas
+                          ? 'Oportunidades ilimitadas'
+                          : `Até ${pacote.max_oportunidades_ativas} oportunidades ativas`}
+                      </li>
+                      <li>
+                        <Check size={16} className="icon-check" />
+                        {pacote.publicacoes_vagas_ilimitadas
+                          ? 'Vagas ilimitadas'
+                          : `Até ${pacote.max_vagas_ativas} vagas ativas`}
+                      </li>
+                    </>
+                  )}
                   <li>
                     <Check size={16} className="icon-check" />
                     {pacote.consultorias_incluidas > 0

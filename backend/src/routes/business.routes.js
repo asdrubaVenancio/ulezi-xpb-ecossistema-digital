@@ -111,7 +111,7 @@ const {
 } = require('../controllers/subscription-package.controller');
 const {
   getMySubscription, subscribe, renewSubscription, getSubscriptionHistory,
-  listAdminSubscriptions, approveSubscription, rejectSubscription, subscribeWithProof, viewSubscriptionProof,
+  listAdminSubscriptions, approveSubscription, rejectSubscription, deleteSubscription, subscribeWithProof, viewSubscriptionProof,
 } = require('../controllers/company-subscription.controller');
 
 // Rotas públicas (perfil pode ser atualizado sem assinatura)
@@ -130,7 +130,7 @@ router.get('/empresa/assinatura',    authenticate, authorize('company'), getEmpr
 // Rotas de assinatura (acessíveis sem assinatura ativa)
 router.get('/empresa/minha-assinatura', authenticate, authorize('company'), getMySubscription);
 router.get('/empresa/historico-assinaturas', authenticate, authorize('company'), getSubscriptionHistory);
-router.get('/subscription-packages', authenticate, authorize('company'), listActivePackages);
+router.get('/subscription-packages', authenticate, authorize('company', 'investor'), listActivePackages);
 router.post('/empresa/assinar', authenticate, authorize('company'), subscribe);
 router.post('/empresa/assinar-com-comprovativo', authenticate, authorize('company'), uploadPayment.single('comprovativo'), subscribeWithProof);
 router.post('/empresa/renovar', authenticate, authorize('company'), renewSubscription);
@@ -140,6 +140,7 @@ router.get('/admin/company-subscriptions', authenticate, authorize('admin', 'emp
 router.get('/admin/company-subscriptions/:id/proof', authenticate, authorize('admin', 'employee'), viewSubscriptionProof);
 router.put('/admin/company-subscriptions/:id/approve', authenticate, authorize('admin', 'employee'), approveSubscription);
 router.put('/admin/company-subscriptions/:id/reject', authenticate, authorize('admin', 'employee'), rejectSubscription);
+router.delete('/admin/company-subscriptions/:id', authenticate, authorize('admin'), deleteSubscription);
 
 // ── Dashboard investidor (/api/investidor/*) ──────────────────────────────────
 const {

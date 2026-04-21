@@ -11,6 +11,10 @@ const {
   sendSubscriptionApprovalEmail,
   sendSubscriptionRejectionEmail,
 } = require('../utils/email');
+const {
+  getCreditBalance,
+  allocateCreditsFromSubscription,
+} = require('../services/consultation-credit.service');
 
 const criarAssinaturaPendente = async ({
   companyId,
@@ -72,23 +76,27 @@ const criarAssinaturaPendente = async ({
 const getMySubscription = async (req, res) => {
   try {
     const userId = req.user.id;
+    console.log('[GET_MY_SUBSCRIPTION] Iniciando - userId:', userId);
 
     // Buscar empresa
     const [company] = await pool.execute(
-      'SELECT id, nome_empresa, is_approved FROM company_profiles WHERE user_id = ?',
+      'SELECT id, nome_empresa, is_approved, tipo_empresa, consultoria_descricao, sector FROM company_profiles WHERE user_id = ?',
       [userId]
     );
+    console.log('[GET_MY_SUBSCRIPTION] Company encontrada:', company.length > 0 ? company[0].id : 'NENHUMA');
 
     if (!company.length) {
+      console.log('[GET_MY_SUBSCRIPTION] Empresa não encontrada');
       return notFound(res, 'Perfil de empresa não encontrado.');
     }
 
     const companyId = company[0].id;
+    console.log('[GET_MY_SUBSCRIPTION] companyId:', companyId, 'tipo_empresa:', company[0].tipo_empresa);
 
     // Buscar assinatura ativa
     const [subscriptions] = await pool.execute(
       `SELECT s.*, sp.slug, sp.nome as package_name, sp.descricao as package_descricao,
-              sp.preco as package_preco, sp.moeda as package_moeda,
+              sp.preco as package_preco, sp.moeda as package_moeda, sp.package_category,
               sp.consultorias_incluidas, sp.max_oportunidades_ativas, sp.max_vagas_ativas,
               sp.publicacoes_oportunidades_ilimitadas, sp.publicacoes_vagas_ilimitadas,
               sp.suporte_prioritario, sp.beneficios, sp.duracao_dias
@@ -102,7 +110,7 @@ const getMySubscription = async (req, res) => {
 
     const [[latestSubscription]] = await pool.execute(
       `SELECT s.*, sp.slug, sp.nome as package_name, sp.descricao as package_descricao,
-              sp.preco as package_preco, sp.moeda as package_moeda,
+              sp.preco as package_preco, sp.moeda as package_moeda, sp.package_category,
               sp.consultorias_incluidas, sp.max_oportunidades_ativas, sp.max_vagas_ativas,
               sp.publicacoes_oportunidades_ilimitadas, sp.publicacoes_vagas_ilimitadas,
               sp.suporte_prioritario, sp.beneficios, sp.duracao_dias
@@ -113,6 +121,28 @@ const getMySubscription = async (req, res) => {
        LIMIT 1`,
       [companyId]
     );
+
+    const ehConsultoriaPorPerfil = String(company[0].tipo_empresa || '').toLowerCase() === 'consultoria';
+    const ehConsultoriaPorDescricao = Boolean(company[0].consultoria_descricao);
+    const ehConsultoriaPorPacote = (
+      subscriptions[0]?.package_category === 'consultoria'
+      || latestSubscription?.package_category === 'consultoria'
+    );
+    // NOTA: Removido critério por setor pois causava falsos positivos
+
+    console.log('[GET_MY_SUBSCRIPTION] Critérios consultoria:');
+    console.log('  - Por perfil (DB):', ehConsultoriaPorPerfil, '- valor:', company[0].tipo_empresa);
+    console.log('  - Por descrição:', ehConsultoriaPorDescricao, '- valor:', company[0].consultoria_descricao);
+    console.log('  - Por pacote ativo:', subscriptions[0]?.package_category);
+    console.log('  - Por último pacote:', latestSubscription?.package_category);
+
+    company[0].tipo_empresa = (
+      ehConsultoriaPorPerfil
+      || ehConsultoriaPorDescricao
+      || ehConsultoriaPorPacote
+    ) ? 'consultoria' : 'empresa';
+
+    console.log('[GET_MY_SUBSCRIPTION] Resultado final tipo_empresa:', company[0].tipo_empresa);
 
     // Contar uso dos privilégios
     let usage = {};
@@ -132,23 +162,28 @@ const getMySubscription = async (req, res) => {
       );
 
       // Contar consultorias no período
-      const [consultorias] = await pool.execute(
-        `SELECT COUNT(*) as total FROM consultations 
-         WHERE user_id = ? AND status IN ('agendada', 'realizada', 'confirmada')
-         AND created_at >= ?`,
-        [userId, sub.data_inicio]
-      );
+      console.log('[GET_MY_SUBSCRIPTION] Chamando getCreditBalance...');
+      let saldoConsultorias = 0;
+      try {
+        saldoConsultorias = await getCreditBalance({ userId, companyId });
+        console.log('[GET_MY_SUBSCRIPTION] Saldo consultorias:', saldoConsultorias);
+      } catch (creditError) {
+        console.error('[GET_MY_SUBSCRIPTION] Erro ao obter saldo de consultorias:', creditError.message);
+        saldoConsultorias = 0;
+      }
 
       usage = {
         oportunidades_ativas: oportunidades[0].total,
         vagas_ativas: vagas[0].total,
-        consultorias_usadas: consultorias[0].total,
+        consultorias_saldo: saldoConsultorias,
+        consultorias_usadas: Math.max(0, Number(sub.consultorias_incluidas || 0) - saldoConsultorias),
         limite_oportunidades: sub.publicacoes_oportunidades_ilimitadas ? 'ilimitado' : sub.max_oportunidades_ativas,
         limite_vagas: sub.publicacoes_vagas_ilimitadas ? 'ilimitado' : sub.max_vagas_ativas,
         limite_consultorias: sub.consultorias_incluidas
       };
     }
 
+    console.log('[GET_MY_SUBSCRIPTION] Retornando sucesso');
     return success(res, {
       empresa: company[0],
       assinatura: subscriptions[0] || null,
@@ -158,8 +193,8 @@ const getMySubscription = async (req, res) => {
     });
 
   } catch (err) {
-    console.error('[GET_MY_SUBSCRIPTION]', err);
-    return error(res, 'Erro ao obter assinatura.', 500);
+    console.error('[GET_MY_SUBSCRIPTION] ERRO GERAL:', err.message, err.stack);
+    return error(res, 'Erro ao obter assinatura: ' + err.message, 500);
   }
 };
 
@@ -178,7 +213,7 @@ const subscribe = async (req, res) => {
 
     // Buscar empresa
     const [company] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?',
+      'SELECT id, tipo_empresa FROM company_profiles WHERE user_id = ?',
       [userId]
     );
     if (!company.length) {
@@ -196,6 +231,15 @@ const subscribe = async (req, res) => {
       return notFound(res, 'Pacote não encontrado ou indisponível.');
     }
     const pkg = packages[0];
+
+    const pacoteValido = (
+      (company[0].tipo_empresa === 'consultoria' && pkg.package_category === 'consultoria' && ['consultancy', 'all'].includes(pkg.target_role))
+      || (company[0].tipo_empresa !== 'consultoria' && pkg.package_category === 'empresa' && ['company', 'all'].includes(pkg.target_role))
+    );
+
+    if (!pacoteValido) {
+      return badRequest(res, 'O pacote selecionado não corresponde ao tipo desta conta.');
+    }
 
     // Gerar referência de pagamento (simulada)
     const referencia = `ULEZI-${Date.now().toString().slice(-8)}-${Math.round(Math.random() * 999)}`;
@@ -261,7 +305,7 @@ const subscribeWithProof = async (req, res) => {
     }
 
     const [company] = await pool.execute(
-      'SELECT id, nome_empresa FROM company_profiles WHERE user_id = ?',
+      'SELECT id, nome_empresa, tipo_empresa FROM company_profiles WHERE user_id = ?',
       [userId]
     );
     if (!company.length) {
@@ -278,6 +322,14 @@ const subscribeWithProof = async (req, res) => {
     }
 
     const pkg = packages[0];
+    const pacoteValido = (
+      (company[0].tipo_empresa === 'consultoria' && pkg.package_category === 'consultoria' && ['consultancy', 'all'].includes(pkg.target_role))
+      || (company[0].tipo_empresa !== 'consultoria' && pkg.package_category === 'empresa' && ['company', 'all'].includes(pkg.target_role))
+    );
+
+    if (!pacoteValido) {
+      return badRequest(res, 'O pacote selecionado não corresponde ao tipo desta conta.');
+    }
     const comprovanteUrl = `/uploads/payments/${comprovativo.filename}`;
     const referencia = referencia_pagamento?.trim() || `ASS-${Date.now()}`;
 
@@ -615,6 +667,8 @@ const approveSubscription = async (req, res) => {
       [adminId, id]
     );
 
+    await allocateCreditsFromSubscription({ subscriptionId: id, createdBy: adminId });
+
     await pool.execute(
       `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
        VALUES (?, 'assinatura_aprovada', 'Assinatura activada',
@@ -773,6 +827,46 @@ const viewSubscriptionProof = async (req, res) => {
   }
 };
 
+/**
+ * DELETE /api/admin/company-subscriptions/:id
+ * Elimina uma assinatura (apenas admin)
+ */
+const deleteSubscription = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const adminId = req.user.id;
+
+    // Verificar se a assinatura existe
+    const [[subscription]] = await pool.execute(
+      `SELECT s.*, cp.nome_empresa, u.email as representante_email
+       FROM subscriptions s
+       INNER JOIN company_profiles cp ON cp.id = s.company_id
+       INNER JOIN users u ON u.id = cp.user_id
+       WHERE s.id = ?`,
+      [id]
+    );
+
+    if (!subscription) {
+      return notFound(res, 'Assinatura não encontrada.');
+    }
+
+    // Eliminar a assinatura
+    await pool.execute('DELETE FROM subscriptions WHERE id = ?', [id]);
+
+    // Registar na auditoria
+    await log(adminId, 'DELETE_SUBSCRIPTION', 'subscriptions', id, {
+      empresa: subscription.nome_empresa,
+      tipo_plano: subscription.tipo_plano,
+      status_anterior: subscription.status
+    }, req);
+
+    return success(res, { mensagem: 'Assinatura eliminada com sucesso.' });
+  } catch (err) {
+    console.error('[DELETE_SUBSCRIPTION]', err);
+    return error(res, 'Erro ao eliminar assinatura.', 500);
+  }
+};
+
 module.exports = {
   getMySubscription,
   subscribe,
@@ -782,5 +876,6 @@ module.exports = {
   listAdminSubscriptions,
   approveSubscription,
   rejectSubscription,
+  deleteSubscription,
   viewSubscriptionProof,
 };

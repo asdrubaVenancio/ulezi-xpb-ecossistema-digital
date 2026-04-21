@@ -232,6 +232,102 @@ const ensureCompanyDocumentsReviewSchema = async () => {
   await addColumnIfMissing('company_documents', 'visualizado_by', 'INT UNSIGNED NULL AFTER visualizado_at');
 };
 
+const ensureConsultancySchema = async () => {
+  // Verificar se a tabela company_profiles existe
+  const companyProfilesExists = await tableExists('company_profiles');
+  if (!companyProfilesExists) {
+    console.log('⚠️  Tabela company_profiles não existe. Pulando migração de consultoria.');
+    return;
+  }
+
+  console.log('🔧 Aplicando migrações de consultoria...');
+
+  await addColumnIfMissing('company_profiles', 'tipo_empresa', `ENUM('empresa','consultoria') NOT NULL DEFAULT 'empresa' AFTER website`);
+  await addColumnIfMissing('company_profiles', 'consultoria_descricao', 'TEXT NULL AFTER tipo_empresa');
+
+  // Verificar se as colunas foram adicionadas
+  const tipoEmpresaExists = await hasColumn('company_profiles', 'tipo_empresa');
+  if (tipoEmpresaExists) {
+    console.log('✅ Coluna tipo_empresa verificada/adicionada com sucesso');
+  } else {
+    console.log('❌ Falha ao adicionar coluna tipo_empresa');
+  }
+
+  await addColumnIfMissing('subscription_packages', 'package_category', `ENUM('empresa','consultoria','recarga_consultoria') NOT NULL DEFAULT 'empresa' AFTER nome`);
+  await addColumnIfMissing('subscription_packages', 'target_role', `ENUM('company','investor','consultancy','all') NOT NULL DEFAULT 'company' AFTER package_category`);
+  await addColumnIfMissing('subscription_packages', 'consultation_recharge_credits', 'INT NOT NULL DEFAULT 0 AFTER consultorias_incluidas');
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS consultation_credit_transactions (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      owner_user_id INT UNSIGNED NOT NULL,
+      owner_company_id INT UNSIGNED NULL,
+      subscription_id INT UNSIGNED NULL,
+      package_id INT UNSIGNED NULL,
+      consultation_id INT UNSIGNED NULL,
+      transaction_type ENUM('assinatura','recarga','consumo','ajuste') NOT NULL,
+      quantity INT NOT NULL,
+      unit_value DECIMAL(12,2) NULL,
+      total_value DECIMAL(12,2) NULL,
+      description VARCHAR(255) NULL,
+      metadata JSON NULL,
+      created_by INT UNSIGNED NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT fk_consultation_credit_owner_user FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_consultation_credit_owner_company FOREIGN KEY (owner_company_id) REFERENCES company_profiles(id) ON DELETE CASCADE,
+      CONSTRAINT fk_consultation_credit_subscription FOREIGN KEY (subscription_id) REFERENCES subscriptions(id) ON DELETE SET NULL,
+      CONSTRAINT fk_consultation_credit_package FOREIGN KEY (package_id) REFERENCES subscription_packages(id) ON DELETE SET NULL,
+      CONSTRAINT fk_consultation_credit_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS consultation_recharge_requests (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      requester_user_id INT UNSIGNED NOT NULL,
+      requester_company_id INT UNSIGNED NULL,
+      package_id INT UNSIGNED NOT NULL,
+      quantity INT NOT NULL DEFAULT 0,
+      unit_value DECIMAL(12,2) NULL,
+      total_value DECIMAL(12,2) NULL,
+      status ENUM('pendente','aprovado','rejeitado') NOT NULL DEFAULT 'pendente',
+      payment_reference VARCHAR(120) NULL,
+      proof_url VARCHAR(255) NULL,
+      notes TEXT NULL,
+      approved_by INT UNSIGNED NULL,
+      approved_at DATETIME NULL,
+      rejection_reason TEXT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_consultation_recharge_user FOREIGN KEY (requester_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      CONSTRAINT fk_consultation_recharge_company FOREIGN KEY (requester_company_id) REFERENCES company_profiles(id) ON DELETE CASCADE,
+      CONSTRAINT fk_consultation_recharge_package FOREIGN KEY (package_id) REFERENCES subscription_packages(id) ON DELETE RESTRICT,
+      CONSTRAINT fk_consultation_recharge_approved_by FOREIGN KEY (approved_by) REFERENCES users(id) ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await pool.execute(`
+    CREATE TABLE IF NOT EXISTS consultancy_availability (
+      id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+      company_id INT UNSIGNED NOT NULL,
+      dia_semana TINYINT NOT NULL,
+      hora_inicio TIME NOT NULL,
+      hora_fim TIME NOT NULL,
+      capacidade_atendimentos INT NOT NULL DEFAULT 1,
+      duracao_slot_minutos INT NOT NULL DEFAULT 60,
+      is_active TINYINT(1) NOT NULL DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      CONSTRAINT fk_consultancy_availability_company FOREIGN KEY (company_id) REFERENCES company_profiles(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+  `);
+
+  await runSafe('CREATE INDEX idx_consultancy_availability_company ON consultancy_availability(company_id)', 'idx_consultancy_availability_company');
+  await runSafe('CREATE INDEX idx_consultancy_availability_day ON consultancy_availability(dia_semana, is_active)', 'idx_consultancy_availability_day');
+  await runSafe('CREATE INDEX idx_consultation_credit_owner ON consultation_credit_transactions(owner_user_id, owner_company_id)', 'idx_consultation_credit_owner');
+  await runSafe('CREATE INDEX idx_consultation_recharge_status ON consultation_recharge_requests(status, created_at)', 'idx_consultation_recharge_status');
+};
+
 const ensureConsultationsSchema = async () => {
   await pool.execute(`
     CREATE TABLE IF NOT EXISTS consultations (
@@ -263,6 +359,33 @@ const ensureConsultationsSchema = async () => {
       CONSTRAINT fk_consultations_employee FOREIGN KEY (employee_id) REFERENCES employees(id) ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
   `);
+
+  await addColumnIfMissing('consultations', 'consultancy_company_id', 'INT UNSIGNED NULL AFTER user_id');
+  await addColumnIfMissing('consultations', 'requester_company_id', 'INT UNSIGNED NULL AFTER consultancy_company_id');
+  await addColumnIfMissing('consultations', 'requested_by_role', `ENUM('company','investor') NOT NULL DEFAULT 'company' AFTER requester_company_id`);
+  await addColumnIfMissing('consultations', 'slot_date', 'DATE NULL AFTER preferencia_horario');
+  await addColumnIfMissing('consultations', 'slot_confirmed_at', 'DATETIME NULL AFTER slot_date');
+  await addColumnIfMissing('consultations', 'credits_consumed', 'INT NOT NULL DEFAULT 0 AFTER valor');
+  await addColumnIfMissing('consultations', 'credit_source', `ENUM('assinatura','recarga','manual') NULL AFTER credits_consumed`);
+  await addColumnIfMissing('consultations', 'request_channel', `ENUM('plataforma','admin') NOT NULL DEFAULT 'plataforma' AFTER credit_source`);
+  await addColumnIfMissing('consultations', 'requested_at', 'DATETIME NULL AFTER request_channel');
+
+  await runSafe(
+    'ALTER TABLE consultations MODIFY COLUMN status ENUM(\'pendente\',\'agendada\',\'confirmada\',\'realizada\',\'cancelada\',\'rejeitada\') DEFAULT \'pendente\'',
+    'consultations_status_extended'
+  );
+
+  await runSafe(
+    'ALTER TABLE consultations ADD CONSTRAINT fk_consultations_consultancy_company FOREIGN KEY (consultancy_company_id) REFERENCES company_profiles(id) ON DELETE SET NULL',
+    'fk_consultations_consultancy_company'
+  );
+  await runSafe(
+    'ALTER TABLE consultations ADD CONSTRAINT fk_consultations_requester_company FOREIGN KEY (requester_company_id) REFERENCES company_profiles(id) ON DELETE SET NULL',
+    'fk_consultations_requester_company'
+  );
+
+  await runSafe('CREATE INDEX idx_consultations_consultancy_company ON consultations(consultancy_company_id)', 'idx_consultations_consultancy_company');
+  await runSafe('CREATE INDEX idx_consultations_slot ON consultations(slot_date, hora_inicio, status)', 'idx_consultations_slot');
 };
 
 const ensureSubscriptionsCompatibility = async () => {
@@ -423,6 +546,7 @@ const ensureBusinessModuleSchema = async () => {
   await ensureVisitsSchema();
   await ensureMediationsSchema();
   await ensureSupportSchema();
+  await ensureConsultancySchema();
   await ensureConsultationsSchema();
   await ensureCompanyDocumentsReviewSchema();
   await ensureSubscriptionsCompatibility();

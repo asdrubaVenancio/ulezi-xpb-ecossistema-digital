@@ -39,6 +39,7 @@ const registerSchema = Joi.object({
   descricao: Joi.string().max(3000).optional().allow('', null),
   sector: Joi.string().max(100).optional().allow('', null),
   nif: Joi.string().max(50).optional().allow('', null),
+  tipo_empresa: Joi.string().valid('empresa', 'consultoria').optional().allow('', null),
   is_public: Joi.boolean().optional(),
 }).custom((value, helpers) => {
   if ((value.role === 'company' || value.role === 'empresa') && !(value.nome_empresa || value.nomeEmpresa)) {

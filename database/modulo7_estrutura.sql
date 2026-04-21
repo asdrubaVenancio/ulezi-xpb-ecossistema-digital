@@ -241,21 +241,33 @@ ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS notificacoes_enviadas JSON DE
 
 CREATE TABLE IF NOT EXISTS subscription_packages (
   id INT PRIMARY KEY AUTO_INCREMENT,
-  slug VARCHAR(50) NOT NULL UNIQUE,
+  slug VARCHAR(50) NOT NULL,
   nome VARCHAR(100) NOT NULL,
+  package_category ENUM('empresa','consultoria','recarga_consultoria') NOT NULL DEFAULT 'empresa',
+  target_role ENUM('company','consultancy','investor','all') NOT NULL DEFAULT 'company',
   descricao TEXT DEFAULT NULL,
-  valor DECIMAL(12,2) NOT NULL,
-  moeda VARCHAR(10) DEFAULT 'Kz',
-  duracao_meses INT NOT NULL,
+  preco DECIMAL(12,2) NOT NULL,
+  moeda VARCHAR(10) DEFAULT 'AOA',
+  duracao_dias INT NOT NULL DEFAULT 30,
+  duracao_meses INT NOT NULL DEFAULT 1,
   consultorias_incluidas INT DEFAULT 0,
+  consultation_recharge_credits INT DEFAULT 0,
   suporte_prioritario TINYINT(1) DEFAULT 0,
   publicacoes_oportunidades_ilimitadas TINYINT(1) DEFAULT 1,
+  publicacoes_vagas_ilimitadas TINYINT(1) DEFAULT 0,
   max_oportunidades_ativas INT DEFAULT 10,
+  max_vagas_ativas INT DEFAULT 3,
   beneficios JSON DEFAULT NULL,
   is_active TINYINT(1) DEFAULT 1,
   ordem INT DEFAULT 0,
+  status ENUM('ativo','inativo','pendente','rejeitado') DEFAULT 'ativo',
+  created_by INT UNSIGNED DEFAULT NULL,
+  approved_by INT UNSIGNED DEFAULT NULL,
+  approved_at DATETIME DEFAULT NULL,
+  motivo_rejeicao TEXT DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY slug_categoria (slug, package_category)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =============================================================================

@@ -32,15 +32,33 @@ api.interceptors.request.use(
   (erro) => Promise.reject(erro)
 );
 
-// Interceptor de resposta: refresh automático
+// Interceptor de resposta: refresh automático e retry para 429
 let aRefrescar = false;
 let filaEspera = [];
+
+// Retry automático para 429 (Too Many Requests)
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
 api.interceptors.response.use(
   (resposta) => resposta,
   async (erro) => {
-    
     const original = erro.config;
+
+    // Retry para 429 (Too Many Requests) com backoff exponencial
+    if (erro.response?.status === 429 && !original._retryCount) {
+      original._retryCount = original._retryCount || 0;
+      const maxRetries = 3;
+      const baseDelay = 500; // 500ms
+
+      if (original._retryCount < maxRetries) {
+        original._retryCount++;
+        const delay = baseDelay * Math.pow(2, original._retryCount - 1);
+        console.log(`[API] 429 recebido, retry ${original._retryCount}/${maxRetries} em ${delay}ms`);
+        await sleep(delay);
+        return api(original);
+      }
+    }
+
     if (!original || original.url?.includes('/auth/refresh')) {
       return Promise.reject(erro);
     }
@@ -234,6 +252,22 @@ export const empresaAPI = {
   eliminarVaga: (id)  => api.delete(`/vagas-empresa/${id}`),
 };
 
+export const consultoriaAPI = {
+  listarMinhas: () => api.get('/consultations'),
+  listarConsultorias: () => api.get('/consultations/consultancies'),
+  obterVagas: (params) => api.get('/consultations/available-slots', { params }),
+  solicitar: (dados) => api.post('/consultations', dados),
+  remarcar: (id, dados) => api.put(`/consultations/${id}/reschedule`, dados),
+  confirmar: (id) => api.post(`/consultations/${id}/confirm`),
+  cancelar: (id, dados) => api.put(`/consultations/${id}/cancel`, dados),
+  meusCreditos: () => api.get('/consultations/credits/me'),
+  solicitarRecarga: (dados) => api.post('/consultations/credits/recharges', dados),
+  providerSolicitacoes: () => api.get('/consultations/provider/requests'),
+  providerDisponibilidade: () => api.get('/consultations/provider/availability'),
+  guardarDisponibilidade: (dados) => api.put('/consultations/provider/availability', dados),
+  obterDisponibilidade: (consultoriaId) => api.get(`/consultations/${consultoriaId}/availability`),
+};
+
 export const adminAPI = {
   stats:          ()       => api.get('/admin/stats'),
   utilizadores:   (p)      => api.get('/admin/utilizadores',       { params: p }),
@@ -248,6 +282,7 @@ export const adminAPI = {
   verComprovativoAssinatura:(id) => api.get(`/admin/company-subscriptions/${id}/proof`),
   aprovarAssinaturaEmpresa:(id) => api.put(`/admin/company-subscriptions/${id}/approve`),
   rejeitarAssinaturaEmpresa:(id, d) => api.put(`/admin/company-subscriptions/${id}/reject`, d),
+  eliminarAssinaturaEmpresa:(id) => api.delete(`/admin/company-subscriptions/${id}`),
   pacotesAssinatura:(p)    => api.get('/admin/subscription-packages', { params: p }),
   pacoteAssinatura:(id)    => api.get(`/admin/subscription-packages/${id}`),
   criarPacoteAssinatura:(d)=> api.post('/admin/subscription-packages', d),
