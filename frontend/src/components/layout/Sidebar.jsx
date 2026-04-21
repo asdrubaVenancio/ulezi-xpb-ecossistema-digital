@@ -82,7 +82,7 @@ function AvatarUsuario({ utilizador, tamanho = 36 }) {
   const urlFoto = utilizador?.foto_perfil
     ? utilizador.foto_perfil.startsWith('http')
       ? utilizador.foto_perfil
-      : `${BACKEND_BASE_URL}${utilizador.foto_perfil}?t=${Date.now()}`
+      : `${BACKEND_BASE_URL}${utilizador.foto_perfil}`
     : null;
 
   return (
@@ -103,7 +103,6 @@ function AvatarUsuario({ utilizador, tamanho = 36 }) {
             zIndex: 1,
           }}
           onError={(e) => {
-            console.error('[SIDEBAR] Erro ao carregar foto:', urlFoto);
             e.target.style.display = 'none';
           }}
         />

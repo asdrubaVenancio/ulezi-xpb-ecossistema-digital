@@ -217,7 +217,7 @@ function AvatarPerfil({ fotoPerfil, nome, tamanho = 48 }) {
   const urlFoto = fotoPerfil
     ? fotoPerfil.startsWith('http')
       ? fotoPerfil
-      : `${BACKEND_BASE_URL}${fotoPerfil}?t=${Date.now()}`
+      : `${BACKEND_BASE_URL}${fotoPerfil}`
     : null;
 
   return (
@@ -238,7 +238,6 @@ function AvatarPerfil({ fotoPerfil, nome, tamanho = 48 }) {
             left: 0,
           }}
           onError={(e) => {
-            console.error('[COMUNIDADE] Erro ao carregar foto:', urlFoto);
             e.target.style.display = 'none';
           }}
         />

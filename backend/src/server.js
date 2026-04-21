@@ -117,7 +117,13 @@ if (process.env.NODE_ENV !== 'production') {
 const uploadDir = process.env.UPLOAD_DIR || './uploads';
 fs.mkdirSync(uploadDir, { recursive: true });
 fs.mkdirSync(path.join(uploadDir, 'documents'), { recursive: true });
-app.use('/uploads', express.static(path.resolve(uploadDir)));
+
+// Servir uploads com cabeçalhos CORS para permitir acesso do frontend
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+}, express.static(path.resolve(uploadDir)));
 
 // ── Rota de health check ──────────────────────────────────────────────────────
 app.get('/health', (req, res) => {

@@ -199,12 +199,14 @@ function FotoPerfilUpload({ utilizador, onSucesso }) {
   const toast = useToast();
   const [carregando, setCarregando] = useState(false);
   const inputRef = React.useRef(null);
+  const [timestamp, setTimestamp] = useState(Date.now());
 
-  const urlFoto = utilizador?.foto_perfil
-    ? utilizador.foto_perfil.startsWith("http")
-      ? utilizador.foto_perfil
-      : `${BACKEND_BASE_URL}${utilizador.foto_perfil}?t=${Date.now()}`
-    : null;
+  // useMemo para evitar recalcular URL a cada render (previne loop infinito)
+  const urlFoto = useMemo(() => {
+    if (!utilizador?.foto_perfil) return null;
+    if (utilizador.foto_perfil.startsWith("http")) return utilizador.foto_perfil;
+    return `${BACKEND_BASE_URL}${utilizador.foto_perfil}?t=${timestamp}`;
+  }, [utilizador?.foto_perfil, timestamp]);
 
   const cor = roleColor[utilizador?.role] || "var(--ciano)";
 
@@ -234,6 +236,7 @@ function FotoPerfilUpload({ utilizador, onSucesso }) {
       const { data } = await authAPI.uploadFoto(fd);
       const novaFoto = data.dados?.foto_perfil || data.foto_perfil;
       onSucesso(novaFoto);
+      setTimestamp(Date.now()); // Atualizar timestamp para forçar reload da imagem
       toast.sucesso("Foto de perfil actualizada!");
     } catch (e) {
       toast.erro(extrairErro(e));
@@ -263,7 +266,6 @@ function FotoPerfilUpload({ utilizador, onSucesso }) {
             borderRadius: "inherit",
           }}
           onError={(e) => {
-            console.error("[FOTO_PERFIL] Erro ao carregar:", urlFoto);
             e.target.style.display = "none";
           }}
         />
