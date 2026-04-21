@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { iniciais, ROLE_LABELS } from '../../utils/constants';
+import { iniciais, ROLE_LABELS, BACKEND_BASE_URL } from '../../utils/constants';
 
 /** Itens de navegação por papel */
 const NAV_POR_PAPEL = {
@@ -50,6 +50,44 @@ const NAV_POR_PAPEL = {
   ],
 };
 
+// Componente Avatar do Usuário (foto ou iniciais)
+function AvatarUsuario({ utilizador, tamanho = 36 }) {
+  const urlFoto = utilizador?.foto_perfil
+    ? utilizador.foto_perfil.startsWith('http')
+      ? utilizador.foto_perfil
+      : `${BACKEND_BASE_URL}${utilizador.foto_perfil}?t=${Date.now()}`
+    : null;
+
+  return (
+    <div style={{ position: 'relative', width: tamanho, height: tamanho, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Imagem - absoluta, só aparece se carregar */}
+      {urlFoto && (
+        <img
+          src={urlFoto}
+          alt={utilizador?.nome}
+          style={{
+            width: tamanho,
+            height: tamanho,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            zIndex: 1,
+          }}
+          onError={(e) => {
+            console.error('[DASHBOARD] Erro ao carregar foto:', urlFoto);
+            e.target.style.display = 'none';
+          }}
+        />
+      )}
+      
+      {/* Fallback - iniciais (sempre presente, por baixo) */}
+      <span style={{ zIndex: 0 }}>{iniciais(utilizador?.nome || '?')}</span>
+    </div>
+  );
+}
+
 export default function DashboardLayout({ children }) {
   const { utilizador, logout, tema, alternarTema } = useAuth();
   const location  = useLocation();
@@ -72,7 +110,7 @@ export default function DashboardLayout({ children }) {
           <div className="sidebar__brand">
             <div className="sidebar__logo">U</div>
             <div className="sidebar__brand-text">
-              <div className="sidebar__brand-name">ULEZI XPB</div>
+              <div className="sidebar__brand-name">ULEZI XPI</div>
               <div className="sidebar__brand-sub">
                 {ROLE_LABELS[utilizador?.role] || utilizador?.role || 'Painel'}
               </div>
@@ -101,7 +139,9 @@ export default function DashboardLayout({ children }) {
         {/* Rodapé */}
         <div className="sidebar__footer">
           <div className="sidebar__user">
-            <div className="sidebar__avatar">{iniciais(utilizador?.nome || '?')}</div>
+            <div className="sidebar__avatar">
+              <AvatarUsuario utilizador={utilizador} />
+            </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div className="sidebar__user-name truncate">{utilizador?.nome || '—'}</div>
               <div className="sidebar__user-role">{utilizador?.email}</div>

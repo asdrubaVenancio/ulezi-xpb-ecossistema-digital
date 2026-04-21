@@ -7,43 +7,43 @@
 // @version 1.0.0
 
 import {
-    AlertCircle,
-    BookOpen,
-    Briefcase,
-    Calendar,
-    CheckCircle,
-    Clock,
-    CreditCard,
-    Download,
-    Edit,
-    FileText,
-    Mail,
-    MapPin,
-    MessageCircle,
-    Plus,
-    Star,
-    Trash2,
-    TrendingUp,
-    Upload,
-    Users,
-    X,
+  AlertCircle,
+  BookOpen,
+  Briefcase,
+  Calendar,
+  CheckCircle,
+  Clock,
+  CreditCard,
+  Download,
+  Edit,
+  FileText,
+  Mail,
+  MapPin,
+  MessageCircle,
+  Plus,
+  Star,
+  Trash2,
+  TrendingUp,
+  Upload,
+  Users,
+  X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "../../components/ui/Toast";
 import {
-    BadgeStatus,
-    EmptyState,
-    Modal,
-    Spinner,
-    StatCard,
+  BadgeStatus,
+  EmptyState,
+  Modal,
+  Spinner,
+  StatCard,
 } from "../../components/ui/index.jsx";
 import { useAuth } from "../../context/AuthContext";
 import {
-    consultoriaAPI,
-    cursosAPI,
-    empresaAPI,
-    extrairErro,
-    investidorAPI,
+  consultoriaAPI,
+  cursosAPI,
+  empresaAPI,
+  extrairErro,
+  investidorAPI,
 } from "../../services/api";
 import { formatAOA, formatData, formatDataHora } from "../../utils/constants";
 
@@ -969,15 +969,16 @@ export function DashboardEmpresa() {
   const [modalMotivo, setModalMotivo] = useState(null);
 
   // Chave para cache do tipo de empresa (inclui userId para evitar misturar contas)
-  const getStorageKey = () => `ulezi_empresa_tipo_v2_${utilizador?.id || 'guest'}`;
+  const getStorageKey = () =>
+    `ulezi_empresa_tipo_v2_${utilizador?.id || "guest"}`;
   const STORAGE_KEY_EMPRESA_TIPO = getStorageKey();
 
   // Limpar cache antigo que pode estar causando problemas
   useEffect(() => {
     try {
-      const oldKey = 'ulezi_empresa_tipo';
+      const oldKey = "ulezi_empresa_tipo";
       if (localStorage.getItem(oldKey)) {
-        console.log('[DASHBOARD] Limpando cache antigo do localStorage');
+        console.log("[DASHBOARD] Limpando cache antigo do localStorage");
         localStorage.removeItem(oldKey);
       }
     } catch {
@@ -1032,6 +1033,42 @@ export function DashboardEmpresa() {
       etiqueta: "Busca de financiamento ou investimento",
     },
   ];
+
+  /**
+   * Regras de exibição dinâmica dos campos por tipo de oportunidade.
+   * true = mostrar campo no formulário.
+   */
+  const configuracaoCamposOportunidade = {
+    venda_empresa: {
+      retorno_percentual: false,
+      participacao_percentual: false,
+      prazo_pagamento: true,
+    },
+    participacao: {
+      retorno_percentual: true,
+      participacao_percentual: true,
+      prazo_pagamento: true,
+    },
+    licenciamento: {
+      retorno_percentual: true,
+      participacao_percentual: false,
+      prazo_pagamento: true,
+    },
+    franquia: {
+      retorno_percentual: true,
+      participacao_percentual: false,
+      prazo_pagamento: true,
+    },
+    investimento: {
+      retorno_percentual: true,
+      participacao_percentual: true,
+      prazo_pagamento: true,
+    },
+  };
+
+  const camposVisiveisOportunidade =
+    configuracaoCamposOportunidade[formOportunidade.tipo] ||
+    configuracaoCamposOportunidade.investimento;
   const diasSemana = [
     "Domingo",
     "Segunda-feira",
@@ -1063,17 +1100,20 @@ export function DashboardEmpresa() {
       ]);
       setDocumentos(dc.data.dados?.documentos || dc.data.dados || []);
 
-          // Sempre atualizar o cache com os dados mais recentes da API
+      // Sempre atualizar o cache com os dados mais recentes da API
       const storageKey = getStorageKey();
       const apiEmpresa = sub.data?.dados?.empresa || null;
       if (apiEmpresa) {
         // Salvar no cache apenas se temos dados da empresa
         localStorage.setItem(storageKey, JSON.stringify(sub.data.dados));
-        console.log('[DASHBOARD] Cache atualizado - tipo_empresa:', apiEmpresa.tipo_empresa);
+        console.log(
+          "[DASHBOARD] Cache atualizado - tipo_empresa:",
+          apiEmpresa.tipo_empresa,
+        );
       } else {
         // Se não tem empresa na resposta, limpar o cache para evitar dados stale
         localStorage.removeItem(storageKey);
-        console.log('[DASHBOARD] Cache limpo - empresa não encontrada na API');
+        console.log("[DASHBOARD] Cache limpo - empresa não encontrada na API");
       }
       setAssinaturaInfo(sub.data.dados || null);
 
@@ -1082,24 +1122,32 @@ export function DashboardEmpresa() {
       const empresaContexto = sub.data.dados?.empresa || null;
 
       if (empresaContexto?.tipo_empresa === "consultoria") {
-        console.log('[DASHBOARD] Carregando dados de consultoria...');
+        console.log("[DASHBOARD] Carregando dados de consultoria...");
         try {
           const [solicitacoes, disponibilidade] = await Promise.all([
             consultoriaAPI.providerSolicitacoes(),
             consultoriaAPI.providerDisponibilidade(),
           ]);
 
-          console.log('[DASHBOARD] Solicitações:', solicitacoes.data);
-          console.log('[DASHBOARD] Disponibilidade:', disponibilidade.data);
+          console.log("[DASHBOARD] Solicitações:", solicitacoes.data);
+          console.log("[DASHBOARD] Disponibilidade:", disponibilidade.data);
 
           setConsultoriaSolicitacoes(solicitacoes.data.dados?.consultas || []);
           setConsultoriaDisponibilidade(
             disponibilidade.data.dados?.disponibilidade || [],
           );
         } catch (err) {
-          console.error('[DASHBOARD] Erro ao carregar dados de consultoria:', err);
-          console.error('[DASHBOARD] Erro detalhado:', err.response?.data || err.message);
-          toastRef.current.erro("Erro ao carregar dados de consultoria: " + extrairErro(err));
+          console.error(
+            "[DASHBOARD] Erro ao carregar dados de consultoria:",
+            err,
+          );
+          console.error(
+            "[DASHBOARD] Erro detalhado:",
+            err.response?.data || err.message,
+          );
+          toastRef.current.erro(
+            "Erro ao carregar dados de consultoria: " + extrairErro(err),
+          );
           setConsultoriaSolicitacoes([]);
           setConsultoriaDisponibilidade([]);
         }
@@ -1127,38 +1175,39 @@ export function DashboardEmpresa() {
             consultoriasResp,
             minhasConsultoriasResp,
             creditosResp,
-          ] =
-            await Promise.all([
-              empresaAPI.stats().catch(() => ({ data: { dados: {} } })),
-              empresaAPI.oportunidades().catch(() => ({ data: { dados: [] } })),
-              empresaAPI
-                .servicos()
-                .catch(() => ({ data: { dados: { servicos: [] } } })),
-              empresaAPI
-                .contratos()
-                .catch(() => ({ data: { dados: { contratos: [] } } })),
-              empresaAPI
-                .minhasVagas()
-                .catch(() => ({ data: { dados: { vagas: [] } } })),
-              empresaAPI
-                .categoriasServicos()
-                .catch(() => ({ data: { dados: [] } })),
-              consultoriaAPI
-                .listarConsultorias()
-                .catch(() => ({ data: { dados: { consultorias: [] } } })),
-              consultoriaAPI
-                .listarMinhas()
-                .catch(() => ({ data: { dados: { consultas: [] } } })),
-              consultoriaAPI
-                .meusCreditos()
-                .catch(() => ({ data: { dados: { saldo: 0 } } })),
-            ]);
+          ] = await Promise.all([
+            empresaAPI.stats().catch(() => ({ data: { dados: {} } })),
+            empresaAPI.oportunidades().catch(() => ({ data: { dados: [] } })),
+            empresaAPI
+              .servicos()
+              .catch(() => ({ data: { dados: { servicos: [] } } })),
+            empresaAPI
+              .contratos()
+              .catch(() => ({ data: { dados: { contratos: [] } } })),
+            empresaAPI
+              .minhasVagas()
+              .catch(() => ({ data: { dados: { vagas: [] } } })),
+            empresaAPI
+              .categoriasServicos()
+              .catch(() => ({ data: { dados: [] } })),
+            consultoriaAPI
+              .listarConsultorias()
+              .catch(() => ({ data: { dados: { consultorias: [] } } })),
+            consultoriaAPI
+              .listarMinhas()
+              .catch(() => ({ data: { dados: { consultas: [] } } })),
+            consultoriaAPI
+              .meusCreditos()
+              .catch(() => ({ data: { dados: { saldo: 0 } } })),
+          ]);
           setStats(st.data.dados || {});
           setOportunidades(op.data.dados?.oportunidades || op.data.dados || []);
           setServicos(sv.data.dados?.servicos || sv.data.dados || []);
           setContratos(ct.data.dados?.contratos || ct.data.dados || []);
           setMinhasVagas(vg.data.dados?.vagas || vg.data.dados || []);
-          setCategoriasServico(cat.data.dados?.categorias || cat.data.dados || []);
+          setCategoriasServico(
+            cat.data.dados?.categorias || cat.data.dados || [],
+          );
           setConsultoriasDisponiveis(
             consultoriasResp.data.dados?.consultorias || [],
           );
@@ -1416,7 +1465,10 @@ export function DashboardEmpresa() {
   const guardarDisponibilidadeConsultoria = async () => {
     setSalvandoDisponibilidade(true);
     try {
-      console.log('[GUARDAR_DISPONIBILIDADE] Iniciando...', consultoriaDisponibilidade);
+      console.log(
+        "[GUARDAR_DISPONIBILIDADE] Iniciando...",
+        consultoriaDisponibilidade,
+      );
       const response = await consultoriaAPI.guardarDisponibilidade({
         disponibilidade: consultoriaDisponibilidade.map((item) => ({
           dia_semana: Number(item.dia_semana),
@@ -1427,15 +1479,16 @@ export function DashboardEmpresa() {
           is_active: true,
         })),
       });
-      console.log('[GUARDAR_DISPONIBILIDADE] Resposta:', response.data);
+      console.log("[GUARDAR_DISPONIBILIDADE] Resposta:", response.data);
       toast.sucesso("Disponibilidade guardada com sucesso.");
       carregar();
     } catch (e) {
-      console.error('[GUARDAR_DISPONIBILIDADE] Erro:', e);
-      console.error('[GUARDAR_DISPONIBILIDADE] Erro detalhado:', e.response?.data || e.message);
-      toast.erro(
-        "Erro ao guardar disponibilidade: " + extrairErro(e),
+      console.error("[GUARDAR_DISPONIBILIDADE] Erro:", e);
+      console.error(
+        "[GUARDAR_DISPONIBILIDADE] Erro detalhado:",
+        e.response?.data || e.message,
       );
+      toast.erro("Erro ao guardar disponibilidade: " + extrairErro(e));
     } finally {
       setSalvandoDisponibilidade(false);
     }
@@ -1565,9 +1618,58 @@ export function DashboardEmpresa() {
     if (!formOportunidade.termos.trim())
       return toast.aviso("Descreva os termos da operação.");
 
+    // Validação dinâmica por tipo de oportunidade
+    if (
+      camposVisiveisOportunidade.participacao_percentual &&
+      !formOportunidade.participacao_percentual
+    ) {
+      return toast.aviso(
+        "Informe a participação percentual para este tipo de oportunidade.",
+      );
+    }
+
+    if (
+      camposVisiveisOportunidade.retorno_percentual &&
+      !formOportunidade.retorno_percentual &&
+      formOportunidade.tipo !== "participacao"
+    ) {
+      return toast.aviso(
+        "Informe o retorno percentual para este tipo de oportunidade.",
+      );
+    }
+
+    if (
+      camposVisiveisOportunidade.prazo_pagamento &&
+      !formOportunidade.prazo_pagamento
+    ) {
+      return toast.aviso(
+        "Informe o prazo/condições de pagamento para este tipo de oportunidade.",
+      );
+    }
+
+    // Montar payload apenas com campos necessários para evitar obrigatoriedade indevida
+    const payload = {
+      tipo: formOportunidade.tipo,
+      titulo: formOportunidade.titulo,
+      descricao: formOportunidade.descricao,
+      valor: formOportunidade.valor,
+      moeda: formOportunidade.moeda,
+      termos: formOportunidade.termos,
+      retorno_percentual: camposVisiveisOportunidade.retorno_percentual
+        ? formOportunidade.retorno_percentual || null
+        : null,
+      prazo_pagamento: camposVisiveisOportunidade.prazo_pagamento
+        ? formOportunidade.prazo_pagamento || null
+        : null,
+      participacao_percentual:
+        camposVisiveisOportunidade.participacao_percentual
+          ? formOportunidade.participacao_percentual || null
+          : null,
+    };
+
     setSubmOportunidade(true);
     try {
-      await empresaAPI.criarOportunidade(formOportunidade);
+      await empresaAPI.criarOportunidade(payload);
       toast.sucesso("Oportunidade publicada com sucesso.");
       setModalOportunidade(false);
       carregar();
@@ -1738,9 +1840,12 @@ export function DashboardEmpresa() {
   const podePublicar = temAssinaturaAtiva && empresaAprovada;
   const ehConsultoria = assinaturaInfo?.empresa?.tipo_empresa === "consultoria";
 
-  console.log('[DASHBOARD_EMPRESA] ehConsultoria:', ehConsultoria);
-  console.log('[DASHBOARD_EMPRESA] tipo_empresa:', assinaturaInfo?.empresa?.tipo_empresa);
-  console.log('[DASHBOARD_EMPRESA] abaActiva:', abaActiva);
+  console.log("[DASHBOARD_EMPRESA] ehConsultoria:", ehConsultoria);
+  console.log(
+    "[DASHBOARD_EMPRESA] tipo_empresa:",
+    assinaturaInfo?.empresa?.tipo_empresa,
+  );
+  console.log("[DASHBOARD_EMPRESA] abaActiva:", abaActiva);
 
   // Removido useEffect que forçava a aba de consultoria
   // Isso permitia que empresas de consultoria acessassem outras abas
@@ -1896,34 +2001,69 @@ export function DashboardEmpresa() {
       )}
 
       <div className="stats-grid dashboard-stats-row">
-        <StatCard
-          icone={<TrendingUp size={20} color="var(--ciano)" />}
-          label="Oportunidades"
-          valor={carregando ? "—" : stats.total_oportunidades || 0}
-          corIcone="var(--ciano-100)"
-        />
-        <StatCard
-          icone={<Users size={20} color="var(--verde)" />}
-          label="Interessados"
-          valor={carregando ? "—" : stats.total_interessados || 0}
-          corIcone="var(--verde-100)"
-        />
-        <StatCard
-          icone={<Briefcase size={20} color="var(--laranja)" />}
-          label="Vagas ativas"
-          valor={
-            carregando
-              ? "—"
-              : minhasVagas.filter((v) => v.status === "aprovada").length
-          }
-          corIcone="var(--laranja-100)"
-        />
-        <StatCard
-          icone={<FileText size={20} color="var(--roxo)" />}
-          label="Documentos"
-          valor={carregando ? "—" : documentos.length}
-          corIcone="var(--roxo-100)"
-        />
+        {ehConsultoria ? (
+          <>
+            <StatCard
+              icone={<MessageCircle size={20} color="var(--ciano)" />}
+              label="Total de Consultoria"
+              valor={carregando ? "—" : stats.total_consultoria || 0}
+              corIcone="var(--ciano-100)"
+            />
+            <StatCard
+              icone={<Clock size={20} color="var(--amarelo)" />}
+              label="Consultoria por atender"
+              valor={carregando ? "—" : stats.consultoria_por_atender || 0}
+              corIcone="var(--amarelo-100)"
+            />
+            <StatCard
+              icone={<Calendar size={20} color="var(--verde)" />}
+              label="Consultoria remarcadas/agendadas"
+              valor={
+                carregando
+                  ? "—"
+                  : stats.consultoria_remarcadas_ou_agendadas || 0
+              }
+              corIcone="var(--verde-100)"
+            />
+            <StatCard
+              icone={<FileText size={20} color="var(--roxo)" />}
+              label="Documentos"
+              valor={carregando ? "—" : documentos.length}
+              corIcone="var(--roxo-100)"
+            />
+          </>
+        ) : (
+          <>
+            <StatCard
+              icone={<TrendingUp size={20} color="var(--ciano)" />}
+              label="Oportunidades"
+              valor={carregando ? "—" : stats.total_oportunidades || 0}
+              corIcone="var(--ciano-100)"
+            />
+            <StatCard
+              icone={<Users size={20} color="var(--verde)" />}
+              label="Interessados"
+              valor={carregando ? "—" : stats.total_interessados || 0}
+              corIcone="var(--verde-100)"
+            />
+            <StatCard
+              icone={<Briefcase size={20} color="var(--laranja)" />}
+              label="Vagas ativas"
+              valor={
+                carregando
+                  ? "—"
+                  : minhasVagas.filter((v) => v.status === "aprovada").length
+              }
+              corIcone="var(--laranja-100)"
+            />
+            <StatCard
+              icone={<FileText size={20} color="var(--roxo)" />}
+              label="Documentos"
+              valor={carregando ? "—" : documentos.length}
+              corIcone="var(--roxo-100)"
+            />
+          </>
+        )}
       </div>
 
       <div
@@ -4349,52 +4489,74 @@ export function DashboardEmpresa() {
               }
             />
           </div>
-          <div
-            style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
-          >
+          {(camposVisiveisOportunidade.retorno_percentual ||
+            camposVisiveisOportunidade.participacao_percentual) && (
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: 12,
+              }}
+            >
+              {camposVisiveisOportunidade.retorno_percentual && (
+                <div className="form-group">
+                  <label className="form-label">
+                    Retorno percentual
+                    {formOportunidade.tipo !== "participacao" ? " *" : ""}
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="Ex: 18"
+                    value={formOportunidade.retorno_percentual}
+                    onChange={(e) =>
+                      setFormOportunidade((p) => ({
+                        ...p,
+                        retorno_percentual: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              )}
+
+              {camposVisiveisOportunidade.participacao_percentual && (
+                <div className="form-group">
+                  <label className="form-label">
+                    Participação percentual *
+                  </label>
+                  <input
+                    className="form-input"
+                    placeholder="Ex: 30"
+                    value={formOportunidade.participacao_percentual}
+                    onChange={(e) =>
+                      setFormOportunidade((p) => ({
+                        ...p,
+                        participacao_percentual: e.target.value,
+                      }))
+                    }
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {camposVisiveisOportunidade.prazo_pagamento && (
             <div className="form-group">
-              <label className="form-label">Retorno percentual</label>
+              <label className="form-label">
+                Prazo / condições de pagamento *
+              </label>
               <input
                 className="form-input"
-                placeholder="Ex: 18"
-                value={formOportunidade.retorno_percentual}
+                placeholder="Ex: 12 meses para liquidação"
+                value={formOportunidade.prazo_pagamento}
                 onChange={(e) =>
                   setFormOportunidade((p) => ({
                     ...p,
-                    retorno_percentual: e.target.value,
+                    prazo_pagamento: e.target.value,
                   }))
                 }
               />
             </div>
-            <div className="form-group">
-              <label className="form-label">Participação percentual</label>
-              <input
-                className="form-input"
-                placeholder="Ex: 30"
-                value={formOportunidade.participacao_percentual}
-                onChange={(e) =>
-                  setFormOportunidade((p) => ({
-                    ...p,
-                    participacao_percentual: e.target.value,
-                  }))
-                }
-              />
-            </div>
-          </div>
-          <div className="form-group">
-            <label className="form-label">Prazo / condições de pagamento</label>
-            <input
-              className="form-input"
-              placeholder="Ex: 12 meses para liquidação"
-              value={formOportunidade.prazo_pagamento}
-              onChange={(e) =>
-                setFormOportunidade((p) => ({
-                  ...p,
-                  prazo_pagamento: e.target.value,
-                }))
-              }
-            />
-          </div>
+          )}
           <div className="form-group">
             <label className="form-label">Termos da operação *</label>
             <textarea

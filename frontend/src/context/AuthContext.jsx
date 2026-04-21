@@ -6,13 +6,15 @@
 import {
     createContext,
     useCallback,
-    useContext,
     useEffect,
     useState,
 } from 'react';
 import { authAPI, STORAGE_KEYS } from '../services/api';
 
-const AuthContext = createContext(null);
+// Re-export useAuth do hook separado (para compatibilidade com Fast Refresh)
+export { useAuth } from '../hooks/useAuth';
+
+export const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [utilizador, setUtilizador] = useState(null);
@@ -92,6 +94,18 @@ export function AuthProvider({ children }) {
     return user;
   }, []);
 
+  // ── Login com dados (usado após registro automático) ────────
+  const loginComDados = useCallback((token, refreshToken, user) => {
+    if (!token || !user) return;
+    
+    localStorage.setItem(STORAGE_KEYS.token, token);
+    if (refreshToken) {
+      localStorage.setItem(STORAGE_KEYS.refresh, refreshToken);
+    }
+    localStorage.setItem(STORAGE_KEYS.user, JSON.stringify(user));
+    setUtilizador(user);
+  }, []);
+
   // ── Logout ─────────────────────────────────────────────────
   const logout = useCallback(async () => {
     try { await authAPI.logout(); } catch { /* ignora erros de rede */ }
@@ -119,7 +133,7 @@ export function AuthProvider({ children }) {
 
   return (
     <AuthContext.Provider value={{
-      utilizador, carregando, login, logout, limparSessao,
+      utilizador, carregando, login, loginComDados, logout, limparSessao,
       atualizarUtilizador, tema, alternarTema,
       estaAutenticado: !!utilizador,
       ehAdmin, ehFuncionario, ehEmpresa,
@@ -128,10 +142,4 @@ export function AuthProvider({ children }) {
       {children}
     </AuthContext.Provider>
   );
-}
-
-export function useAuth() {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error('useAuth deve ser usado dentro de <AuthProvider>');
-  return ctx;
 }

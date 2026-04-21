@@ -22,7 +22,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Footer from '../../components/layout/Footer.jsx';
 import Navbar from '../../components/layout/Navbar.jsx';
 import { comunidadeAPI } from '../../services/api';
-import { truncar } from '../../utils/constants';
+import { truncar, BACKEND_BASE_URL } from '../../utils/constants';
 
 // ── Utilitário: gera iniciais para avatar ──────────────────────
 function gerarIniciais(nome) {
@@ -210,6 +210,59 @@ const ETIQUETA_TIPO_PERFIL = {
   estudante: 'Estudante',
 };
 
+// Componente Avatar com foto de perfil ou iniciais
+function AvatarPerfil({ fotoPerfil, nome, tamanho = 48 }) {
+  const iniciais = useMemo(() => gerarIniciais(nome), [nome]);
+  
+  const urlFoto = fotoPerfil
+    ? fotoPerfil.startsWith('http')
+      ? fotoPerfil
+      : `${BACKEND_BASE_URL}${fotoPerfil}?t=${Date.now()}`
+    : null;
+
+  return (
+    <div style={{ position: 'relative', width: tamanho, height: tamanho }}>
+      {/* Imagem - só mostra se houver URL */}
+      {urlFoto && (
+        <img
+          src={urlFoto}
+          alt={nome}
+          style={{
+            width: tamanho,
+            height: tamanho,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            border: '2px solid var(--b0)',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+          }}
+          onError={(e) => {
+            console.error('[COMUNIDADE] Erro ao carregar foto:', urlFoto);
+            e.target.style.display = 'none';
+          }}
+        />
+      )}
+      
+      {/* Fallback - iniciais (sempre presente, por baixo) */}
+      <div
+        className="comunidade-card__avatar"
+        style={{
+          width: tamanho,
+          height: tamanho,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--ciano-10)',
+          borderRadius: '50%',
+        }}
+      >
+        <span className="comunidade-card__iniciais">{iniciais}</span>
+      </div>
+    </div>
+  );
+}
+
 function CardMembro({ membro }) {
   const nome = membro.nome_empresa || membro.nome || 'Utilizador';
   const tipoRaw = membro.tipo || membro.role;
@@ -218,10 +271,8 @@ function CardMembro({ membro }) {
 
   return (
     <div className="comunidade-card" role="article">
-      {/* Avatar */}
-      <div className="comunidade-card__avatar">
-        <span className="comunidade-card__iniciais">{gerarIniciais(nome)}</span>
-      </div>
+      {/* Avatar com foto de perfil */}
+      <AvatarPerfil fotoPerfil={membro.foto_perfil} nome={nome} />
 
       {/* Corpo */}
       <div className="comunidade-card__corpo">

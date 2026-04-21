@@ -2,15 +2,14 @@
 // Sidebar administrativa — grupos colapsáveis, rotas reais, ícones distintos
 // ============================================================
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Bell,
   BookOpen,
   Briefcase,
   Building2,
+  ChevronDown,
   ClipboardCheck,
   CreditCard,
-  ChevronDown,
   FileText,
   Folder,
   HeartHandshake,
@@ -21,6 +20,7 @@ import {
   MailWarning,
   MapPinned,
   MessageSquare,
+  Scale,
   ScrollText,
   Search,
   Settings,
@@ -30,14 +30,14 @@ import {
   Users,
   Wallet,
   Zap,
-  Scale,
-} from 'lucide-react';
-import { NavLink } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import { ADMIN_NAV_GRUPOS, pathParaSecaoAdmin } from '../../config/adminNav';
-import { iniciais } from '../../utils/constants';
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { NavLink } from "react-router-dom";
+import { ADMIN_NAV_GRUPOS, pathParaSecaoAdmin } from "../../config/adminNav";
+import { useAuth } from "../../context/AuthContext";
+import { iniciais, BACKEND_BASE_URL } from "../../utils/constants";
 
-const STORAGE_KEY = 'ulezi-admin-nav-abertos';
+const STORAGE_KEY = "ulezi-admin-nav-abertos";
 
 /** Ícone por ID de secção — evita repetição visual no menu */
 const ICONE_POR_SECAO = {
@@ -59,7 +59,7 @@ const ICONE_POR_SECAO = {
   consultoria: MessageSquare,
   visitas: MapPinned,
   suporte: LifeBuoy,
-  'notificacoes-assinatura': MailWarning,
+  "notificacoes-assinatura": MailWarning,
   pagamentos: CreditCard,
   vagas: Briefcase,
   ficheiros: Folder,
@@ -77,12 +77,55 @@ function lerGruposAbertos() {
   }
 }
 
-export default function Sidebar({ secaoActiva, notifCount = 0, aberta, onFechar }) {
+// Componente Avatar do Utilizador (foto ou iniciais)
+function AvatarUsuario({ utilizador, tamanho = 36 }) {
+  const urlFoto = utilizador?.foto_perfil
+    ? utilizador.foto_perfil.startsWith('http')
+      ? utilizador.foto_perfil
+      : `${BACKEND_BASE_URL}${utilizador.foto_perfil}?t=${Date.now()}`
+    : null;
+
+  return (
+    <div style={{ position: 'relative', width: tamanho, height: tamanho, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+      {/* Imagem - absoluta, só aparece se carregar */}
+      {urlFoto && (
+        <img
+          src={urlFoto}
+          alt={utilizador?.nome}
+          style={{
+            width: tamanho,
+            height: tamanho,
+            borderRadius: '50%',
+            objectFit: 'cover',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            zIndex: 1,
+          }}
+          onError={(e) => {
+            console.error('[SIDEBAR] Erro ao carregar foto:', urlFoto);
+            e.target.style.display = 'none';
+          }}
+        />
+      )}
+      
+      {/* Fallback - iniciais (sempre presente, por baixo) */}
+      <span style={{ zIndex: 0 }}>{iniciais(utilizador?.nome || 'Admin')}</span>
+    </div>
+  );
+}
+
+export default function Sidebar({
+  secaoActiva,
+  notifCount = 0,
+  aberta,
+  onFechar,
+}) {
   const { utilizador, logout } = useAuth();
-  const [filtro, setFiltro] = useState('');
+  const [filtro, setFiltro] = useState("");
   const [abertos, setAbertos] = useState(() => {
     const saved = lerGruposAbertos();
-    if (saved && typeof saved === 'object') return saved;
+    if (saved && typeof saved === "object") return saved;
     return Object.fromEntries(ADMIN_NAV_GRUPOS.map((g) => [g.id, true]));
   });
 
@@ -138,7 +181,7 @@ export default function Sidebar({ secaoActiva, notifCount = 0, aberta, onFechar 
       )}
 
       <aside
-        className={`sidebar${aberta ? ' open' : ''}`}
+        className={`sidebar${aberta ? " open" : ""}`}
         aria-label="Navegação do painel administrativo"
       >
         <div className="sidebar__header">
@@ -147,7 +190,7 @@ export default function Sidebar({ secaoActiva, notifCount = 0, aberta, onFechar 
               <span className="sidebar__logo-glyph">U</span>
             </div>
             <div className="sidebar__brand-text">
-              <div className="sidebar__brand-name">ULEZI XPB</div>
+              <div className="sidebar__brand-name">ULEZI XPI</div>
               <div className="sidebar__brand-sub">Administração</div>
             </div>
           </div>
@@ -179,7 +222,7 @@ export default function Sidebar({ secaoActiva, notifCount = 0, aberta, onFechar 
                   <span className="sidebar__section">{grupo.label}</span>
                   <ChevronDown
                     size={16}
-                    className={`sidebar__chevron${expandido ? ' sidebar__chevron--open' : ''}`}
+                    className={`sidebar__chevron${expandido ? " sidebar__chevron--open" : ""}`}
                     aria-hidden
                   />
                 </button>
@@ -187,15 +230,16 @@ export default function Sidebar({ secaoActiva, notifCount = 0, aberta, onFechar 
                   grupo.itens.map(({ id, label, badge }) => {
                     const Icone = ICONE_POR_SECAO[id] || LayoutDashboard;
                     const to = pathParaSecaoAdmin(id);
-                    const contagem = badge && notifCount > 0 ? notifCount : null;
+                    const contagem =
+                      badge && notifCount > 0 ? notifCount : null;
                     return (
                       <NavLink
                         key={id}
                         to={to}
-                        end={id === 'painel'}
+                        end={id === "painel"}
                         className={({ isActive }) => {
                           const activo = isActive || secaoActiva === id;
-                          return `sidebar__item${activo ? ' active' : ''}`;
+                          return `sidebar__item${activo ? " active" : ""}`;
                         }}
                         onClick={fecharSeMobile}
                       >
@@ -203,7 +247,7 @@ export default function Sidebar({ secaoActiva, notifCount = 0, aberta, onFechar 
                         <span className="sidebar__item-label">{label}</span>
                         {contagem != null && (
                           <span className="sidebar__badge">
-                            {contagem > 99 ? '99+' : contagem}
+                            {contagem > 99 ? "99+" : contagem}
                           </span>
                         )}
                       </NavLink>
@@ -217,14 +261,14 @@ export default function Sidebar({ secaoActiva, notifCount = 0, aberta, onFechar 
         <div className="sidebar__footer">
           <div className="sidebar__user">
             <div className="sidebar__avatar" aria-hidden="true">
-              {iniciais(utilizador?.nome || 'Admin')}
+              <AvatarUsuario utilizador={utilizador} />
             </div>
             <div className="sidebar__user-meta">
               <div className="sidebar__user-name truncate">
-                {utilizador?.nome || 'Administrador'}
+                {utilizador?.nome || "Administrador"}
               </div>
               <div className="sidebar__user-role truncate">
-                {utilizador?.email || '—'}
+                {utilizador?.email || "—"}
               </div>
             </div>
             <button

@@ -123,7 +123,7 @@ app.use('/uploads', express.static(path.resolve(uploadDir)));
 app.get('/health', (req, res) => {
   res.json({
     success: true,
-    message: 'Ulezi XPB API está operacional.',
+    message: 'Ulezi XPI API está operacional.',
     version: '1.0.0',
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV,
@@ -183,10 +183,10 @@ const start = async () => {
     await ensureBusinessModuleSchema();
     const server = app.listen(PORT, () => {
       console.log('\n╔════════════════════════════════════════╗');
-      console.log('║       ULEZI XPB - API Server           ║');
+      console.log('║       ULEZI XPI - API Server           ║');
       console.log('╠════════════════════════════════════════╣');
       console.log(`║  🚀 Servidor rodando na porta ${PORT}     ║`);
-      console.log(`║  🌍 Ambiente: ${(process.env.NODE_ENV || 'development').padEnd(26)}║`);
+      console.log(`║  🌍 Ambiente:${(process.env.NODE_ENV || ' development').padEnd(26)}║`);
       console.log(`║  📡 URL: http://localhost:${PORT}         ║`);
       console.log('╚════════════════════════════════════════╝\n');
     });

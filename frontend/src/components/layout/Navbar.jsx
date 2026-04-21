@@ -3,11 +3,11 @@
 // Navegação principal com menu mobile animado e toggle de tema
 // ============================================================
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { LogOut, Menu, Moon, Sun, User, X } from 'lucide-react';
-import { useAuth }       from '../../context/AuthContext';
-import { ROLE_DASHBOARD } from '../../utils/constants';
+import { LogOut, Menu, Moon, Sun, User, X } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { ROLE_DASHBOARD } from "../../utils/constants";
 
 export default function Navbar() {
   const { estaAutenticado, utilizador, logout, tema, alternarTema } = useAuth();
@@ -16,35 +16,64 @@ export default function Navbar() {
 
   const handleLogout = useCallback(async () => {
     await logout();
-    navigate('/entrar');
+    navigate("/entrar");
   }, [logout, navigate]);
 
   // Fechar menu mobile ao redimensionar para desktop
   useEffect(() => {
-    const fechar = () => { if (window.innerWidth > 768) setMenuAberto(false); };
-    window.addEventListener('resize', fechar);
-    return () => window.removeEventListener('resize', fechar);
+    const fechar = () => {
+      if (window.innerWidth > 768) setMenuAberto(false);
+    };
+    window.addEventListener("resize", fechar);
+    return () => window.removeEventListener("resize", fechar);
   }, []);
 
   // Bloquear scroll do body quando menu mobile está aberto
   useEffect(() => {
-    document.body.style.overflow = menuAberto ? 'hidden' : '';
-    return () => { document.body.style.overflow = ''; };
+    document.body.style.overflow = menuAberto ? "hidden" : "";
+    return () => {
+      document.body.style.overflow = "";
+    };
   }, [menuAberto]);
 
   return (
     <nav className="navbar" role="navigation" aria-label="Navegação principal">
       {/* Logo */}
-      <Link to="/" className="navbar__logo" aria-label="ULEZI XPB — Página inicial">
+      <Link
+        to="/"
+        className="navbar__logo"
+        aria-label="ULEZI XPI — Página inicial"
+      >
         <LogoIcon />
-        ULEZI<span>XPB</span>
+        ULEZI<span>XPI</span>
       </Link>
 
       {/* Links de navegação (desktop) */}
       <div className="navbar__nav">
-        <NavLink to="/cursos"     className={({ isActive }) => `navbar__link${isActive ? ' active' : ''}`}>Cursos</NavLink>
-        <NavLink to="/negocios"   className={({ isActive }) => `navbar__link${isActive ? ' active' : ''}`}>Negócios</NavLink>
-        <NavLink to="/comunidade" className={({ isActive }) => `navbar__link${isActive ? ' active' : ''}`}>Comunidade</NavLink>
+        <NavLink
+          to="/cursos"
+          className={({ isActive }) =>
+            `navbar__link${isActive ? " active" : ""}`
+          }
+        >
+          Cursos
+        </NavLink>
+        <NavLink
+          to="/negocios"
+          className={({ isActive }) =>
+            `navbar__link${isActive ? " active" : ""}`
+          }
+        >
+          Negócios
+        </NavLink>
+        <NavLink
+          to="/comunidade"
+          className={({ isActive }) =>
+            `navbar__link${isActive ? " active" : ""}`
+          }
+        >
+          Comunidade
+        </NavLink>
       </div>
 
       {/* Acções (direita) */}
@@ -54,16 +83,18 @@ export default function Navbar() {
           type="button"
           onClick={alternarTema}
           className="btn btn--ghost navbar__theme-toggle"
-          aria-label={tema === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
-          title={tema === 'light' ? 'Modo escuro' : 'Modo claro'}
+          aria-label={
+            tema === "light" ? "Ativar modo escuro" : "Ativar modo claro"
+          }
+          title={tema === "light" ? "Modo escuro" : "Modo claro"}
         >
-          {tema === 'light' ? <Moon size={18} /> : <Sun size={18} />}
+          {tema === "light" ? <Moon size={18} /> : <Sun size={18} />}
         </button>
 
         {estaAutenticado ? (
           <>
             <Link
-              to={ROLE_DASHBOARD[utilizador?.role] || '/'}
+              to={ROLE_DASHBOARD[utilizador?.role] || "/"}
               className="btn btn--secondary btn--sm"
             >
               <User size={15} />
@@ -81,10 +112,16 @@ export default function Navbar() {
           </>
         ) : (
           <>
-            <Link to="/entrar" className="btn btn--secondary btn--sm navbar__desktop-only">
+            <Link
+              to="/entrar"
+              className="btn btn--secondary btn--sm navbar__desktop-only"
+            >
               Entrar
             </Link>
-            <Link to="/criar-conta" className="btn btn--primary btn--sm navbar__desktop-only">
+            <Link
+              to="/criar-conta"
+              className="btn btn--primary btn--sm navbar__desktop-only"
+            >
               Criar Conta
             </Link>
           </>
@@ -95,7 +132,7 @@ export default function Navbar() {
           type="button"
           className="btn btn--ghost navbar__menu-toggle"
           onClick={() => setMenuAberto((a) => !a)}
-          aria-label={menuAberto ? 'Fechar menu' : 'Abrir menu'}
+          aria-label={menuAberto ? "Fechar menu" : "Abrir menu"}
           aria-expanded={menuAberto}
         >
           {menuAberto ? <X size={20} /> : <Menu size={20} />}
@@ -104,34 +141,40 @@ export default function Navbar() {
 
       {/* Overlay mobile */}
       <div
-        className={`navbar__mobile-overlay${menuAberto ? ' navbar__mobile-overlay--visible' : ''}`}
+        className={`navbar__mobile-overlay${menuAberto ? " navbar__mobile-overlay--visible" : ""}`}
         onClick={() => setMenuAberto(false)}
         aria-hidden="true"
       />
 
       {/* Menu mobile dropdown com animação */}
       <div
-        className={`navbar__mobile-menu${menuAberto ? ' navbar__mobile-menu--open' : ''}`}
+        className={`navbar__mobile-menu${menuAberto ? " navbar__mobile-menu--open" : ""}`}
         role="menu"
         aria-hidden={!menuAberto}
       >
         <NavLink
           to="/cursos"
-          className={({ isActive }) => `navbar__mobile-link${isActive ? ' active' : ''}`}
+          className={({ isActive }) =>
+            `navbar__mobile-link${isActive ? " active" : ""}`
+          }
           onClick={() => setMenuAberto(false)}
         >
           Cursos
         </NavLink>
         <NavLink
           to="/negocios"
-          className={({ isActive }) => `navbar__mobile-link${isActive ? ' active' : ''}`}
+          className={({ isActive }) =>
+            `navbar__mobile-link${isActive ? " active" : ""}`
+          }
           onClick={() => setMenuAberto(false)}
         >
           Negócios
         </NavLink>
         <NavLink
           to="/comunidade"
-          className={({ isActive }) => `navbar__mobile-link${isActive ? ' active' : ''}`}
+          className={({ isActive }) =>
+            `navbar__mobile-link${isActive ? " active" : ""}`
+          }
           onClick={() => setMenuAberto(false)}
         >
           Comunidade
@@ -143,7 +186,7 @@ export default function Navbar() {
         {estaAutenticado ? (
           <>
             <Link
-              to={ROLE_DASHBOARD[utilizador?.role] || '/'}
+              to={ROLE_DASHBOARD[utilizador?.role] || "/"}
               className="navbar__mobile-link"
               onClick={() => setMenuAberto(false)}
             >
@@ -152,7 +195,10 @@ export default function Navbar() {
             <button
               type="button"
               className="navbar__mobile-link navbar__mobile-link--danger"
-              onClick={() => { setMenuAberto(false); handleLogout(); }}
+              onClick={() => {
+                setMenuAberto(false);
+                handleLogout();
+              }}
             >
               <LogOut size={16} /> Terminar sessão
             </button>
@@ -183,16 +229,38 @@ export default function Navbar() {
 // ── Ícone logo SVG inline ───────────────────────────────────
 function LogoIcon() {
   return (
-    <svg width="28" height="28" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+    <svg
+      width="28"
+      height="28"
+      viewBox="0 0 32 32"
+      fill="none"
+      aria-hidden="true"
+    >
       <defs>
-        <linearGradient id="ulezi-logo-nav" x1="4" y1="4" x2="28" y2="28" gradientUnits="userSpaceOnUse">
+        <linearGradient
+          id="ulezi-logo-nav"
+          x1="4"
+          y1="4"
+          x2="28"
+          y2="28"
+          gradientUnits="userSpaceOnUse"
+        >
           <stop stopColor="#17C1D8" />
           <stop offset="0.58" stopColor="#1782B5" />
           <stop offset="1" stopColor="#F6A400" />
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="9" fill="url(#ulezi-logo-nav)" />
-      <text y="23" x="6" fontSize="18" fontWeight="900" fill="white" fontFamily="sans-serif">U</text>
+      <text
+        y="23"
+        x="6"
+        fontSize="18"
+        fontWeight="900"
+        fill="white"
+        fontFamily="sans-serif"
+      >
+        U
+      </text>
     </svg>
   );
 }

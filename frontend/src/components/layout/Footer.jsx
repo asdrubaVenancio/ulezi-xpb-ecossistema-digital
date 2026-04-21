@@ -26,7 +26,7 @@ export default function Footer() {
                 <rect width="32" height="32" rx="7" fill="url(#ulezi-logo-footer)"/>
                 <text y="23" x="6" fontSize="18" fontWeight="900" fill="white" fontFamily="sans-serif">U</text>
               </svg>
-              ULEZI<span>XPB</span>
+              ULEZI<span>XPI</span>
             </div>
             <p className="footer__brand-desc">
               Ecossistema digital que conecta educação, investimento e comunidade.

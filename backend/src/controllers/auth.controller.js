@@ -2,35 +2,39 @@
  * Controller de Autenticação
  * Registo, Login, Logout, Recuperação de Senha
  */
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
-const { v4: uuidv4 } = require('uuid');
-const { pool } = require('../config/database');
+const bcrypt = require("bcryptjs");
+const crypto = require("crypto");
+const { v4: uuidv4 } = require("uuid");
+const { pool } = require("../config/database");
 const {
   generateToken,
   generateRefreshToken,
   verifyRefreshToken,
-} = require('../config/jwt');
-const { success, created, error, badRequest } = require('../utils/response');
-const { sendWelcomeEmail, sendEmail } = require('../utils/email');
-const { log } = require('../utils/audit');
+} = require("../config/jwt");
+const { success, created, error, badRequest } = require("../utils/response");
+const { sendWelcomeEmail, sendEmail } = require("../utils/email");
+const { notificarBemVindo } = require("../services/notification.service");
+const { log } = require("../utils/audit");
+const path = require("path");
+const fs = require("fs");
 
-const normalizeRole = (role) => ({
-  estudante: 'student',
-  empresa: 'company',
-  investidor: 'investor',
-  funcionario: 'employee',
-}[role] || role);
+const normalizeRole = (role) =>
+  ({
+    estudante: "student",
+    empresa: "company",
+    investidor: "investor",
+    funcionario: "employee",
+  })[role] || role;
 
 /**
  * Extrai ficheiros de documentos enviados no registo empresarial.
  */
 const extractCompanyRegistrationDocs = (files = {}) => {
   const docMap = [
-    { field: 'documento_alvara', tipo: 'alvara' },
-    { field: 'documento_nif', tipo: 'nif' },
-    { field: 'documento_certidao', tipo: 'certidao' },
-    { field: 'documento_identificacao', tipo: 'identificacao' },
+    { field: "documento_alvara", tipo: "alvara" },
+    { field: "documento_nif", tipo: "nif" },
+    { field: "documento_certidao", tipo: "certidao" },
+    { field: "documento_identificacao", tipo: "identificacao" },
   ];
 
   return docMap
@@ -46,20 +50,22 @@ const extractCompanyRegistrationDocs = (files = {}) => {
  * Gera um link de recuperação compatível com o frontend actual.
  */
 const buildResetLink = (token) => {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
   return `${frontendUrl}/nova-senha/${token}`;
 };
 
 const ensurePasswordChangeColumn = async () => {
   try {
-    const [rows] = await pool.execute(`SHOW COLUMNS FROM users LIKE 'password_change_required'`);
+    const [rows] = await pool.execute(
+      `SHOW COLUMNS FROM users LIKE 'password_change_required'`,
+    );
     if (!rows.length) {
       await pool.execute(
-        `ALTER TABLE users ADD COLUMN password_change_required TINYINT(1) NOT NULL DEFAULT 0`
+        `ALTER TABLE users ADD COLUMN password_change_required TINYINT(1) NOT NULL DEFAULT 0`,
       );
     }
   } catch (err) {
-    if (!String(err.message || '').includes('Duplicate column name')) {
+    if (!String(err.message || "").includes("Duplicate column name")) {
       throw err;
     }
   }
@@ -91,17 +97,20 @@ const register = async (req, res) => {
     const normalizedEmail = email.trim().toLowerCase();
     const companyDocs = extractCompanyRegistrationDocs(req.files);
 
-    if (role === 'company' && companyDocs.length < 4) {
+    if (role === "company" && companyDocs.length < 4) {
       return badRequest(
         res,
-        'No registo da empresa deve anexar alvara, NIF, certidao e documento de identificacao do responsavel.'
+        "No registo da empresa deve anexar alvara, NIF, certidao e documento de identificacao do responsavel.",
       );
     }
 
     // Verificar se o email já existe
-    const [existing] = await pool.execute('SELECT id FROM users WHERE email = ?', [normalizedEmail]);
+    const [existing] = await pool.execute(
+      "SELECT id FROM users WHERE email = ?",
+      [normalizedEmail],
+    );
     if (existing.length > 0) {
-      return badRequest(res, 'Este email já está registado.');
+      return badRequest(res, "Este email já está registado.");
     }
 
     // Encriptar a senha
@@ -110,26 +119,35 @@ const register = async (req, res) => {
 
     // Inserir utilizador
     const [result] = await pool.execute(
-      'INSERT INTO users (nome, email, telefone, password_hash, role) VALUES (?,?,?,?,?)',
-      [nome, normalizedEmail, telefone || null, password_hash, role]
+      "INSERT INTO users (nome, email, telefone, password_hash, role) VALUES (?,?,?,?,?)",
+      [nome, normalizedEmail, telefone || null, password_hash, role],
     );
     const userId = result.insertId;
 
     // Criar perfil específico conforme o papel
-    if (role === 'student') {
+    if (role === "student") {
       await pool.execute(
-        'INSERT INTO student_profiles (user_id, municipio, provincia, is_public) VALUES (?, ?, ?, ?)',
-        [userId, municipio || null, provincia || null, is_public ? 1 : 0]
+        "INSERT INTO student_profiles (user_id, municipio, provincia, is_public) VALUES (?, ?, ?, ?)",
+        [userId, municipio || null, provincia || null, is_public ? 1 : 0],
       );
-    } else if (role === 'investor') {
+    } else if (role === "investor") {
       await pool.execute(
-        'INSERT INTO investor_profiles (user_id, areas_interesse, descricao, provincia, municipio, is_public) VALUES (?, ?, ?, ?, ?, ?)',
-        [userId, areas_interesse || null, descricao || null, provincia || null, municipio || null, is_public == null ? 1 : (is_public ? 1 : 0)]
+        "INSERT INTO investor_profiles (user_id, areas_interesse, descricao, provincia, municipio, is_public) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+          userId,
+          areas_interesse || null,
+          descricao || null,
+          provincia || null,
+          municipio || null,
+          is_public == null ? 1 : is_public ? 1 : 0,
+        ],
       );
-    } else if (role === 'company') {
+    } else if (role === "company") {
       const companyName = nome_empresa || nomeEmpresa || nome;
-      const tipoEmpresaNormalizado = tipo_empresa === 'consultoria' ? 'consultoria' : 'empresa';
-      const sectorNormalizado = tipoEmpresaNormalizado === 'consultoria' ? null : (sector || null);
+      const tipoEmpresaNormalizado =
+        tipo_empresa === "consultoria" ? "consultoria" : "empresa";
+      const sectorNormalizado =
+        tipoEmpresaNormalizado === "consultoria" ? null : sector || null;
 
       const [companyResult] = await pool.execute(
         `INSERT INTO company_profiles
@@ -140,33 +158,56 @@ const register = async (req, res) => {
           companyName,
           nif || null,
           descricao || null,
-          (tipoEmpresaNormalizado === 'consultoria' ? descricao : null) || null,
+          (tipoEmpresaNormalizado === "consultoria" ? descricao : null) || null,
           sectorNormalizado,
           provincia || null,
           municipio || null,
           tipoEmpresaNormalizado,
-        ]
+        ],
       );
       const companyProfileId = companyResult.insertId;
 
       for (const documento of companyDocs) {
         const url = `/uploads/documents/${documento.ficheiro.filename}`;
         await pool.execute(
-          'INSERT INTO company_documents (company_id, tipo, nome_ficheiro, url_ficheiro) VALUES (?, ?, ?, ?)',
-          [companyProfileId, documento.tipo, documento.ficheiro.originalname, url]
+          "INSERT INTO company_documents (company_id, tipo, nome_ficheiro, url_ficheiro) VALUES (?, ?, ?, ?)",
+          [
+            companyProfileId,
+            documento.tipo,
+            documento.ficheiro.originalname,
+            url,
+          ],
         );
       }
     }
 
     // Gerar token JWT
     const token = generateToken({ id: userId, email: normalizedEmail, role });
-    const refresh_token = generateRefreshToken({ id: userId, email: normalizedEmail, role });
+    const refresh_token = generateRefreshToken({
+      id: userId,
+      email: normalizedEmail,
+      role,
+    });
 
     // Enviar email de boas-vindas (não bloqueia a resposta)
-    sendWelcomeEmail({ nome, email, role }).catch(e => console.error('[WELCOME EMAIL]', e.message));
+    sendWelcomeEmail({ nome, email, role }).catch((e) =>
+      console.error("[WELCOME EMAIL]", e.message),
+    );
+
+    // Notificação interna de boas-vindas
+    notificarBemVindo(userId, nome, normalizedEmail, role).catch((e) =>
+      console.error("[NOTIF_BEM_VINDO]", e.message),
+    );
 
     // Auditoria
-    await log(userId, 'REGISTER', 'users', userId, { email: normalizedEmail, role }, req);
+    await log(
+      userId,
+      "REGISTER",
+      "users",
+      userId,
+      { email: normalizedEmail, role },
+      req,
+    );
 
     return created(
       res,
@@ -176,12 +217,13 @@ const register = async (req, res) => {
         user: { id: userId, nome, email: normalizedEmail, role },
         utilizador: { id: userId, nome, email: normalizedEmail, role },
       },
-      'Conta criada com sucesso!'
+      "Conta criada com sucesso!",
     );
   } catch (err) {
-    console.error('[AUTH] Register error:', err);
-    if (err.code === 'ER_DUP_ENTRY') return badRequest(res, 'Este email já está registado.');
-    return error(res, 'Erro ao criar conta. Tente novamente.', 500);
+    console.error("[AUTH] Register error:", err);
+    if (err.code === "ER_DUP_ENTRY")
+      return badRequest(res, "Este email já está registado.");
+    return error(res, "Erro ao criar conta. Tente novamente.", 500);
   }
 };
 
@@ -197,75 +239,103 @@ const login = async (req, res) => {
 
     // Buscar utilizador
     const [rows] = await pool.execute(
-      'SELECT id, nome, email, password_hash, role, status, foto_perfil, password_change_required FROM users WHERE email = ?',
-      [normalizedEmail]
+      "SELECT id, nome, email, password_hash, role, status, foto_perfil, password_change_required FROM users WHERE email = ?",
+      [normalizedEmail],
     );
 
     if (rows.length === 0) {
-      return badRequest(res, 'Email ou palavra-passe incorretos.');
+      return badRequest(res, "Email ou palavra-passe incorretos.");
     }
 
     const user = rows[0];
 
-    if (user.status === 'bloqueado') {
-      return badRequest(res, 'A sua conta foi bloqueada. Contacte o suporte.');
+    if (user.status === "bloqueado") {
+      return badRequest(res, "A sua conta foi bloqueada. Contacte o suporte.");
     }
-    if (user.status === 'inativo') {
-      return badRequest(res, 'A sua conta está inativa.');
+    if (user.status === "inativo") {
+      return badRequest(res, "A sua conta está inativa.");
     }
 
     // Verificar senha
     const isValid = await bcrypt.compare(password, user.password_hash);
     if (!isValid) {
-      await log(user.id, 'LOGIN_FAILED', 'users', user.id, { email: normalizedEmail }, req);
-      return badRequest(res, 'Email ou palavra-passe incorretos.');
+      await log(
+        user.id,
+        "LOGIN_FAILED",
+        "users",
+        user.id,
+        { email: normalizedEmail },
+        req,
+      );
+      return badRequest(res, "Email ou palavra-passe incorretos.");
     }
 
     // Buscar dados do perfil
     let profileData = {};
-    if (user.role === 'student') {
-      const [p] = await pool.execute('SELECT * FROM student_profiles WHERE user_id=?', [user.id]);
+    if (user.role === "student") {
+      const [p] = await pool.execute(
+        "SELECT * FROM student_profiles WHERE user_id=?",
+        [user.id],
+      );
       profileData = p[0] || {};
-    } else if (user.role === 'company') {
-      const [p] = await pool.execute('SELECT * FROM company_profiles WHERE user_id=?', [user.id]);
+    } else if (user.role === "company") {
+      const [p] = await pool.execute(
+        "SELECT * FROM company_profiles WHERE user_id=?",
+        [user.id],
+      );
       profileData = p[0] || {};
-    } else if (user.role === 'investor') {
-      const [p] = await pool.execute('SELECT * FROM investor_profiles WHERE user_id=?', [user.id]);
+    } else if (user.role === "investor") {
+      const [p] = await pool.execute(
+        "SELECT * FROM investor_profiles WHERE user_id=?",
+        [user.id],
+      );
       profileData = p[0] || {};
     }
 
     // Gerar token
-    const token = generateToken({ id: user.id, email: user.email, role: user.role });
-    const refresh_token = generateRefreshToken({ id: user.id, email: user.email, role: user.role });
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    const refresh_token = generateRefreshToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
-    await log(user.id, 'LOGIN', 'users', user.id, null, req);
+    await log(user.id, "LOGIN", "users", user.id, null, req);
 
-    return success(res, {
-      token,
-      refresh_token,
-      user: {
-        id: user.id,
-        nome: user.nome,
-        email: user.email,
-        role: user.role,
-        foto_perfil: user.foto_perfil,
-        password_change_required: !!user.password_change_required,
-        profile: profileData,
+    return success(
+      res,
+      {
+        token,
+        refresh_token,
+        user: {
+          id: user.id,
+          nome: user.nome,
+          email: user.email,
+          role: user.role,
+          foto_perfil: user.foto_perfil,
+          password_change_required: !!user.password_change_required,
+          profile: profileData,
+        },
+        // Alias para compatibilidade com frontend
+        utilizador: {
+          id: user.id,
+          nome: user.nome,
+          email: user.email,
+          role: user.role,
+          foto_perfil: user.foto_perfil,
+          password_change_required: !!user.password_change_required,
+          profile: profileData,
+        },
       },
-      // Alias para compatibilidade com frontend
-      utilizador: {
-        id: user.id,
-        nome: user.nome,
-        email: user.email,
-        role: user.role,
-        foto_perfil: user.foto_perfil,
-        password_change_required: !!user.password_change_required,
-        profile: profileData,
-      },
-    }, 'Login realizado com sucesso!');
+      "Login realizado com sucesso!",
+    );
   } catch (err) {
-    console.error('[AUTH] Login error:', err);
-    return error(res, 'Erro ao fazer login. Tente novamente.', 500);
+    console.error("[AUTH] Login error:", err);
+    return error(res, "Erro ao fazer login. Tente novamente.", 500);
   }
 };
 
@@ -280,26 +350,35 @@ const getMe = async (req, res) => {
     const role = req.user.role;
 
     const [rows] = await pool.execute(
-      'SELECT id, nome, email, telefone, role, status, foto_perfil, created_at, password_change_required FROM users WHERE id=?',
-      [userId]
+      "SELECT id, nome, email, telefone, role, status, foto_perfil, created_at, password_change_required FROM users WHERE id=?",
+      [userId],
     );
-    if (!rows.length) return badRequest(res, 'Utilizador não encontrado.');
+    if (!rows.length) return badRequest(res, "Utilizador não encontrado.");
 
     let profileData = {};
-    if (role === 'student') {
-      const [p] = await pool.execute('SELECT * FROM student_profiles WHERE user_id=?', [userId]);
+    if (role === "student") {
+      const [p] = await pool.execute(
+        "SELECT * FROM student_profiles WHERE user_id=?",
+        [userId],
+      );
       profileData = p[0] || {};
-    } else if (role === 'company') {
-      const [p] = await pool.execute('SELECT * FROM company_profiles WHERE user_id=?', [userId]);
+    } else if (role === "company") {
+      const [p] = await pool.execute(
+        "SELECT * FROM company_profiles WHERE user_id=?",
+        [userId],
+      );
       profileData = p[0] || {};
-    } else if (role === 'investor') {
-      const [p] = await pool.execute('SELECT * FROM investor_profiles WHERE user_id=?', [userId]);
+    } else if (role === "investor") {
+      const [p] = await pool.execute(
+        "SELECT * FROM investor_profiles WHERE user_id=?",
+        [userId],
+      );
       profileData = p[0] || {};
     }
 
     return success(res, { ...rows[0], profile: profileData });
   } catch (err) {
-    return error(res, 'Erro ao obter dados do utilizador.', 500);
+    return error(res, "Erro ao obter dados do utilizador.", 500);
   }
 };
 
@@ -315,40 +394,66 @@ const updateProfile = async (req, res) => {
 
     if (nome || telefone) {
       await pool.execute(
-        'UPDATE users SET nome=COALESCE(?,nome), telefone=COALESCE(?,telefone) WHERE id=?',
-        [nome || null, telefone || null, userId]
+        "UPDATE users SET nome=COALESCE(?,nome), telefone=COALESCE(?,telefone) WHERE id=?",
+        [nome || null, telefone || null, userId],
       );
     }
 
-    if (role === 'student' && Object.keys(profileFields).length > 0) {
-      const { municipio, provincia, data_nascimento, genero, bio, is_public } = profileFields;
+    if (role === "student" && Object.keys(profileFields).length > 0) {
+      const { municipio, provincia, data_nascimento, genero, bio, is_public } =
+        profileFields;
       await pool.execute(
-        `UPDATE student_profiles SET 
+        `UPDATE student_profiles SET
           municipio=COALESCE(?,municipio), provincia=COALESCE(?,provincia),
           data_nascimento=COALESCE(?,data_nascimento), genero=COALESCE(?,genero),
           bio=COALESCE(?,bio), is_public=COALESCE(?,is_public)
          WHERE user_id=?`,
-        [municipio||null, provincia||null, data_nascimento||null, genero||null, bio||null, is_public!=null?is_public:null, userId]
+        [
+          municipio || null,
+          provincia || null,
+          data_nascimento || null,
+          genero || null,
+          bio || null,
+          is_public != null ? is_public : null,
+          userId,
+        ],
       );
-    } else if (role === 'investor' && Object.keys(profileFields).length > 0) {
-      const { areas_interesse, descricao, provincia, municipio, is_public } = profileFields;
+    } else if (role === "investor" && Object.keys(profileFields).length > 0) {
+      const { areas_interesse, descricao, provincia, municipio, is_public } =
+        profileFields;
       await pool.execute(
-        `UPDATE investor_profiles SET 
+        `UPDATE investor_profiles SET
           areas_interesse=COALESCE(?,areas_interesse), descricao=COALESCE(?,descricao),
           provincia=COALESCE(?,provincia), municipio=COALESCE(?,municipio),
           is_public=COALESCE(?,is_public) WHERE user_id=?`,
-        [areas_interesse||null, descricao||null, provincia||null, municipio||null, is_public!=null?is_public:null, userId]
+        [
+          areas_interesse || null,
+          descricao || null,
+          provincia || null,
+          municipio || null,
+          is_public != null ? is_public : null,
+          userId,
+        ],
       );
-    } else if (role === 'company' && Object.keys(profileFields).length > 0) {
-      const { descricao, sector, provincia, municipio, endereco, website, is_public } = profileFields;
+    } else if (role === "company" && Object.keys(profileFields).length > 0) {
+      const {
+        descricao,
+        sector,
+        provincia,
+        municipio,
+        endereco,
+        website,
+        is_public,
+      } = profileFields;
       const [[company]] = await pool.execute(
-        'SELECT tipo_empresa FROM company_profiles WHERE user_id = ? LIMIT 1',
-        [userId]
+        "SELECT tipo_empresa FROM company_profiles WHERE user_id = ? LIMIT 1",
+        [userId],
       );
-      const sectorNormalizado = company?.tipo_empresa === 'consultoria' ? null : (sector || null);
+      const sectorNormalizado =
+        company?.tipo_empresa === "consultoria" ? null : sector || null;
 
       await pool.execute(
-        `UPDATE company_profiles SET 
+        `UPDATE company_profiles SET
           descricao=COALESCE(?,descricao), sector=COALESCE(?,sector),
           provincia=COALESCE(?,provincia), municipio=COALESCE(?,municipio),
           endereco=COALESCE(?,endereco), website=COALESCE(?,website),
@@ -362,21 +467,21 @@ const updateProfile = async (req, res) => {
           website || null,
           is_public != null ? is_public : null,
           userId,
-        ]
+        ],
       );
 
-      if (company?.tipo_empresa === 'consultoria') {
+      if (company?.tipo_empresa === "consultoria") {
         await pool.execute(
-          'UPDATE company_profiles SET sector = NULL WHERE user_id = ?',
-          [userId]
+          "UPDATE company_profiles SET sector = NULL WHERE user_id = ?",
+          [userId],
         );
       }
     }
 
-    await log(userId, 'UPDATE_PROFILE', 'users', userId, null, req);
-    return success(res, null, 'Perfil atualizado com sucesso.');
+    await log(userId, "UPDATE_PROFILE", "users", userId, null, req);
+    return success(res, null, "Perfil atualizado com sucesso.");
   } catch (err) {
-    return error(res, 'Erro ao atualizar perfil.', 500);
+    return error(res, "Erro ao atualizar perfil.", 500);
   }
 };
 
@@ -393,28 +498,39 @@ const changePassword = async (req, res) => {
       req.body.password_atual ||
       req.body.senha_actual;
     const new_password =
-      req.body.new_password ||
-      req.body.nova_password ||
-      req.body.nova_senha;
+      req.body.new_password || req.body.nova_password || req.body.nova_senha;
 
     if (!current_password || !new_password) {
-      return badRequest(res, 'A senha actual e a nova senha são obrigatórias.');
+      return badRequest(res, "A senha actual e a nova senha são obrigatórias.");
     }
 
-    const [rows] = await pool.execute('SELECT password_hash FROM users WHERE id=?', [userId]);
-    if (!rows.length) return badRequest(res, 'Utilizador não encontrado.');
+    const [rows] = await pool.execute(
+      "SELECT password_hash FROM users WHERE id=?",
+      [userId],
+    );
+    if (!rows.length) return badRequest(res, "Utilizador não encontrado.");
 
-    const isValid = await bcrypt.compare(current_password, rows[0].password_hash);
-    if (!isValid) return badRequest(res, 'Senha atual incorreta.');
+    const isValid = await bcrypt.compare(
+      current_password,
+      rows[0].password_hash,
+    );
+    if (!isValid) return badRequest(res, "Senha atual incorreta.");
 
     const rounds = parseInt(process.env.BCRYPT_ROUNDS) || 12;
     const newHash = await bcrypt.hash(new_password, rounds);
-    await pool.execute('UPDATE users SET password_hash=?, password_change_required = 0 WHERE id=?', [newHash, userId]);
+    await pool.execute(
+      "UPDATE users SET password_hash=?, password_change_required = 0 WHERE id=?",
+      [newHash, userId],
+    );
 
-    await log(userId, 'CHANGE_PASSWORD', 'users', userId, null, req);
-    return success(res, { password_change_required: false }, 'Senha alterada com sucesso.');
+    await log(userId, "CHANGE_PASSWORD", "users", userId, null, req);
+    return success(
+      res,
+      { password_change_required: false },
+      "Senha alterada com sucesso.",
+    );
   } catch (err) {
-    return error(res, 'Erro ao alterar senha.', 500);
+    return error(res, "Erro ao alterar senha.", 500);
   }
 };
 
@@ -423,7 +539,7 @@ const changePassword = async (req, res) => {
  * Mantém a API compatível com o frontend mesmo sem blacklist de tokens.
  */
 const logout = async (req, res) => {
-  return success(res, null, 'Sessão terminada com sucesso.');
+  return success(res, null, "Sessão terminada com sucesso.");
 };
 
 /**
@@ -434,43 +550,55 @@ const refresh = async (req, res) => {
   try {
     const refreshToken = req.body.refresh_token;
     if (!refreshToken) {
-      return badRequest(res, 'Refresh token é obrigatório.');
+      return badRequest(res, "Refresh token é obrigatório.");
     }
 
     const decoded = verifyRefreshToken(refreshToken);
     const [rows] = await pool.execute(
-      'SELECT id, nome, email, role, status, foto_perfil FROM users WHERE id = ?',
-      [decoded.id]
+      "SELECT id, nome, email, role, status, foto_perfil FROM users WHERE id = ?",
+      [decoded.id],
     );
 
-    if (!rows.length || rows[0].status !== 'ativo') {
-      return error(res, 'Utilizador não encontrado ou inativo.', 401);
+    if (!rows.length || rows[0].status !== "ativo") {
+      return error(res, "Utilizador não encontrado ou inativo.", 401);
     }
 
     const user = rows[0];
-    const token = generateToken({ id: user.id, email: user.email, role: user.role });
-    const newRefreshToken = generateRefreshToken({ id: user.id, email: user.email, role: user.role });
+    const token = generateToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
+    const newRefreshToken = generateRefreshToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
-    return success(res, {
-      token,
-      refresh_token: newRefreshToken,
-      user: {
-        id: user.id,
-        nome: user.nome,
-        email: user.email,
-        role: user.role,
-        foto_perfil: user.foto_perfil,
+    return success(
+      res,
+      {
+        token,
+        refresh_token: newRefreshToken,
+        user: {
+          id: user.id,
+          nome: user.nome,
+          email: user.email,
+          role: user.role,
+          foto_perfil: user.foto_perfil,
+        },
+        utilizador: {
+          id: user.id,
+          nome: user.nome,
+          email: user.email,
+          role: user.role,
+          foto_perfil: user.foto_perfil,
+        },
       },
-      utilizador: {
-        id: user.id,
-        nome: user.nome,
-        email: user.email,
-        role: user.role,
-        foto_perfil: user.foto_perfil,
-      },
-    }, 'Token renovado com sucesso.');
+      "Token renovado com sucesso.",
+    );
   } catch (err) {
-    return error(res, 'Refresh token inválido ou expirado.', 401);
+    return error(res, "Refresh token inválido ou expirado.", 401);
   }
 };
 
@@ -482,28 +610,28 @@ const forgotPassword = async (req, res) => {
   try {
     const email = req.body.email?.trim()?.toLowerCase();
     if (!email) {
-      return badRequest(res, 'O email é obrigatório.');
+      return badRequest(res, "O email é obrigatório.");
     }
 
     const [rows] = await pool.execute(
-      'SELECT id, nome, email FROM users WHERE email = ? LIMIT 1',
-      [email]
+      "SELECT id, nome, email FROM users WHERE email = ? LIMIT 1",
+      [email],
     );
 
     if (rows.length) {
       const user = rows[0];
-      const token = crypto.randomBytes(32).toString('hex');
+      const token = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
       await pool.execute(
-        'INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)',
-        [user.id, token, expiresAt]
+        "INSERT INTO password_resets (user_id, token, expires_at) VALUES (?, ?, ?)",
+        [user.id, token, expiresAt],
       );
 
       const resetLink = buildResetLink(token);
       await sendEmail({
         to: user.email,
-        subject: 'Recuperação de palavra-passe - ULEZI XPB',
+        subject: "Recuperação de palavra-passe - ULEZI XPB",
         html: `
           <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
             <div style="background:#1FA7C9;padding:28px;text-align:center">
@@ -528,16 +656,16 @@ const forgotPassword = async (req, res) => {
         `,
       });
 
-      await log(user.id, 'FORGOT_PASSWORD', 'users', user.id, null, req);
+      await log(user.id, "FORGOT_PASSWORD", "users", user.id, null, req);
     }
 
     return success(
       res,
       null,
-      'Se o email existir, enviámos as instruções de recuperação.'
+      "Se o email existir, enviámos as instruções de recuperação.",
     );
   } catch (err) {
-    return error(res, 'Erro ao processar recuperação de senha.', 500);
+    return error(res, "Erro ao processar recuperação de senha.", 500);
   }
 };
 
@@ -552,11 +680,11 @@ const resetPassword = async (req, res) => {
     const confirmar = req.body.confirmar_password || req.body.confirmar;
 
     if (!token || !password) {
-      return badRequest(res, 'Token e nova palavra-passe são obrigatórios.');
+      return badRequest(res, "Token e nova palavra-passe são obrigatórios.");
     }
 
     if (confirmar && password !== confirmar) {
-      return badRequest(res, 'As palavras-passe não coincidem.');
+      return badRequest(res, "As palavras-passe não coincidem.");
     }
 
     const [rows] = await pool.execute(
@@ -566,36 +694,100 @@ const resetPassword = async (req, res) => {
        WHERE pr.token = ?
        ORDER BY pr.created_at DESC
        LIMIT 1`,
-      [token]
+      [token],
     );
 
     if (!rows.length) {
-      return error(res, 'Token de recuperação inválido.', 400);
+      return error(res, "Token de recuperação inválido.", 400);
     }
 
     const resetRequest = rows[0];
     if (resetRequest.used) {
-      return error(res, 'Este token já foi utilizado.', 400);
+      return error(res, "Este token já foi utilizado.", 400);
     }
     if (new Date(resetRequest.expires_at) < new Date()) {
-      return error(res, 'O token de recuperação expirou.', 400);
+      return error(res, "O token de recuperação expirou.", 400);
     }
 
     const rounds = parseInt(process.env.BCRYPT_ROUNDS, 10) || 12;
     const passwordHash = await bcrypt.hash(password, rounds);
 
-    await pool.execute('UPDATE users SET password_hash = ? WHERE id = ?', [
+    await pool.execute("UPDATE users SET password_hash = ? WHERE id = ?", [
       passwordHash,
       resetRequest.user_id,
     ]);
-    await pool.execute('UPDATE password_resets SET used = 1 WHERE id = ?', [
+    await pool.execute("UPDATE password_resets SET used = 1 WHERE id = ?", [
       resetRequest.id,
     ]);
 
-    await log(resetRequest.user_id, 'RESET_PASSWORD', 'users', resetRequest.user_id, null, req);
-    return success(res, null, 'Palavra-passe redefinida com sucesso.');
+    await log(
+      resetRequest.user_id,
+      "RESET_PASSWORD",
+      "users",
+      resetRequest.user_id,
+      null,
+      req,
+    );
+    return success(res, null, "Palavra-passe redefinida com sucesso.");
   } catch (err) {
-    return error(res, 'Erro ao redefinir palavra-passe.', 500);
+    return error(res, "Erro ao redefinir palavra-passe.", 500);
+  }
+};
+
+/**
+ * POST /api/auth/foto-perfil
+ * Faz upload e guarda a foto de perfil do utilizador autenticado.
+ * Apaga a foto anterior se existir.
+ */
+const uploadFotoPerfil = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!req.file) {
+      return badRequest(res, "Nenhuma imagem enviada.");
+    }
+
+    // Caminho relativo da nova foto
+    const novaFotoUrl = `/uploads/avatars/${req.file.filename}`;
+
+    // Apagar foto anterior se existir no disco
+    const [[utilizadorAtual]] = await pool.execute(
+      "SELECT foto_perfil FROM users WHERE id = ?",
+      [userId],
+    );
+
+    if (utilizadorAtual?.foto_perfil) {
+      const caminhoAntigo = path.join(
+        process.cwd(),
+        utilizadorAtual.foto_perfil.replace(/^\/+/, ""),
+      );
+      if (fs.existsSync(caminhoAntigo)) {
+        fs.unlinkSync(caminhoAntigo);
+      }
+    }
+
+    // Actualizar na base de dados
+    await pool.execute("UPDATE users SET foto_perfil = ? WHERE id = ?", [
+      novaFotoUrl,
+      userId,
+    ]);
+
+    await log(
+      userId,
+      "UPLOAD_FOTO_PERFIL",
+      "users",
+      userId,
+      { foto: novaFotoUrl },
+      req,
+    );
+
+    return success(
+      res,
+      { foto_perfil: novaFotoUrl },
+      "Foto de perfil actualizada com sucesso.",
+    );
+  } catch (err) {
+    return error(res, "Erro ao fazer upload da foto de perfil.", 500);
   }
 };
 
@@ -609,4 +801,5 @@ module.exports = {
   getMe,
   updateProfile,
   changePassword,
+  uploadFotoPerfil,
 };

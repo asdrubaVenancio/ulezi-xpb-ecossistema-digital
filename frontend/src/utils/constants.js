@@ -165,3 +165,6 @@ export const iniciais = (nome) => {
   if (partes.length === 1) return partes[0][0].toUpperCase();
   return (partes[0][0] + partes[partes.length - 1][0]).toUpperCase();
 };
+
+// Re-export do BACKEND_BASE_URL do serviço de API
+export { BACKEND_BASE_URL } from '../services/api';

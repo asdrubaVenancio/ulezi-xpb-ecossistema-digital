@@ -6,29 +6,29 @@
 /** ID interno da secção → segmento na URL (excepto painel) */
 export const SECAO_PATH_SLUG = {
   painel: null,
-  notificacoes: 'notificacoes',
-  utilizadores: 'utilizadores',
-  cursos: 'cursos',
-  centros: 'centros',
-  ofertas: 'ofertas',
-  inscricoes: 'inscricoes',
-  empresas: 'empresas',
-  oportunidades: 'oportunidades',
-  interesses: 'interesses',
-  investimentos: 'investimentos',
-  mediacao: 'mediacoes',
-  contratos: 'contratos',
-  assinaturas: 'assinaturas',
-  funcionarios: 'funcionarios',
-  consultoria: 'consultoria',
-  visitas: 'visitas',
-  suporte: 'suporte',
-  'notificacoes-assinatura': 'notificacoes-assinatura',
-  pagamentos: 'pagamentos',
-  vagas: 'vagas',
-  ficheiros: 'ficheiros',
-  seguranca: 'seguranca',
-  configuracoes: 'configuracoes',
+  notificacoes: "notificacoes",
+  utilizadores: "utilizadores",
+  cursos: "cursos",
+  centros: "centros",
+  ofertas: "ofertas",
+  inscricoes: "inscricoes",
+  empresas: "empresas",
+  oportunidades: "oportunidades",
+  interesses: "interesses",
+  investimentos: "investimentos",
+  mediacao: "mediacoes",
+  contratos: "contratos",
+  assinaturas: "assinaturas",
+  funcionarios: "funcionarios",
+  consultoria: "consultoria",
+  visitas: "visitas",
+  suporte: "suporte",
+  "notificacoes-assinatura": "notificacoes-assinatura",
+  pagamentos: "pagamentos",
+  vagas: "vagas",
+  ficheiros: "ficheiros",
+  seguranca: "seguranca",
+  configuracoes: "configuracoes",
 };
 
 /** Slug da URL → ID interno */
@@ -39,7 +39,7 @@ export const SLUG_TO_SECAO = Object.fromEntries(
 );
 
 /** Rota canónica do painel raiz (mantém ROLE_DASHBOARD e hábitos dos utilizadores) */
-export const ADMIN_PAINEL_ROOT = '/painel/admin';
+export const ADMIN_PAINEL_ROOT = "/painel/admin";
 
 /**
  * Caminho absoluto para uma secção admin
@@ -48,7 +48,7 @@ export const ADMIN_PAINEL_ROOT = '/painel/admin';
  */
 export function pathParaSecaoAdmin(secaoId) {
   const slug = SECAO_PATH_SLUG[secaoId];
-  if (secaoId === 'painel' || !slug) return ADMIN_PAINEL_ROOT;
+  if (secaoId === "painel" || !slug) return ADMIN_PAINEL_ROOT;
   return `/admin/${slug}`;
 }
 
@@ -68,39 +68,39 @@ export function secaoDesdeSlug(slug) {
  */
 export const ADMIN_NAV_GRUPOS = [
   {
-    id: 'visao',
-    label: 'Visão geral',
+    id: "visao",
+    label: "Visão geral",
     itens: [
-      { id: 'painel', label: 'Painel geral' },
-      { id: 'notificacoes', label: 'Notificações', badge: true },
+      { id: "painel", label: "Painel geral" },
+      { id: "notificacoes", label: "Notificações", badge: true },
     ],
   },
   {
-    id: 'formacao',
-    label: 'Formação',
+    id: "formacao",
+    label: "Formação",
     itens: [
-      { id: 'cursos', label: 'Cursos' },
-      { id: 'centros', label: 'Centros' },
-      { id: 'ofertas', label: 'Ofertas' },
-      { id: 'inscricoes', label: 'Inscrições' },
+      { id: "cursos", label: "Cursos" },
+      { id: "centros", label: "Centros" },
+      { id: "ofertas", label: "Ofertas" },
+      { id: "inscricoes", label: "Inscrições" },
     ],
   },
   {
-    id: 'negocios',
-    label: 'Negócios e contratos',
+    id: "negocios",
+    label: "Negócios e contratos",
     itens: [
-      { id: 'empresas', label: 'Empresas' },
-      { id: 'oportunidades', label: 'Oportunidades' },
-      { id: 'interesses', label: 'Interesses' },
-      { id: 'investimentos', label: 'Investimentos' },
-      { id: 'mediacao', label: 'Mediação' },
-      { id: 'contratos', label: 'Contratos' },
-      { id: 'assinaturas', label: 'Assinaturas' },
+      { id: "empresas", label: "Empresas" },
+      { id: "oportunidades", label: "Oportunidades" },
+      { id: "interesses", label: "Interesses" },
+      { id: "investimentos", label: "Investimentos" },
+      { id: "mediacao", label: "Mediação" },
+      { id: "contratos", label: "Contratos" },
+      { id: "assinaturas", label: "Assinaturas" },
     ],
   },
   {
-    id: 'operacoes',
-    label: 'Operações',
+    id: "operacoes",
+    label: "Operações",
     itens: [
       { id: 'utilizadores', label: 'Utilizadores' },
       { id: 'funcionarios', label: 'Funcionários' },
@@ -111,20 +111,20 @@ export const ADMIN_NAV_GRUPOS = [
     ],
   },
   {
-    id: 'financeiro',
-    label: 'Financeiro e vagas',
+    id: "financeiro",
+    label: "Financeiro e vagas",
     itens: [
-      { id: 'pagamentos', label: 'Pagamentos' },
-      { id: 'vagas', label: 'Vagas (empresas)' },
+      { id: "pagamentos", label: "Pagamentos" },
+      { id: "vagas", label: "Vagas (empresas)" },
     ],
   },
   {
-    id: 'sistema',
-    label: 'Sistema',
+    id: "sistema",
+    label: "Sistema",
     itens: [
-      { id: 'ficheiros', label: 'Ficheiros' },
-      { id: 'seguranca', label: 'Segurança' },
-      { id: 'configuracoes', label: 'Configurações' },
+      { id: "ficheiros", label: "Ficheiros" },
+      { id: "seguranca", label: "Segurança" },
+      { id: "configuracoes", label: "Configurações" },
     ],
   },
 ];

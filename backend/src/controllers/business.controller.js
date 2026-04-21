@@ -1,30 +1,47 @@
 /**
  * Controller de NegÃ³cios / Investimentos
  */
-const { pool } = require('../config/database');
-const { success, created, error, notFound, badRequest } = require('../utils/response');
-const { gerarContratoPDF } = require('../utils/pdf-modern');
+const { pool } = require("../config/database");
+const {
+  success,
+  created,
+  error,
+  notFound,
+  badRequest,
+} = require("../utils/response");
+const { gerarContratoPDF } = require("../utils/pdf-modern");
 const {
   sendContractEmail,
   sendInvestorInterestNotification,
-} = require('../utils/email');
-const { sendWhatsApp } = require('../utils/whatsapp');
-const { log } = require('../utils/audit');
-const { createNotification } = require('../services/notification.service');
+} = require("../utils/email");
+const { sendWhatsApp } = require("../utils/whatsapp");
+const { log } = require("../utils/audit");
+const {
+  createNotification,
+  notificarNovaOportunidade,
+  notificarNovoInteresse,
+} = require("../services/notification.service");
 
-const normalizeCompanyStatus = (status) => ({
-  pendente: 'pending',
-  aprovado: 'approved',
-}[status] || status);
+const normalizeCompanyStatus = (status) =>
+  ({
+    pendente: "pending",
+    aprovado: "approved",
+  })[status] || status;
 
 const ensureMediationRuntimeSchema = async (connection) => {
   const executor = connection || pool;
-  const [mediationCols] = await executor.execute(`SHOW COLUMNS FROM mediations LIKE 'mediator_user_id'`);
+  const [mediationCols] = await executor.execute(
+    `SHOW COLUMNS FROM mediations LIKE 'mediator_user_id'`,
+  );
   if (!mediationCols.length) {
-    await executor.execute(`ALTER TABLE mediations ADD COLUMN mediator_user_id INT UNSIGNED NULL AFTER employee_id`);
+    await executor.execute(
+      `ALTER TABLE mediations ADD COLUMN mediator_user_id INT UNSIGNED NULL AFTER employee_id`,
+    );
   }
   try {
-    await executor.execute('ALTER TABLE mediations MODIFY COLUMN employee_id INT UNSIGNED NULL');
+    await executor.execute(
+      "ALTER TABLE mediations MODIFY COLUMN employee_id INT UNSIGNED NULL",
+    );
   } catch (_) {}
 };
 
@@ -57,7 +74,7 @@ const getContractPartiesDataByInterest = async (interestId) => {
      LEFT JOIN users u_comp ON u_comp.id = cp.user_id
      WHERE ii.id = ?
      LIMIT 1`,
-    [interestId]
+    [interestId],
   );
 
   return rows[0] || null;
@@ -90,7 +107,7 @@ const getContractPdfPayload = async (contractId) => {
      LEFT JOIN investment_opportunities io ON io.id = c.opportunity_id
      WHERE c.id = ?
      LIMIT 1`,
-    [contractId]
+    [contractId],
   );
 
   const contract = rows[0];
@@ -119,15 +136,15 @@ const getContractPdfPayload = async (contractId) => {
     assinado_investidor: contract.assinado_investidor,
     assinado_investidor_at: contract.assinado_investidor_at,
     data_emissao: new Date(),
-    estado_documento: 'Assinado digitalmente pelas partes',
+    estado_documento: "Assinado digitalmente pelas partes",
   };
 };
 
 const getResolvedContractStatus = (contract) => {
   if (contract?.assinado_empresa && contract?.assinado_investidor) {
-    return 'assinado_ambos';
+    return "assinado_ambos";
   }
-  return contract?.status || 'pendente';
+  return contract?.status || "pendente";
 };
 
 const finalizeContractIfReady = async (contractId) => {
@@ -140,16 +157,21 @@ const finalizeContractIfReady = async (contractId) => {
      LEFT JOIN company_profiles cp ON cp.id = c.company_id
      WHERE c.id = ?
      LIMIT 1`,
-    [contractId]
+    [contractId],
   );
 
   const contract = rows[0];
   if (!contract) return null;
 
-  const bothSigned = Boolean(contract.assinado_empresa && contract.assinado_investidor);
+  const bothSigned = Boolean(
+    contract.assinado_empresa && contract.assinado_investidor,
+  );
   if (!bothSigned) {
     if (contract.status !== getResolvedContractStatus(contract)) {
-      await pool.execute('UPDATE contracts SET status=? WHERE id=?', [getResolvedContractStatus(contract), contractId]);
+      await pool.execute("UPDATE contracts SET status=? WHERE id=?", [
+        getResolvedContractStatus(contract),
+        contractId,
+      ]);
       contract.status = getResolvedContractStatus(contract);
     }
     return contract;
@@ -162,15 +184,18 @@ const finalizeContractIfReady = async (contractId) => {
 
   await pool.execute(
     'UPDATE contracts SET status="assinado_ambos", pdf_data=? WHERE id=?',
-    [pdfBuffer, contractId]
+    [pdfBuffer, contractId],
   );
   if (contract.interest_id) {
-    await pool.execute('UPDATE investor_interests SET status="aprovado" WHERE id=?', [contract.interest_id]);
+    await pool.execute(
+      'UPDATE investor_interests SET status="aprovado" WHERE id=?',
+      [contract.interest_id],
+    );
   }
 
   return {
     ...contract,
-    status: 'assinado_ambos',
+    status: "assinado_ambos",
     pdf_data: pdfBuffer,
   };
 };
@@ -180,23 +205,32 @@ const normalizeContractRow = (row) => ({
   status: getResolvedContractStatus(row),
 });
 
-const notifyContractSignatureRequest = async ({ contractId, companyUserId, investorId, titulo }) => {
+const notifyContractSignatureRequest = async ({
+  contractId,
+  companyUserId,
+  investorId,
+  titulo,
+}) => {
   const link = `/contratos/${contractId}`;
   await Promise.all([
-    companyUserId ? createNotification(
-      companyUserId,
-      'assinatura_contrato',
-      'Assinatura pendente de contrato',
-      `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
-      link
-    ) : Promise.resolve(),
-    investorId ? createNotification(
-      investorId,
-      'assinatura_contrato',
-      'Assinatura pendente de contrato',
-      `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
-      link
-    ) : Promise.resolve(),
+    companyUserId
+      ? createNotification(
+          companyUserId,
+          "assinatura_contrato",
+          "Assinatura pendente de contrato",
+          `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
+          link,
+        )
+      : Promise.resolve(),
+    investorId
+      ? createNotification(
+          investorId,
+          "assinatura_contrato",
+          "Assinatura pendente de contrato",
+          `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
+          link,
+        )
+      : Promise.resolve(),
   ]);
 };
 
@@ -207,40 +241,62 @@ const uploadDocument = async (req, res) => {
     const { tipo } = req.body;
     const file = req.file;
 
-    if (!file) return badRequest(res, 'Nenhum ficheiro enviado.');
-    if (!tipo) return badRequest(res, 'O tipo de documento Ã© obrigatÃ³rio.');
+    if (!file) return badRequest(res, "Nenhum ficheiro enviado.");
+    if (!tipo) return badRequest(res, "O tipo de documento Ã© obrigatÃ³rio.");
 
-    const [company] = await pool.execute('SELECT id FROM company_profiles WHERE user_id=?', [userId]);
-    if (!company.length) return notFound(res, 'Perfil de empresa nÃ£o encontrado.');
+    const [company] = await pool.execute(
+      "SELECT id FROM company_profiles WHERE user_id=?",
+      [userId],
+    );
+    if (!company.length)
+      return notFound(res, "Perfil de empresa nÃ£o encontrado.");
 
     const companyId = company[0].id;
     const url = `/uploads/documents/${file.filename}`;
 
     // Verificar se jÃ¡ existe documento do mesmo tipo
     const [existing] = await pool.execute(
-      'SELECT id, url_ficheiro FROM company_documents WHERE company_id=? AND tipo=?',
-      [companyId, tipo]
+      "SELECT id, url_ficheiro FROM company_documents WHERE company_id=? AND tipo=?",
+      [companyId, tipo],
     );
 
     if (existing.length > 0) {
       // Substituir documento existente
       await pool.execute(
-        'UPDATE company_documents SET nome_ficheiro=?, url_ficheiro=?, status_verificacao=? WHERE id=?',
-        [file.originalname, url, 'pendente', existing[0].id]
+        "UPDATE company_documents SET nome_ficheiro=?, url_ficheiro=?, status_verificacao=? WHERE id=?",
+        [file.originalname, url, "pendente", existing[0].id],
       );
-      await log(userId, 'UPDATE_DOCUMENT', 'company_documents', existing[0].id, { tipo }, req);
-      return success(res, { url }, 'Documento actualizado. Aguarde verificaÃ§Ã£o.');
+      await log(
+        userId,
+        "UPDATE_DOCUMENT",
+        "company_documents",
+        existing[0].id,
+        { tipo },
+        req,
+      );
+      return success(
+        res,
+        { url },
+        "Documento actualizado. Aguarde verificaÃ§Ã£o.",
+      );
     } else {
       // Inserir novo documento
       await pool.execute(
-        'INSERT INTO company_documents (company_id, tipo, nome_ficheiro, url_ficheiro) VALUES (?,?,?,?)',
-        [companyId, tipo, file.originalname, url]
+        "INSERT INTO company_documents (company_id, tipo, nome_ficheiro, url_ficheiro) VALUES (?,?,?,?)",
+        [companyId, tipo, file.originalname, url],
       );
-      await log(userId, 'UPLOAD_DOCUMENT', 'company_documents', companyId, { tipo }, req);
-      return created(res, { url }, 'Documento enviado. Aguarde verificaÃ§Ã£o.');
+      await log(
+        userId,
+        "UPLOAD_DOCUMENT",
+        "company_documents",
+        companyId,
+        { tipo },
+        req,
+      );
+      return created(res, { url }, "Documento enviado. Aguarde verificaÃ§Ã£o.");
     }
   } catch (err) {
-    return error(res, 'Erro ao enviar documento: ' + err.message, 500);
+    return error(res, "Erro ao enviar documento: " + err.message, 500);
   }
 };
 
@@ -250,24 +306,32 @@ const getMyCompany = async (req, res) => {
     const [company] = await pool.execute(
       `SELECT cp.*, u.nome, u.email, u.telefone FROM company_profiles cp
        LEFT JOIN users u ON u.id=cp.user_id WHERE cp.user_id=?`,
-      [req.user.id]
+      [req.user.id],
     );
-    if (!company.length) return notFound(res, 'Perfil nÃ£o encontrado.');
+    if (!company.length) return notFound(res, "Perfil nÃ£o encontrado.");
 
-    const [docs] = await pool.execute('SELECT * FROM company_documents WHERE company_id=?', [company[0].id]);
+    const [docs] = await pool.execute(
+      "SELECT * FROM company_documents WHERE company_id=?",
+      [company[0].id],
+    );
     const [sub] = await pool.execute(
       'SELECT * FROM subscriptions WHERE company_id=? AND status="ativa" AND data_fim >= CURDATE() ORDER BY data_fim DESC LIMIT 1',
-      [company[0].id]
+      [company[0].id],
     );
     const [services] = await pool.execute(
       `SELECT cs.*, sc.nome as nome_categoria FROM company_services cs
        LEFT JOIN service_categories sc ON sc.id=cs.category_id WHERE cs.company_id=? AND cs.ativo=1`,
-      [company[0].id]
+      [company[0].id],
     );
 
-    return success(res, { company: company[0], documents: docs, subscription: sub[0] || null, services });
+    return success(res, {
+      company: company[0],
+      documents: docs,
+      subscription: sub[0] || null,
+      services,
+    });
   } catch (err) {
-    return error(res, 'Erro ao obter perfil.', 500);
+    return error(res, "Erro ao obter perfil.", 500);
   }
 };
 
@@ -291,25 +355,28 @@ const saveCompanyProfile = async (req, res) => {
     } = req.body;
 
     if (!nome_empresa?.trim()) {
-      return badRequest(res, 'O nome da empresa Ã© obrigatÃ³rio.');
+      return badRequest(res, "O nome da empresa Ã© obrigatÃ³rio.");
     }
 
     // Verificar se NIF jÃ¡ existe (exceto para o prÃ³prio registro em caso de update)
     if (nif?.trim()) {
       const nifLimpo = nif.trim();
       const [nifExistente] = await pool.execute(
-        `SELECT id FROM company_profiles 
+        `SELECT id FROM company_profiles
          WHERE nif = ? AND user_id != ?`,
-        [nifLimpo, userId]
+        [nifLimpo, userId],
       );
       if (nifExistente.length > 0) {
-        return badRequest(res, 'JÃ¡ existe uma empresa cadastrada com este NIF.');
+        return badRequest(
+          res,
+          "JÃ¡ existe uma empresa cadastrada com este NIF.",
+        );
       }
     }
 
     const [[existing]] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?',
-      [userId]
+      "SELECT id FROM company_profiles WHERE user_id = ?",
+      [userId],
     );
 
     if (existing) {
@@ -334,13 +401,24 @@ const saveCompanyProfile = async (req, res) => {
           endereco || null,
           website || null,
           nif || null,
-          is_public == null ? 1 : (is_public ? 1 : 0),
+          is_public == null ? 1 : is_public ? 1 : 0,
           userId,
-        ]
+        ],
       );
 
-      await log(userId, 'UPDATE_COMPANY_PROFILE', 'company_profiles', existing.id, null, req);
-      return success(res, { id: existing.id }, 'Perfil da empresa actualizado com sucesso.');
+      await log(
+        userId,
+        "UPDATE_COMPANY_PROFILE",
+        "company_profiles",
+        existing.id,
+        null,
+        req,
+      );
+      return success(
+        res,
+        { id: existing.id },
+        "Perfil da empresa actualizado com sucesso.",
+      );
     }
 
     const [result] = await pool.execute(
@@ -357,14 +435,25 @@ const saveCompanyProfile = async (req, res) => {
         endereco || null,
         website || null,
         nif || null,
-        is_public == null ? 1 : (is_public ? 1 : 0),
-      ]
+        is_public == null ? 1 : is_public ? 1 : 0,
+      ],
     );
 
-    await log(userId, 'CREATE_COMPANY_PROFILE', 'company_profiles', result.insertId, null, req);
-    return created(res, { id: result.insertId }, 'Perfil da empresa criado com sucesso.');
+    await log(
+      userId,
+      "CREATE_COMPANY_PROFILE",
+      "company_profiles",
+      result.insertId,
+      null,
+      req,
+    );
+    return created(
+      res,
+      { id: result.insertId },
+      "Perfil da empresa criado com sucesso.",
+    );
   } catch (err) {
-    return error(res, 'Erro ao guardar perfil da empresa.', 500);
+    return error(res, "Erro ao guardar perfil da empresa.", 500);
   }
 };
 
@@ -390,15 +479,21 @@ const listOpportunities = async (req, res) => {
                    )`;
     const params = [];
 
-    if (tipo) { query += ' AND io.tipo=?'; params.push(tipo); }
-    if (search) { query += ' AND (io.titulo LIKE ? OR io.descricao LIKE ?)'; params.push(`%${search}%`, `%${search}%`); }
+    if (tipo) {
+      query += " AND io.tipo=?";
+      params.push(tipo);
+    }
+    if (search) {
+      query += " AND (io.titulo LIKE ? OR io.descricao LIKE ?)";
+      params.push(`%${search}%`, `%${search}%`);
+    }
 
     query += ` ORDER BY io.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${offset}`;
 
     const [rows] = await pool.execute(query, params);
     return success(res, rows);
   } catch (err) {
-    return error(res, 'Erro ao listar oportunidades.', 500);
+    return error(res, "Erro ao listar oportunidades.", 500);
   }
 };
 
@@ -412,16 +507,19 @@ const getOpportunity = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id=io.company_id
        LEFT JOIN users u ON u.id=cp.user_id
        WHERE io.id=? AND io.status="ativa"`,
-      [id]
+      [id],
     );
-    if (!rows.length) return notFound(res, 'Oportunidade nÃ£o encontrada.');
+    if (!rows.length) return notFound(res, "Oportunidade nÃ£o encontrada.");
 
     // Incrementar visualizaÃ§Ãµes
-    await pool.execute('UPDATE investment_opportunities SET views_count=views_count+1 WHERE id=?', [id]);
+    await pool.execute(
+      "UPDATE investment_opportunities SET views_count=views_count+1 WHERE id=?",
+      [id],
+    );
 
     return success(res, rows[0]);
   } catch (err) {
-    return error(res, 'Erro ao obter oportunidade.', 500);
+    return error(res, "Erro ao obter oportunidade.", 500);
   }
 };
 
@@ -429,24 +527,37 @@ const getOpportunity = async (req, res) => {
 const createOpportunity = async (req, res) => {
   try {
     const userId = req.user.id;
-    const [company] = await pool.execute('SELECT id, is_approved FROM company_profiles WHERE user_id=?', [userId]);
-    if (!company.length) return badRequest(res, 'Perfil de empresa nÃ£o encontrado.');
-    if (!company[0].is_approved) return badRequest(res, 'A sua empresa ainda nÃ£o foi aprovada.');
+    const [company] = await pool.execute(
+      "SELECT id, is_approved FROM company_profiles WHERE user_id=?",
+      [userId],
+    );
+    if (!company.length)
+      return badRequest(res, "Perfil de empresa nÃ£o encontrado.");
+    if (!company[0].is_approved)
+      return badRequest(res, "A sua empresa ainda nÃ£o foi aprovada.");
 
     // Verificar assinatura ativa
     const [sub] = await pool.execute(
       'SELECT id FROM subscriptions WHERE company_id=? AND status="ativa" AND data_fim >= CURDATE()',
-      [company[0].id]
+      [company[0].id],
     );
-    if (!sub.length) return badRequest(res, 'A sua assinatura estÃ¡ inativa. Renove para publicar oportunidades.');
+    if (!sub.length)
+      return badRequest(
+        res,
+        "A sua assinatura estÃ¡ inativa. Renove para publicar oportunidades.",
+      );
 
     // Verificar duplicaÃ§Ã£o
     const { tipo, titulo } = req.body;
     const [dup] = await pool.execute(
       'SELECT id FROM investment_opportunities WHERE company_id=? AND titulo=? AND status="ativa"',
-      [company[0].id, titulo]
+      [company[0].id, titulo],
     );
-    if (dup.length) return badRequest(res, 'JÃ¡ existe uma oportunidade activa com este tÃ­tulo.');
+    if (dup.length)
+      return badRequest(
+        res,
+        "JÃ¡ existe uma oportunidade activa com este tÃ­tulo.",
+      );
 
     const {
       descricao,
@@ -461,26 +572,65 @@ const createOpportunity = async (req, res) => {
     } = req.body;
 
     const detalhesOportunidade = {
-      ...(dados_especificos && typeof dados_especificos === 'object' ? dados_especificos : {}),
+      ...(dados_especificos && typeof dados_especificos === "object"
+        ? dados_especificos
+        : {}),
       termos: termos || null,
       retorno_percentual: retorno_percentual || null,
       prazo_pagamento: prazo_pagamento || null,
       participacao_percentual: participacao_percentual || null,
     };
 
-    const dadosEspecificosNormalizados = Object.values(detalhesOportunidade).some((valorCampo) => valorCampo !== null && valorCampo !== '')
+    const dadosEspecificosNormalizados = Object.values(
+      detalhesOportunidade,
+    ).some((valorCampo) => valorCampo !== null && valorCampo !== "")
       ? JSON.stringify(detalhesOportunidade)
       : null;
 
     const [result] = await pool.execute(
-      'INSERT INTO investment_opportunities (company_id, tipo, titulo, descricao, valor, moeda, dados_especificos, imagem_url) VALUES (?,?,?,?,?,?,?,?)',
-      [company[0].id, tipo, titulo, descricao, valor||null, moeda||'Kz', dadosEspecificosNormalizados, imagem_url||null]
+      "INSERT INTO investment_opportunities (company_id, tipo, titulo, descricao, valor, moeda, dados_especificos, imagem_url) VALUES (?,?,?,?,?,?,?,?)",
+      [
+        company[0].id,
+        tipo,
+        titulo,
+        descricao,
+        valor || null,
+        moeda || "Kz",
+        dadosEspecificosNormalizados,
+        imagem_url || null,
+      ],
     );
 
-    await log(userId, 'CREATE_OPPORTUNITY', 'investment_opportunities', result.insertId, { tipo, titulo }, req);
-    return created(res, { id: result.insertId }, 'Oportunidade publicada com sucesso.');
+    await log(
+      userId,
+      "CREATE_OPPORTUNITY",
+      "investment_opportunities",
+      result.insertId,
+      { tipo, titulo },
+      req,
+    );
+
+    // Notificar empresa sobre a oportunidade criada
+    const [[userData]] = await pool.execute(
+      "SELECT email FROM users WHERE id = ?",
+      [userId],
+    );
+    if (userData) {
+      notificarNovaOportunidade(
+        userId,
+        userData.email,
+        titulo,
+        tipo,
+      ).catch((e) => console.error("[NOTIF_OPPORTUNITY]", e.message));
+    }
+
+    return created(
+      res,
+      { id: result.insertId },
+      "Oportunidade publicada com sucesso.",
+    );
   } catch (err) {
-    return error(res, 'Erro ao criar oportunidade.', 500);
+    return error(res, "Erro ao criar oportunidade.", 500);
   }
 };
 
@@ -502,11 +652,11 @@ const expressInterest = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id=io.company_id
        LEFT JOIN users u ON u.id=cp.user_id
       WHERE io.id=? AND io.status="ativa"`,
-      [opportunityId]
+      [opportunityId],
     );
     if (!opp.length) {
       await connection.rollback();
-      return notFound(res, 'Oportunidade nÃ£o encontrada.');
+      return notFound(res, "Oportunidade nÃ£o encontrada.");
     }
 
     // Verificar se jÃ¡ demonstrou interesse
@@ -516,33 +666,41 @@ const expressInterest = async (req, res) => {
        WHERE opportunity_id = ?
          AND status NOT IN ('cancelado', 'rejeitado')
        LIMIT 1`,
-      [opportunityId]
+      [opportunityId],
     );
 
     if (activeProcess.length) {
       await connection.rollback();
-      return badRequest(res, 'Esta oportunidade jÃƒÂ¡ estÃ¡ em processo de mediaÃ§Ã£o e estÃ¡ temporariamente indisponÃ­vel.');
+      return badRequest(
+        res,
+        "Esta oportunidade jÃƒÂ¡ estÃ¡ em processo de mediaÃ§Ã£o e estÃ¡ temporariamente indisponÃ­vel.",
+      );
     }
 
     const [existing] = await connection.execute(
-      'SELECT id FROM investor_interests WHERE investor_id=? AND opportunity_id=?',
-      [investorId, opportunityId]
+      "SELECT id FROM investor_interests WHERE investor_id=? AND opportunity_id=?",
+      [investorId, opportunityId],
     );
     if (existing.length) {
       await connection.rollback();
-      return badRequest(res, 'JÃ¡ demonstrou interesse nesta oportunidade.');
+      return badRequest(res, "JÃ¡ demonstrou interesse nesta oportunidade.");
     }
 
     const [result] = await connection.execute(
-      'INSERT INTO investor_interests (investor_id, opportunity_id, mensagem) VALUES (?,?,?)',
-      [investorId, opportunityId, mensagem||null]
+      "INSERT INTO investor_interests (investor_id, opportunity_id, mensagem) VALUES (?,?,?)",
+      [investorId, opportunityId, mensagem || null],
     );
 
     const interestId = result.insertId;
 
     // Notificar admins e equipa de mediacao, sem disparar contacto direto com a empresa
-    const [admins] = await connection.execute('SELECT id, email FROM users WHERE role="admin" AND status="ativo"');
-    const [investor] = await connection.execute('SELECT nome, email FROM users WHERE id=?', [investorId]);
+    const [admins] = await connection.execute(
+      'SELECT id, email FROM users WHERE role="admin" AND status="ativo"',
+    );
+    const [investor] = await connection.execute(
+      "SELECT nome, email FROM users WHERE id=?",
+      [investorId],
+    );
     const [mediators] = await connection.execute(
       `SELECT u.id, u.email
        FROM employees e
@@ -551,7 +709,7 @@ const expressInterest = async (req, res) => {
        WHERE e.is_active = 1
          AND u.status = "ativo"
          AND er.tipo_responsabilidade = "mediacao_negocios"
-         AND er.is_active = 1`
+         AND er.is_active = 1`,
     );
 
     const notifData = {
@@ -561,17 +719,36 @@ const expressInterest = async (req, res) => {
       titulo_oportunidade: opp[0].titulo,
     };
 
-    const usersToNotify = [...new Set([...admins, ...mediators].map((item) => item.id).filter(Boolean))];
+    const usersToNotify = [
+      ...new Set(
+        [...admins, ...mediators].map((item) => item.id).filter(Boolean),
+      ),
+    ];
     if (usersToNotify.length > 0) {
-      await Promise.all(usersToNotify.map((userId) => connection.execute(
-        'INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)',
-        [
-          userId,
-          'interest',
-          'Novo interesse de investidor',
-          `${investor[0].nome} manifestou interesse em "${opp[0].titulo}". Faca a triagem e inicie a mediacao antes de qualquer contacto com a empresa.`,
-        ]
-      )));
+      await Promise.all(
+        usersToNotify.map((userId) =>
+          connection.execute(
+            "INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)",
+            [
+              userId,
+              "interest",
+              "Novo interesse de investidor",
+              `${investor[0].nome} manifestou interesse em "${opp[0].titulo}". Faca a triagem e inicie a mediacao antes de qualquer contacto com a empresa.`,
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Notificar empresa sobre o novo interesse
+    if (opp[0].company_user_id && opp[0].email_empresa) {
+      notificarNovoInteresse(
+        opp[0].company_user_id,
+        opp[0].email_empresa,
+        opp[0].nome_empresa,
+        investor[0].nome,
+        opp[0].titulo,
+      ).catch((e) => console.error("[NOTIF_INTERESSE]", e.message));
     }
 
     const [selectedMediatorRows] = await connection.execute(
@@ -591,7 +768,7 @@ const expressInterest = async (req, res) => {
          AND er.is_active = 1
        GROUP BY e.id, e.user_id, u.nome, u.email
        ORDER BY mediacoes_ativas ASC, e.created_at ASC
-       LIMIT 1`
+       LIMIT 1`,
     );
 
     const [fallbackAdmins] = await connection.execute(
@@ -599,11 +776,15 @@ const expressInterest = async (req, res) => {
        FROM users
        WHERE role = "admin" AND status = "ativo"
        ORDER BY id ASC
-       LIMIT 1`
+       LIMIT 1`,
     );
 
-    let responsePayload = { interest_id: interestId, status: 'pendente_triagem' };
-    let responseMessage = 'Interesse registado. A equipa administrativa fara a mediacao do contacto com a empresa.';
+    let responsePayload = {
+      interest_id: interestId,
+      status: "pendente_triagem",
+    };
+    let responseMessage =
+      "Interesse registado. A equipa administrativa fara a mediacao do contacto com a empresa.";
 
     const mediator = selectedMediatorRows[0]
       ? {
@@ -611,7 +792,7 @@ const expressInterest = async (req, res) => {
           mediator_user_id: selectedMediatorRows[0].user_id,
           nome: selectedMediatorRows[0].nome,
           email: selectedMediatorRows[0].email,
-          tipo: 'funcionario',
+          tipo: "funcionario",
         }
       : fallbackAdmins[0]
         ? {
@@ -619,7 +800,7 @@ const expressInterest = async (req, res) => {
             mediator_user_id: fallbackAdmins[0].id,
             nome: fallbackAdmins[0].nome,
             email: fallbackAdmins[0].email,
-            tipo: 'admin',
+            tipo: "admin",
           }
         : null;
 
@@ -628,69 +809,91 @@ const expressInterest = async (req, res) => {
         `INSERT INTO mediations
          (interest_id, employee_id, mediator_user_id, company_id, investor_id, prioridade, status, etapa_atual)
          VALUES (?, ?, ?, ?, ?, 'media', 'pendente', 'triagem')`,
-        [interestId, mediator.employee_id, mediator.mediator_user_id, opp[0].company_id, investorId]
+        [
+          interestId,
+          mediator.employee_id,
+          mediator.mediator_user_id,
+          opp[0].company_id,
+          investorId,
+        ],
       );
 
       await connection.execute(
         'UPDATE investor_interests SET status = "em_mediacao" WHERE id = ?',
-        [interestId]
+        [interestId],
       );
 
       const notificationEntries = [
         [
           investorId,
-          'mediacao_iniciada',
-          'Processo de mediacao iniciado',
+          "mediacao_iniciada",
+          "Processo de mediacao iniciado",
           `O seu interesse em "${opp[0].titulo}" entrou em mediacao. O mediador responsavel sera ${mediator.nome}.`,
         ],
         [
           opp[0].company_user_id,
-          'novo_interesse',
-          'Novo interesse em sua oportunidade',
+          "novo_interesse",
+          "Novo interesse em sua oportunidade",
           `O investidor ${investor[0].nome} demonstrou interesse em "${opp[0].titulo}". A equipa da plataforma iniciou a mediacao.`,
         ],
         [
           mediator.mediator_user_id,
-          'nova_mediacao',
-          'Nova mediacao atribuida',
+          "nova_mediacao",
+          "Nova mediacao atribuida",
           `Foi-lhe atribuida a mediacao da oportunidade "${opp[0].titulo}" entre ${investor[0].nome} e ${opp[0].nome_empresa}.`,
         ],
       ].filter((item) => item[0]);
 
       if (notificationEntries.length > 0) {
-        await Promise.all(notificationEntries.map(([userId, tipo, titulo, texto]) => connection.execute(
-          'INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)',
-          [userId, tipo, titulo, texto]
-        )));
+        await Promise.all(
+          notificationEntries.map(([userId, tipo, titulo, texto]) =>
+            connection.execute(
+              "INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)",
+              [userId, tipo, titulo, texto],
+            ),
+          ),
+        );
       }
 
       responsePayload = {
         interest_id: interestId,
-        status: 'em_mediacao',
+        status: "em_mediacao",
         mediation_id: mediationResult.insertId,
         mediador: {
           nome: mediator.nome,
           tipo: mediator.tipo,
         },
       };
-      responseMessage = mediator.tipo === 'admin'
-        ? 'Interesse registado. Um administrador assumiu a mediação inicial e poderá indicar um funcionário mais tarde.'
-        : 'Interesse registado. O processo entrou em mediação e o mediador fará o contacto com as partes para definir a reunião.';
+      responseMessage =
+        mediator.tipo === "admin"
+          ? "Interesse registado. Um administrador assumiu a mediação inicial e poderá indicar um funcionário mais tarde."
+          : "Interesse registado. O processo entrou em mediação e o mediador fará o contacto com as partes para definir a reunião.";
     }
 
     await connection.commit();
 
-    await Promise.all(admins.map((admin) =>
-      sendInvestorInterestNotification(admin.email, notifData).catch((e) => console.error('[NOTIF]', e))
-    ));
+    await Promise.all(
+      admins.map((admin) =>
+        sendInvestorInterestNotification(admin.email, notifData).catch((e) =>
+          console.error("[NOTIF]", e),
+        ),
+      ),
+    );
 
-    await log(investorId, 'EXPRESS_INTEREST', 'investor_interests', interestId, { opportunityId }, req);
+    await log(
+      investorId,
+      "EXPRESS_INTEREST",
+      "investor_interests",
+      interestId,
+      { opportunityId },
+      req,
+    );
     return created(res, responsePayload, responseMessage);
   } catch (err) {
     try {
       await connection.rollback();
     } catch (_) {}
-    return error(res, 'Erro ao registar interesse.', 500);
+    return error(res, "Erro ao registar interesse.", 500);
   } finally {
     connection.release();
   }
@@ -706,11 +909,11 @@ const adminListInterests = async (req, res) => {
        LEFT JOIN users u ON u.id=ii.investor_id
        LEFT JOIN investment_opportunities io ON io.id=ii.opportunity_id
        LEFT JOIN company_profiles cp ON cp.id=io.company_id
-       ORDER BY ii.created_at DESC`
+       ORDER BY ii.created_at DESC`,
     );
     return success(res, rows);
   } catch (err) {
-    return error(res, 'Erro ao listar interesses.', 500);
+    return error(res, "Erro ao listar interesses.", 500);
   }
 };
 
@@ -718,12 +921,18 @@ const adminListInterests = async (req, res) => {
 const generateContract = async (req, res) => {
   try {
     const { id: interestId } = req.params;
-    const newContractFlowData = await getContractPartiesDataByInterest(interestId);
+    const newContractFlowData =
+      await getContractPartiesDataByInterest(interestId);
 
-    if (!newContractFlowData) return notFound(res, 'Interesse nÃƒÂ£o encontrado.');
+    if (!newContractFlowData)
+      return notFound(res, "Interesse nÃƒÂ£o encontrado.");
 
-    const [existingContract] = await pool.execute('SELECT id FROM contracts WHERE interest_id=?', [interestId]);
-    if (existingContract.length) return badRequest(res, 'Contrato jÃƒÂ¡ gerado para este interesse.');
+    const [existingContract] = await pool.execute(
+      "SELECT id FROM contracts WHERE interest_id=?",
+      [interestId],
+    );
+    if (existingContract.length)
+      return badRequest(res, "Contrato jÃƒÂ¡ gerado para este interesse.");
 
     const [createdContract] = await pool.execute(
       `INSERT INTO contracts (interest_id, opportunity_id, investor_id, company_id, titulo, gerado_by, status)
@@ -735,10 +944,13 @@ const generateContract = async (req, res) => {
         newContractFlowData.company_id,
         newContractFlowData.titulo_oportunidade,
         req.user.id,
-      ]
+      ],
     );
 
-    await pool.execute('UPDATE investor_interests SET status="em_analise" WHERE id=?', [interestId]);
+    await pool.execute(
+      'UPDATE investor_interests SET status="em_analise" WHERE id=?',
+      [interestId],
+    );
     await notifyContractSignatureRequest({
       contractId: createdContract.insertId,
       companyUserId: newContractFlowData.company_user_id,
@@ -746,15 +958,22 @@ const generateContract = async (req, res) => {
       titulo: newContractFlowData.titulo_oportunidade,
     });
 
-    await log(req.user.id, 'GENERATE_CONTRACT', 'contracts', createdContract.insertId, { interestId }, req);
+    await log(
+      req.user.id,
+      "GENERATE_CONTRACT",
+      "contracts",
+      createdContract.insertId,
+      { interestId },
+      req,
+    );
     return created(
       res,
-      { contract_id: createdContract.insertId, status: 'enviado' },
-      'Contrato criado. As partes foram notificadas no sistema para confirmar a assinatura digital antes da emissao do PDF final.'
+      { contract_id: createdContract.insertId, status: "enviado" },
+      "Contrato criado. As partes foram notificadas no sistema para confirmar a assinatura digital antes da emissao do PDF final.",
     );
 
     const [interests] = await pool.execute(
-      `SELECT ii.*, 
+      `SELECT ii.*,
               u_inv.nome as nome_investidor, u_inv.email as email_investidor, u_inv.telefone as tel_investidor,
               u_comp.nome as nome_empresa_user, u_comp.email as email_empresa, u_comp.telefone as tel_empresa,
               cp.nome_empresa, cp.nif as nif_empresa, cp.id as company_id,
@@ -765,15 +984,19 @@ const generateContract = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id=io.company_id
        LEFT JOIN users u_comp ON u_comp.id=cp.user_id
        WHERE ii.id=?`,
-      [interestId]
+      [interestId],
     );
 
-    if (!interests.length) return notFound(res, 'Interesse nÃ£o encontrado.');
+    if (!interests.length) return notFound(res, "Interesse nÃ£o encontrado.");
     const data = interests[0];
 
     // Verificar se contrato jÃ¡ existe
-    const [existing] = await pool.execute('SELECT id FROM contracts WHERE interest_id=?', [interestId]);
-    if (existing.length) return badRequest(res, 'Contrato jÃ¡ gerado para este interesse.');
+    const [existing] = await pool.execute(
+      "SELECT id FROM contracts WHERE interest_id=?",
+      [interestId],
+    );
+    if (existing.length)
+      return badRequest(res, "Contrato jÃ¡ gerado para este interesse.");
 
     // Gerar PDF
     const contractData = {
@@ -793,31 +1016,98 @@ const generateContract = async (req, res) => {
     try {
       pdfBuffer = await gerarContratoPDF(contractData);
     } catch (pdfErr) {
-      console.error('[PDF CONTRACT]', pdfErr.message);
+      console.error("[PDF CONTRACT]", pdfErr.message);
     }
 
     const [result] = await pool.execute(
       `INSERT INTO contracts (interest_id, opportunity_id, investor_id, company_id, titulo, pdf_data, gerado_by)
        VALUES (?,?,?,?,?,?,?)`,
-      [interestId, data.opportunity_id, data.investor_id, data.company_id, data.titulo_oportunidade, pdfBuffer, req.user.id]
+      [
+        interestId,
+        data.opportunity_id,
+        data.investor_id,
+        data.company_id,
+        data.titulo_oportunidade,
+        pdfBuffer,
+        req.user.id,
+      ],
     );
 
-    await pool.execute('UPDATE investor_interests SET status="em_analise" WHERE id=?', [interestId]);
+    await pool.execute(
+      'UPDATE investor_interests SET status="em_analise" WHERE id=?',
+      [interestId],
+    );
 
     // Enviar emails com o contrato
-    sendContractEmail(data.email_empresa, data.nome_empresa, contractData, pdfBuffer)
-      .then(() => pool.execute('UPDATE contracts SET enviado_email_empresa=1 WHERE id=?', [result.insertId]))
-      .catch(e => console.error('[CONTRACT EMAIL EMPRESA]', e));
+    sendContractEmail(
+      data.email_empresa,
+      data.nome_empresa,
+      contractData,
+      pdfBuffer,
+    )
+      .then(() =>
+        pool.execute(
+          "UPDATE contracts SET enviado_email_empresa=1 WHERE id=?",
+          [result.insertId],
+        ),
+      )
+      .catch((e) => console.error("[CONTRACT EMAIL EMPRESA]", e));
 
-    sendContractEmail(data.email_investidor, data.nome_investidor, contractData, pdfBuffer)
-      .then(() => pool.execute('UPDATE contracts SET enviado_email_investidor=1 WHERE id=?', [result.insertId]))
-      .catch(e => console.error('[CONTRACT EMAIL INVESTIDOR]', e));
+    sendContractEmail(
+      data.email_investidor,
+      data.nome_investidor,
+      contractData,
+      pdfBuffer,
+    )
+      .then(() =>
+        pool.execute(
+          "UPDATE contracts SET enviado_email_investidor=1 WHERE id=?",
+          [result.insertId],
+        ),
+      )
+      .catch((e) => console.error("[CONTRACT EMAIL INVESTIDOR]", e));
 
-    await log(req.user.id, 'GENERATE_CONTRACT', 'contracts', result.insertId, { interestId }, req);
-    return created(res, { contract_id: result.insertId }, 'Contrato gerado e enviado por email.');
+    // Notificar empresa e investidor sobre o contrato gerado
+    const { notificarContratoGerado } = require('../services/notification.service');
+    
+    // Buscar user_id da empresa
+    const [[empresa]] = await pool.execute(
+      'SELECT user_id FROM company_profiles WHERE id = ?',
+      [data.company_id]
+    );
+    if (empresa?.user_id) {
+      notificarContratoGerado(
+        empresa.user_id,
+        data.email_empresa,
+        'Investimento',
+        `C-${result.insertId}`,
+      ).catch((e) => console.error('[NOTIF_CONTRATO_EMP]', e.message));
+    }
+    
+    // Notificar investidor
+    notificarContratoGerado(
+      data.investor_id,
+      data.email_investidor,
+      'Investimento',
+      `C-${result.insertId}`,
+    ).catch((e) => console.error('[NOTIF_CONTRATO_INV]', e.message));
+
+    await log(
+      req.user.id,
+      "GENERATE_CONTRACT",
+      "contracts",
+      result.insertId,
+      { interestId },
+      req,
+    );
+    return created(
+      res,
+      { contract_id: result.insertId },
+      "Contrato gerado e enviado por email.",
+    );
   } catch (err) {
-    console.error('[CONTRACT]', err);
-    return error(res, 'Erro ao gerar contrato.', 500);
+    console.error("[CONTRACT]", err);
+    return error(res, "Erro ao gerar contrato.", 500);
   }
 };
 
@@ -831,40 +1121,54 @@ const downloadContract = async (req, res) => {
     const [rows] = await pool.execute(
       `SELECT c.*, cp.user_id as company_user_id FROM contracts c
        LEFT JOIN company_profiles cp ON cp.id=c.company_id WHERE c.id=?`,
-      [id]
+      [id],
     );
-    if (!rows.length) return notFound(res, 'Contrato nÃ£o encontrado.');
+    if (!rows.length) return notFound(res, "Contrato nÃ£o encontrado.");
 
     const contract = rows[0];
-    const canAccess = ['admin','employee'].includes(role) ||
-                      contract.investor_id === userId ||
-                      contract.company_user_id === userId;
+    const canAccess =
+      ["admin", "employee"].includes(role) ||
+      contract.investor_id === userId ||
+      contract.company_user_id === userId;
 
-    if (!canAccess) return res.status(403).json({ success: false, message: 'Acesso negado.' });
+    if (!canAccess)
+      return res
+        .status(403)
+        .json({ success: false, message: "Acesso negado." });
     let resolvedContract = normalizeContractRow(contract);
-    if (!resolvedContract.pdf_data && resolvedContract.assinado_empresa && resolvedContract.assinado_investidor) {
+    if (
+      !resolvedContract.pdf_data &&
+      resolvedContract.assinado_empresa &&
+      resolvedContract.assinado_investidor
+    ) {
       try {
         const finalized = await finalizeContractIfReady(id);
         if (finalized) {
           resolvedContract = normalizeContractRow(finalized);
         }
       } catch (finalizeErr) {
-        console.error('[CONTRACT FINALIZE DOWNLOAD]', finalizeErr.message);
+        console.error("[CONTRACT FINALIZE DOWNLOAD]", finalizeErr.message);
       }
     }
 
     if (!resolvedContract.pdf_data) {
-      return badRequest(res, 'O PDF final do contrato ainda nao esta disponivel. Aguarde a assinatura digital de ambas as partes.');
+      return badRequest(
+        res,
+        "O PDF final do contrato ainda nao esta disponivel. Aguarde a assinatura digital de ambas as partes.",
+      );
     }
 
     if (resolvedContract.pdf_data) {
-      res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', `attachment; filename="contrato_${id}.pdf"`);
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="contrato_${id}.pdf"`,
+      );
       return res.send(resolvedContract.pdf_data);
     }
-    return notFound(res, 'PDF nÃ£o disponÃ­vel.');
+    return notFound(res, "PDF nÃ£o disponÃ­vel.");
   } catch (err) {
-    return error(res, 'Erro ao obter contrato.', 500);
+    return error(res, "Erro ao obter contrato.", 500);
   }
 };
 
@@ -878,115 +1182,210 @@ const signContract = async (req, res) => {
     const [rows] = await pool.execute(
       `SELECT c.*, cp.user_id as company_user_id FROM contracts c
        LEFT JOIN company_profiles cp ON cp.id=c.company_id WHERE c.id=?`,
-      [id]
+      [id],
     );
-    if (!rows.length) return notFound(res, 'Contrato nÃ£o encontrado.');
+    if (!rows.length) return notFound(res, "Contrato nÃ£o encontrado.");
     const contract = rows[0];
 
-    let nextStatus = '';
-    let signerRoleLabel = '';
-    if (role === 'investor' && contract.investor_id === userId && !contract.assinado_investidor) {
-      nextStatus = 'assinado_investidor';
-      signerRoleLabel = 'investidor';
+    let nextStatus = "";
+    let signerRoleLabel = "";
+    if (
+      role === "investor" &&
+      contract.investor_id === userId &&
+      !contract.assinado_investidor
+    ) {
+      nextStatus = "assinado_investidor";
+      signerRoleLabel = "investidor";
       await pool.execute(
-        'UPDATE contracts SET assinado_investidor=1, assinado_investidor_at=NOW(), status=? WHERE id=?',
-        [nextStatus, id]
+        "UPDATE contracts SET assinado_investidor=1, assinado_investidor_at=NOW(), status=? WHERE id=?",
+        [nextStatus, id],
       );
-    } else if (role === 'company' && contract.company_user_id === userId && !contract.assinado_empresa) {
-      nextStatus = 'assinado_empresa';
-      signerRoleLabel = 'empresa';
+    } else if (
+      role === "company" &&
+      contract.company_user_id === userId &&
+      !contract.assinado_empresa
+    ) {
+      nextStatus = "assinado_empresa";
+      signerRoleLabel = "empresa";
       await pool.execute(
-        'UPDATE contracts SET assinado_empresa=1, assinado_empresa_at=NOW(), status=? WHERE id=?',
-        [nextStatus, id]
+        "UPDATE contracts SET assinado_empresa=1, assinado_empresa_at=NOW(), status=? WHERE id=?",
+        [nextStatus, id],
       );
     } else {
-      return badRequest(res, 'NÃƒÂ£o pode assinar este contrato ou jÃƒÂ¡ foi assinado.');
+      return badRequest(
+        res,
+        "NÃƒÂ£o pode assinar este contrato ou jÃƒÂ¡ foi assinado.",
+      );
     }
 
-    const [updatedContracts] = await pool.execute('SELECT * FROM contracts WHERE id=?', [id]);
+    const [updatedContracts] = await pool.execute(
+      "SELECT * FROM contracts WHERE id=?",
+      [id],
+    );
     const updatedContract = updatedContracts[0];
 
-    if (updatedContract.assinado_empresa && updatedContract.assinado_investidor) {
+    if (
+      updatedContract.assinado_empresa &&
+      updatedContract.assinado_investidor
+    ) {
       const pdfPayload = await getContractPdfPayload(id);
       let pdfBuffer = null;
 
       try {
         pdfBuffer = await gerarContratoPDF(pdfPayload);
       } catch (pdfErr) {
-        console.error('[PDF CONTRACT FINAL]', pdfErr.message);
+        console.error("[PDF CONTRACT FINAL]", pdfErr.message);
       }
 
-      await pool.execute('UPDATE contracts SET status="assinado_ambos", pdf_data=? WHERE id=?', [pdfBuffer, id]);
-      await pool.execute('UPDATE investor_interests SET status="aprovado" WHERE id=?', [contract.interest_id]);
+      await pool.execute(
+        'UPDATE contracts SET status="assinado_ambos", pdf_data=? WHERE id=?',
+        [pdfBuffer, id],
+      );
+      await pool.execute(
+        'UPDATE investor_interests SET status="aprovado" WHERE id=?',
+        [contract.interest_id],
+      );
 
       await Promise.all([
-        contract.company_user_id ? createNotification(
-          contract.company_user_id,
-          'contrato_assinado',
-          'Contrato validado',
-          `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
-          `/contratos/${id}`
-        ) : Promise.resolve(),
-        contract.investor_id ? createNotification(
-          contract.investor_id,
-          'contrato_assinado',
-          'Contrato validado',
-          `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
-          `/contratos/${id}`
-        ) : Promise.resolve(),
+        contract.company_user_id
+          ? createNotification(
+              contract.company_user_id,
+              "contrato_assinado",
+              "Contrato validado",
+              `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
+              `/contratos/${id}`,
+            )
+          : Promise.resolve(),
+        contract.investor_id
+          ? createNotification(
+              contract.investor_id,
+              "contrato_assinado",
+              "Contrato validado",
+              `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
+              `/contratos/${id}`,
+            )
+          : Promise.resolve(),
       ]);
 
       if (pdfBuffer && pdfPayload) {
         Promise.all([
-          sendContractEmail(pdfPayload.email_empresa, pdfPayload.nome_empresa, pdfPayload, pdfBuffer)
-            .then(() => pool.execute('UPDATE contracts SET enviado_email_empresa=1 WHERE id=?', [id]))
-            .catch((mailErr) => console.error('[CONTRACT EMAIL EMPRESA FINAL]', mailErr)),
-          sendContractEmail(pdfPayload.email_investidor, pdfPayload.nome_investidor, pdfPayload, pdfBuffer)
-            .then(() => pool.execute('UPDATE contracts SET enviado_email_investidor=1 WHERE id=?', [id]))
-            .catch((mailErr) => console.error('[CONTRACT EMAIL INVESTIDOR FINAL]', mailErr)),
+          sendContractEmail(
+            pdfPayload.email_empresa,
+            pdfPayload.nome_empresa,
+            pdfPayload,
+            pdfBuffer,
+          )
+            .then(() =>
+              pool.execute(
+                "UPDATE contracts SET enviado_email_empresa=1 WHERE id=?",
+                [id],
+              ),
+            )
+            .catch((mailErr) =>
+              console.error("[CONTRACT EMAIL EMPRESA FINAL]", mailErr),
+            ),
+          sendContractEmail(
+            pdfPayload.email_investidor,
+            pdfPayload.nome_investidor,
+            pdfPayload,
+            pdfBuffer,
+          )
+            .then(() =>
+              pool.execute(
+                "UPDATE contracts SET enviado_email_investidor=1 WHERE id=?",
+                [id],
+              ),
+            )
+            .catch((mailErr) =>
+              console.error("[CONTRACT EMAIL INVESTIDOR FINAL]", mailErr),
+            ),
         ]).catch(() => {});
       }
 
-      await log(userId, 'SIGN_CONTRACT', 'contracts', id, { status: 'assinado_ambos' }, req);
-      return success(res, null, 'Contrato assinado com sucesso. O PDF final foi emitido.');
-    }
-
-    const targetUserId = signerRoleLabel === 'empresa' ? contract.investor_id : contract.company_user_id;
-    if (targetUserId) {
-      await createNotification(
-        targetUserId,
-        'assinatura_contrato',
-        'Assinatura pendente de contrato',
-        `A contraparte ja confirmou a assinatura do contrato #${id}. Falta agora a sua confirmacao digital para concluir o documento.`,
-        `/contratos/${id}`
+      await log(
+        userId,
+        "SIGN_CONTRACT",
+        "contracts",
+        id,
+        { status: "assinado_ambos" },
+        req,
+      );
+      return success(
+        res,
+        null,
+        "Contrato assinado com sucesso. O PDF final foi emitido.",
       );
     }
 
-    await log(userId, 'SIGN_CONTRACT', 'contracts', id, { status: nextStatus }, req);
-    return success(res, null, 'Assinatura registada com sucesso. O contrato sera emitido apos a confirmacao da outra parte.');
+    const targetUserId =
+      signerRoleLabel === "empresa"
+        ? contract.investor_id
+        : contract.company_user_id;
+    if (targetUserId) {
+      await createNotification(
+        targetUserId,
+        "assinatura_contrato",
+        "Assinatura pendente de contrato",
+        `A contraparte ja confirmou a assinatura do contrato #${id}. Falta agora a sua confirmacao digital para concluir o documento.`,
+        `/contratos/${id}`,
+      );
+    }
 
-    let updateField = '';
-    if (role === 'investor' && contract.investor_id === userId && !contract.assinado_investidor) {
-      updateField = 'assinado_investidor=1, assinado_investidor_at=NOW()';
-    } else if (role === 'company' && contract.company_user_id === userId && !contract.assinado_empresa) {
-      updateField = 'assinado_empresa=1, assinado_empresa_at=NOW()';
+    await log(
+      userId,
+      "SIGN_CONTRACT",
+      "contracts",
+      id,
+      { status: nextStatus },
+      req,
+    );
+    return success(
+      res,
+      null,
+      "Assinatura registada com sucesso. O contrato sera emitido apos a confirmacao da outra parte.",
+    );
+
+    let updateField = "";
+    if (
+      role === "investor" &&
+      contract.investor_id === userId &&
+      !contract.assinado_investidor
+    ) {
+      updateField = "assinado_investidor=1, assinado_investidor_at=NOW()";
+    } else if (
+      role === "company" &&
+      contract.company_user_id === userId &&
+      !contract.assinado_empresa
+    ) {
+      updateField = "assinado_empresa=1, assinado_empresa_at=NOW()";
     } else {
-      return badRequest(res, 'NÃ£o pode assinar este contrato ou jÃ¡ foi assinado.');
+      return badRequest(
+        res,
+        "NÃ£o pode assinar este contrato ou jÃ¡ foi assinado.",
+      );
     }
 
     await pool.execute(`UPDATE contracts SET ${updateField} WHERE id=?`, [id]);
 
     // Verificar se ambos assinaram
-    const [updated] = await pool.execute('SELECT * FROM contracts WHERE id=?', [id]);
+    const [updated] = await pool.execute("SELECT * FROM contracts WHERE id=?", [
+      id,
+    ]);
     if (updated[0].assinado_empresa && updated[0].assinado_investidor) {
-      await pool.execute('UPDATE contracts SET status="assinado_ambos" WHERE id=?', [id]);
-      await pool.execute('UPDATE investor_interests SET status="aprovado" WHERE id=?', [contract.interest_id]);
+      await pool.execute(
+        'UPDATE contracts SET status="assinado_ambos" WHERE id=?',
+        [id],
+      );
+      await pool.execute(
+        'UPDATE investor_interests SET status="aprovado" WHERE id=?',
+        [contract.interest_id],
+      );
     }
 
-    await log(userId, 'SIGN_CONTRACT', 'contracts', id, null, req);
-    return success(res, null, 'Contrato assinado com sucesso.');
+    await log(userId, "SIGN_CONTRACT", "contracts", id, null, req);
+    return success(res, null, "Contrato assinado com sucesso.");
   } catch (err) {
-    return error(res, 'Erro ao assinar contrato.', 500);
+    return error(res, "Erro ao assinar contrato.", 500);
   }
 };
 
@@ -1006,15 +1405,18 @@ const adminListCompanies = async (req, res) => {
                  WHERE 1=1`;
     const params = [];
 
-    if (status === 'pending') { query += ' AND cp.is_approved=0'; }
-    else if (status === 'approved') { query += ' AND cp.is_approved=1'; }
+    if (status === "pending") {
+      query += " AND cp.is_approved=0";
+    } else if (status === "approved") {
+      query += " AND cp.is_approved=1";
+    }
 
     query += ` GROUP BY cp.id ORDER BY cp.created_at DESC LIMIT ${parseInt(limit)} OFFSET ${offset}`;
 
     const [rows] = await pool.execute(query, params);
     return success(res, rows);
   } catch (err) {
-    return error(res, 'Erro ao listar empresas.', 500);
+    return error(res, "Erro ao listar empresas.", 500);
   }
 };
 
@@ -1025,14 +1427,25 @@ const approveCompany = async (req, res) => {
     const { approved, motivo_rejeicao } = req.body;
 
     await pool.execute(
-      'UPDATE company_profiles SET is_approved=?, approved_by=?, approved_at=NOW(), motivo_rejeicao=? WHERE id=?',
-      [approved ? 1 : 0, req.user.id, motivo_rejeicao||null, id]
+      "UPDATE company_profiles SET is_approved=?, approved_by=?, approved_at=NOW(), motivo_rejeicao=? WHERE id=?",
+      [approved ? 1 : 0, req.user.id, motivo_rejeicao || null, id],
     );
 
-    await log(req.user.id, approved ? 'APPROVE_COMPANY' : 'REJECT_COMPANY', 'company_profiles', id, { motivo_rejeicao }, req);
-    return success(res, null, approved ? 'Empresa aprovada.' : 'Empresa rejeitada.');
+    await log(
+      req.user.id,
+      approved ? "APPROVE_COMPANY" : "REJECT_COMPANY",
+      "company_profiles",
+      id,
+      { motivo_rejeicao },
+      req,
+    );
+    return success(
+      res,
+      null,
+      approved ? "Empresa aprovada." : "Empresa rejeitada.",
+    );
   } catch (err) {
-    return error(res, 'Erro ao processar empresa.', 500);
+    return error(res, "Erro ao processar empresa.", 500);
   }
 };
 
@@ -1041,21 +1454,35 @@ const createSubscription = async (req, res) => {
   try {
     const { company_id, plano, valor, data_inicio, data_fim } = req.body;
     if (!company_id || !plano || !valor || !data_inicio || !data_fim) {
-      return badRequest(res, 'Todos os campos sÃ£o obrigatÃ³rios.');
+      return badRequest(res, "Todos os campos sÃ£o obrigatÃ³rios.");
     }
 
     // Desativar assinaturas antigas
-    await pool.execute('UPDATE subscriptions SET status="expirada" WHERE company_id=? AND status="ativa"', [company_id]);
-
-    const [result] = await pool.execute(
-      'INSERT INTO subscriptions (company_id, plano, valor, data_inicio, data_fim, created_by) VALUES (?,?,?,?,?,?)',
-      [company_id, plano, valor, data_inicio, data_fim, req.user.id]
+    await pool.execute(
+      'UPDATE subscriptions SET status="expirada" WHERE company_id=? AND status="ativa"',
+      [company_id],
     );
 
-    await log(req.user.id, 'CREATE_SUBSCRIPTION', 'subscriptions', result.insertId, { company_id, plano }, req);
-    return created(res, { id: result.insertId }, 'Assinatura criada com sucesso.');
+    const [result] = await pool.execute(
+      "INSERT INTO subscriptions (company_id, plano, valor, data_inicio, data_fim, created_by) VALUES (?,?,?,?,?,?)",
+      [company_id, plano, valor, data_inicio, data_fim, req.user.id],
+    );
+
+    await log(
+      req.user.id,
+      "CREATE_SUBSCRIPTION",
+      "subscriptions",
+      result.insertId,
+      { company_id, plano },
+      req,
+    );
+    return created(
+      res,
+      { id: result.insertId },
+      "Assinatura criada com sucesso.",
+    );
   } catch (err) {
-    return error(res, 'Erro ao criar assinatura.', 500);
+    return error(res, "Erro ao criar assinatura.", 500);
   }
 };
 
@@ -1065,34 +1492,48 @@ const addCompanyService = async (req, res) => {
     const userId = req.user.id;
     const { category_id, descricao } = req.body;
 
-    const [company] = await pool.execute('SELECT id FROM company_profiles WHERE user_id=?', [userId]);
-    if (!company.length) return notFound(res, 'Empresa nÃ£o encontrada.');
+    const [company] = await pool.execute(
+      "SELECT id FROM company_profiles WHERE user_id=?",
+      [userId],
+    );
+    if (!company.length) return notFound(res, "Empresa nÃ£o encontrada.");
 
     const [result] = await pool.execute(
-      'INSERT INTO company_services (company_id, category_id, descricao) VALUES (?,?,?) ON DUPLICATE KEY UPDATE descricao=VALUES(descricao), ativo=1',
-      [company[0].id, category_id, descricao||null]
+      "INSERT INTO company_services (company_id, category_id, descricao) VALUES (?,?,?) ON DUPLICATE KEY UPDATE descricao=VALUES(descricao), ativo=1",
+      [company[0].id, category_id, descricao || null],
     );
 
-    return created(res, null, 'ServiÃ§o adicionado com sucesso.');
+    return created(res, null, "ServiÃ§o adicionado com sucesso.");
   } catch (err) {
-    return error(res, 'Erro ao adicionar serviÃ§o.', 500);
+    return error(res, "Erro ao adicionar serviÃ§o.", 500);
   }
 };
 
 const ensureCompanyServicesRuntimeSchema = async () => {
-  const [emailCols] = await pool.execute(`SHOW COLUMNS FROM company_services LIKE 'contacto_email'`);
+  const [emailCols] = await pool.execute(
+    `SHOW COLUMNS FROM company_services LIKE 'contacto_email'`,
+  );
   if (!emailCols.length) {
-    await pool.execute('ALTER TABLE company_services ADD COLUMN contacto_email VARCHAR(255) NULL AFTER descricao');
+    await pool.execute(
+      "ALTER TABLE company_services ADD COLUMN contacto_email VARCHAR(255) NULL AFTER descricao",
+    );
   }
 
-  const [whatsappCols] = await pool.execute(`SHOW COLUMNS FROM company_services LIKE 'contacto_whatsapp'`);
+  const [whatsappCols] = await pool.execute(
+    `SHOW COLUMNS FROM company_services LIKE 'contacto_whatsapp'`,
+  );
   if (!whatsappCols.length) {
-    await pool.execute('ALTER TABLE company_services ADD COLUMN contacto_whatsapp VARCHAR(50) NULL AFTER contacto_email');
+    await pool.execute(
+      "ALTER TABLE company_services ADD COLUMN contacto_whatsapp VARCHAR(50) NULL AFTER contacto_email",
+    );
   }
 };
 
 const getCompanyProfileIdByUser = async (userId) => {
-  const [[company]] = await pool.execute('SELECT id FROM company_profiles WHERE user_id=?', [userId]);
+  const [[company]] = await pool.execute(
+    "SELECT id FROM company_profiles WHERE user_id=?",
+    [userId],
+  );
   return company || null;
 };
 
@@ -1101,17 +1542,19 @@ const upsertCompanyService = async (req, res) => {
     await ensureCompanyServicesRuntimeSchema();
 
     const userId = req.user.id;
-    const { category_id, descricao, contacto_email, contacto_whatsapp } = req.body;
+    const { category_id, descricao, contacto_email, contacto_whatsapp } =
+      req.body;
     const company = await getCompanyProfileIdByUser(userId);
 
-    if (!company) return notFound(res, 'Empresa nao encontrada.');
-    if (!category_id) return badRequest(res, 'A categoria do servico e obrigatoria.');
+    if (!company) return notFound(res, "Empresa nao encontrada.");
+    if (!category_id)
+      return badRequest(res, "A categoria do servico e obrigatoria.");
 
     const [[category]] = await pool.execute(
       'SELECT id FROM service_categories WHERE id = ? AND status = "ativo"',
-      [category_id]
+      [category_id],
     );
-    if (!category) return badRequest(res, 'Categoria de servico invalida.');
+    if (!category) return badRequest(res, "Categoria de servico invalida.");
 
     const [result] = await pool.execute(
       `INSERT INTO company_services (company_id, category_id, descricao, contacto_email, contacto_whatsapp)
@@ -1121,16 +1564,36 @@ const upsertCompanyService = async (req, res) => {
          contacto_email = VALUES(contacto_email),
          contacto_whatsapp = VALUES(contacto_whatsapp),
          ativo = 1`,
-      [company.id, category_id, descricao || null, contacto_email || null, contacto_whatsapp || null]
+      [
+        company.id,
+        category_id,
+        descricao || null,
+        contacto_email || null,
+        contacto_whatsapp || null,
+      ],
     );
 
-    await log(userId, 'servico_empresa_criado', 'company_services', result.insertId || null, { category_id }, req);
-    return created(res, { id: result.insertId || null }, 'Servico adicionado com sucesso.');
+    await log(
+      userId,
+      "servico_empresa_criado",
+      "company_services",
+      result.insertId || null,
+      { category_id },
+      req,
+    );
+    return created(
+      res,
+      { id: result.insertId || null },
+      "Servico adicionado com sucesso.",
+    );
   } catch (err) {
-    if (err?.code === 'ER_DUP_ENTRY') {
-      return badRequest(res, 'Ja existe um servico desta categoria registado para a sua empresa.');
+    if (err?.code === "ER_DUP_ENTRY") {
+      return badRequest(
+        res,
+        "Ja existe um servico desta categoria registado para a sua empresa.",
+      );
     }
-    return error(res, 'Erro ao adicionar servico.', 500);
+    return error(res, "Erro ao adicionar servico.", 500);
   }
 };
 
@@ -1147,12 +1610,12 @@ const listCompanyServices = async (req, res) => {
        LEFT JOIN service_categories sc ON sc.id = cs.category_id
        WHERE cs.company_id = ?
        ORDER BY cs.created_at DESC`,
-      [company.id]
+      [company.id],
     );
 
     return success(res, { servicos: services });
   } catch (err) {
-    return error(res, 'Erro ao listar servicos da empresa.', 500);
+    return error(res, "Erro ao listar servicos da empresa.", 500);
   }
 };
 
@@ -1162,33 +1625,53 @@ const updateCompanyService = async (req, res) => {
 
     const userId = req.user.id;
     const id = Number.parseInt(req.params.id, 10);
-    const { category_id, descricao, contacto_email, contacto_whatsapp } = req.body;
+    const { category_id, descricao, contacto_email, contacto_whatsapp } =
+      req.body;
     const company = await getCompanyProfileIdByUser(userId);
 
-    if (Number.isNaN(id) || id <= 0) return badRequest(res, 'Identificador de servico invalido.');
-    if (!company) return notFound(res, 'Empresa nao encontrada.');
-    if (!category_id) return badRequest(res, 'A categoria do servico e obrigatoria.');
+    if (Number.isNaN(id) || id <= 0)
+      return badRequest(res, "Identificador de servico invalido.");
+    if (!company) return notFound(res, "Empresa nao encontrada.");
+    if (!category_id)
+      return badRequest(res, "A categoria do servico e obrigatoria.");
 
     const [[service]] = await pool.execute(
-      'SELECT id FROM company_services WHERE id = ? AND company_id = ?',
-      [id, company.id]
+      "SELECT id FROM company_services WHERE id = ? AND company_id = ?",
+      [id, company.id],
     );
-    if (!service) return notFound(res, 'Servico nao encontrado.');
+    if (!service) return notFound(res, "Servico nao encontrado.");
 
     await pool.execute(
       `UPDATE company_services
        SET category_id = ?, descricao = ?, contacto_email = ?, contacto_whatsapp = ?, ativo = 1
        WHERE id = ? AND company_id = ?`,
-      [category_id, descricao || null, contacto_email || null, contacto_whatsapp || null, id, company.id]
+      [
+        category_id,
+        descricao || null,
+        contacto_email || null,
+        contacto_whatsapp || null,
+        id,
+        company.id,
+      ],
     );
 
-    await log(userId, 'servico_empresa_actualizado', 'company_services', id, { category_id }, req);
-    return success(res, {}, 'Servico actualizado com sucesso.');
+    await log(
+      userId,
+      "servico_empresa_actualizado",
+      "company_services",
+      id,
+      { category_id },
+      req,
+    );
+    return success(res, {}, "Servico actualizado com sucesso.");
   } catch (err) {
-    if (err?.code === 'ER_DUP_ENTRY') {
-      return badRequest(res, 'Ja existe um servico desta categoria registado para a sua empresa.');
+    if (err?.code === "ER_DUP_ENTRY") {
+      return badRequest(
+        res,
+        "Ja existe um servico desta categoria registado para a sua empresa.",
+      );
     }
-    return error(res, 'Erro ao actualizar servico.', 500);
+    return error(res, "Erro ao actualizar servico.", 500);
   }
 };
 
@@ -1198,28 +1681,51 @@ const deleteCompanyService = async (req, res) => {
     const id = Number.parseInt(req.params.id, 10);
     const company = await getCompanyProfileIdByUser(userId);
 
-    if (Number.isNaN(id) || id <= 0) return badRequest(res, 'Identificador de servico invalido.');
-    if (!company) return notFound(res, 'Empresa nao encontrada.');
+    if (Number.isNaN(id) || id <= 0)
+      return badRequest(res, "Identificador de servico invalido.");
+    if (!company) return notFound(res, "Empresa nao encontrada.");
 
     const [result] = await pool.execute(
-      'DELETE FROM company_services WHERE id = ? AND company_id = ?',
-      [id, company.id]
+      "DELETE FROM company_services WHERE id = ? AND company_id = ?",
+      [id, company.id],
     );
 
-    if (result.affectedRows === 0) return notFound(res, 'Servico nao encontrado.');
+    if (result.affectedRows === 0)
+      return notFound(res, "Servico nao encontrado.");
 
-    await log(userId, 'servico_empresa_eliminado', 'company_services', id, null, req);
-    return success(res, {}, 'Servico removido com sucesso.');
+    await log(
+      userId,
+      "servico_empresa_eliminado",
+      "company_services",
+      id,
+      null,
+      req,
+    );
+    return success(res, {}, "Servico removido com sucesso.");
   } catch (err) {
-    return error(res, 'Erro ao remover servico.', 500);
+    return error(res, "Erro ao remover servico.", 500);
   }
 };
 
 module.exports = {
-  uploadDocument, getMyCompany, saveCompanyProfile, listOpportunities, getOpportunity,
-  createOpportunity, expressInterest, adminListInterests, generateContract,
-  downloadContract, signContract, adminListCompanies, approveCompany,
-  createSubscription, addCompanyService: upsertCompanyService, listCompanyServices, updateCompanyService, deleteCompanyService,
+  uploadDocument,
+  getMyCompany,
+  saveCompanyProfile,
+  listOpportunities,
+  getOpportunity,
+  createOpportunity,
+  expressInterest,
+  adminListInterests,
+  generateContract,
+  downloadContract,
+  signContract,
+  adminListCompanies,
+  approveCompany,
+  createSubscription,
+  addCompanyService: upsertCompanyService,
+  listCompanyServices,
+  updateCompanyService,
+  deleteCompanyService,
 };
 
 // â”€â”€ Dashboard de Empresa â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1235,12 +1741,16 @@ const getEmpresaPerfil = async (req, res) => {
        FROM company_profiles cp
        LEFT JOIN users u ON u.id = cp.user_id
        WHERE cp.user_id = ?`,
-      [req.user.id]
+      [req.user.id],
     );
-    if (!cp) return notFound(res, 'Perfil de empresa nÃ£o encontrado. Complete o registo.');
+    if (!cp)
+      return notFound(
+        res,
+        "Perfil de empresa nÃ£o encontrado. Complete o registo.",
+      );
     return success(res, { perfil: cp });
   } catch (err) {
-    return error(res, 'Erro ao obter perfil.', 500);
+    return error(res, "Erro ao obter perfil.", 500);
   }
 };
 
@@ -1250,24 +1760,91 @@ const getEmpresaPerfil = async (req, res) => {
  */
 const getEmpresaStats = async (req, res) => {
   try {
+    // 1) Identificar empresa e tipo
     const [[cp]] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?', [req.user.id]
+      `SELECT id, tipo_empresa
+       FROM company_profiles
+       WHERE user_id = ?`,
+      [req.user.id],
     );
-    if (!cp) return success(res, { total_oportunidades: 0, total_interessados: 0, total_vagas: 0, total_documentos: 0 });
 
-    const [[ops]]    = await pool.execute('SELECT COUNT(*) as t FROM investment_opportunities WHERE company_id = ? AND status = "ativa"', [cp.id]);
-    const [[ints]]   = await pool.execute('SELECT COUNT(*) as t FROM investor_interests ii LEFT JOIN investment_opportunities io ON io.id = ii.opportunity_id WHERE io.company_id = ?', [cp.id]);
-    const [[vagas]]  = await pool.execute('SELECT COUNT(*) as t FROM company_job_postings WHERE company_id = ? AND status = "aprovada"', [cp.id]);
-    const [[docs]]   = await pool.execute('SELECT COUNT(*) as t FROM company_documents WHERE company_id = ?', [cp.id]);
+    if (!cp) {
+      return success(res, {
+        total_oportunidades: 0,
+        total_interessados: 0,
+        total_vagas: 0,
+        total_documentos: 0,
+        total_consultoria: 0,
+        consultoria_por_atender: 0,
+        consultoria_remarcadas_ou_agendadas: 0,
+      });
+    }
+
+    // 2) Métricas padrão (empresa normal)
+    const [[ops]] = await pool.execute(
+      'SELECT COUNT(*) as t FROM investment_opportunities WHERE company_id = ? AND status = "ativa"',
+      [cp.id],
+    );
+    const [[ints]] = await pool.execute(
+      "SELECT COUNT(*) as t FROM investor_interests ii LEFT JOIN investment_opportunities io ON io.id = ii.opportunity_id WHERE io.company_id = ?",
+      [cp.id],
+    );
+    const [[vagas]] = await pool.execute(
+      'SELECT COUNT(*) as t FROM company_job_postings WHERE company_id = ? AND status = "aprovada"',
+      [cp.id],
+    );
+    const [[docs]] = await pool.execute(
+      "SELECT COUNT(*) as t FROM company_documents WHERE company_id = ?",
+      [cp.id],
+    );
+
+    // 3) Métricas específicas para consultoria (dinâmicas e reais)
+    let totalConsultoria = 0;
+    let consultoriaPorAtender = 0;
+    let consultoriaRemarcadasOuAgendadas = 0;
+
+    if (cp.tipo_empresa === "consultoria") {
+      const [[totalCons]] = await pool.execute(
+        `SELECT COUNT(*) AS t
+         FROM consultations
+         WHERE consultancy_company_id = ?`,
+        [cp.id],
+      );
+
+      const [[porAtender]] = await pool.execute(
+        `SELECT COUNT(*) AS t
+         FROM consultations
+         WHERE consultancy_company_id = ?
+           AND status IN ('pendente', 'confirmada')`,
+        [cp.id],
+      );
+
+      const [[agendadasRemarcadas]] = await pool.execute(
+        `SELECT COUNT(*) AS t
+         FROM consultations
+         WHERE consultancy_company_id = ?
+           AND status = 'agendada'`,
+        [cp.id],
+      );
+
+      totalConsultoria = totalCons?.t || 0;
+      consultoriaPorAtender = porAtender?.t || 0;
+      consultoriaRemarcadasOuAgendadas = agendadasRemarcadas?.t || 0;
+    }
 
     return success(res, {
       total_oportunidades: ops.t,
-      total_interessados:  ints.t,
-      total_vagas:         vagas.t,
-      total_documentos:    docs.t,
+      total_interessados: ints.t,
+      total_vagas: vagas.t,
+      total_documentos: docs.t,
+
+      // Novas métricas para dashboard de consultoria
+      total_consultoria: totalConsultoria,
+      consultoria_por_atender: consultoriaPorAtender,
+      consultoria_remarcadas_ou_agendadas: consultoriaRemarcadasOuAgendadas,
     });
   } catch (err) {
-    return error(res, 'Erro ao obter estatÃ­sticas.', 500);
+    return error(res, "Erro ao obter estatÃ­sticas.", 500);
   }
 };
 
@@ -1278,7 +1855,8 @@ const getEmpresaStats = async (req, res) => {
 const getEmpresaOportunidades = async (req, res) => {
   try {
     const [[cp]] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?', [req.user.id]
+      "SELECT id FROM company_profiles WHERE user_id = ?",
+      [req.user.id],
     );
     if (!cp) return success(res, { oportunidades: [] });
 
@@ -1288,12 +1866,12 @@ const getEmpresaOportunidades = async (req, res) => {
        FROM investment_opportunities io
        WHERE io.company_id = ?
        ORDER BY io.created_at DESC`,
-      [cp.id]
+      [cp.id],
     );
 
     return success(res, { oportunidades: rows });
   } catch (err) {
-    return error(res, 'Erro ao listar oportunidades.', 500);
+    return error(res, "Erro ao listar oportunidades.", 500);
   }
 };
 
@@ -1306,16 +1884,16 @@ const getEmpresaOpportunityInterests = async (req, res) => {
     const { id } = req.params;
 
     const [[cp]] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?',
-      [req.user.id]
+      "SELECT id FROM company_profiles WHERE user_id = ?",
+      [req.user.id],
     );
     if (!cp) return success(res, { interessados: [], total: 0 });
 
     const [[opportunity]] = await pool.execute(
-      'SELECT id, titulo FROM investment_opportunities WHERE id = ? AND company_id = ?',
-      [id, cp.id]
+      "SELECT id, titulo FROM investment_opportunities WHERE id = ? AND company_id = ?",
+      [id, cp.id],
     );
-    if (!opportunity) return notFound(res, 'Oportunidade nÃ£o encontrada.');
+    if (!opportunity) return notFound(res, "Oportunidade nÃ£o encontrada.");
 
     const [rows] = await pool.execute(
       `SELECT ii.id, ii.mensagem, ii.status, ii.created_at,
@@ -1326,7 +1904,7 @@ const getEmpresaOpportunityInterests = async (req, res) => {
        LEFT JOIN investor_profiles ip ON ip.user_id = ii.investor_id
        WHERE ii.opportunity_id = ?
        ORDER BY ii.created_at DESC`,
-      [id]
+      [id],
     );
 
     return success(res, {
@@ -1335,7 +1913,7 @@ const getEmpresaOpportunityInterests = async (req, res) => {
       total: rows.length,
     });
   } catch (err) {
-    return error(res, 'Erro ao listar interessados.', 500);
+    return error(res, "Erro ao listar interessados.", 500);
   }
 };
 
@@ -1346,18 +1924,19 @@ const getEmpresaOpportunityInterests = async (req, res) => {
 const getEmpresaDocumentos = async (req, res) => {
   try {
     const [[cp]] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?', [req.user.id]
+      "SELECT id FROM company_profiles WHERE user_id = ?",
+      [req.user.id],
     );
     if (!cp) return success(res, { documentos: [] });
 
     const [rows] = await pool.execute(
-      'SELECT * FROM company_documents WHERE company_id = ? ORDER BY created_at DESC',
-      [cp.id]
+      "SELECT * FROM company_documents WHERE company_id = ? ORDER BY created_at DESC",
+      [cp.id],
     );
 
     return success(res, { documentos: rows });
   } catch (err) {
-    return error(res, 'Erro ao listar documentos.', 500);
+    return error(res, "Erro ao listar documentos.", 500);
   }
 };
 
@@ -1368,7 +1947,8 @@ const getEmpresaDocumentos = async (req, res) => {
 const getEmpresaAssinatura = async (req, res) => {
   try {
     const [[cp]] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?', [req.user.id]
+      "SELECT id FROM company_profiles WHERE user_id = ?",
+      [req.user.id],
     );
     if (!cp) return success(res, { assinatura: null });
 
@@ -1376,12 +1956,12 @@ const getEmpresaAssinatura = async (req, res) => {
       `SELECT * FROM subscriptions
        WHERE company_id = ? AND status = 'ativa' AND data_fim >= CURDATE()
        ORDER BY data_fim DESC LIMIT 1`,
-      [cp.id]
+      [cp.id],
     );
 
     return success(res, { assinatura: sub || null });
   } catch (err) {
-    return error(res, 'Erro ao obter assinatura.', 500);
+    return error(res, "Erro ao obter assinatura.", 500);
   }
 };
 
@@ -1392,8 +1972,8 @@ const getEmpresaAssinatura = async (req, res) => {
 const getEmpresaContratos = async (req, res) => {
   try {
     const [[cp]] = await pool.execute(
-      'SELECT id FROM company_profiles WHERE user_id = ?',
-      [req.user.id]
+      "SELECT id FROM company_profiles WHERE user_id = ?",
+      [req.user.id],
     );
     if (!cp) return success(res, { contratos: [] });
 
@@ -1405,20 +1985,27 @@ const getEmpresaContratos = async (req, res) => {
        LEFT JOIN users u ON u.id = c.investor_id
        WHERE c.company_id = ?
        ORDER BY c.created_at DESC`,
-      [cp.id]
+      [cp.id],
     );
 
     return success(res, { contratos: rows.map(normalizeContractRow) });
   } catch (err) {
-    return error(res, 'Erro ao listar contratos.', 500);
+    return error(res, "Erro ao listar contratos.", 500);
   }
 };
 
 // Adicionar ao exports existentes
 Object.assign(module.exports, {
-  getEmpresaPerfil, getEmpresaStats, getEmpresaOportunidades,
-  getEmpresaDocumentos, getEmpresaAssinatura, getEmpresaContratos, getEmpresaOpportunityInterests,
-  listCompanyServices, updateCompanyService, deleteCompanyService,
+  getEmpresaPerfil,
+  getEmpresaStats,
+  getEmpresaOportunidades,
+  getEmpresaDocumentos,
+  getEmpresaAssinatura,
+  getEmpresaContratos,
+  getEmpresaOpportunityInterests,
+  listCompanyServices,
+  updateCompanyService,
+  deleteCompanyService,
 });
 
 // â”€â”€ Dashboard de Investidor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -1437,11 +2024,11 @@ const getInvestidorInteresses = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id = io.company_id
        WHERE ii.investor_id = ?
        ORDER BY ii.created_at DESC`,
-      [req.user.id]
+      [req.user.id],
     );
     return success(res, { interesses: rows });
   } catch (err) {
-    return error(res, 'Erro ao listar interesses.', 500);
+    return error(res, "Erro ao listar interesses.", 500);
   }
 };
 
@@ -1459,11 +2046,11 @@ const getInvestidorContratos = async (req, res) => {
        LEFT JOIN company_profiles cp ON cp.id = c.company_id
        WHERE c.investor_id = ?
        ORDER BY c.created_at DESC`,
-      [req.user.id]
+      [req.user.id],
     );
     return success(res, { contratos: rows.map(normalizeContractRow) });
   } catch (err) {
-    return error(res, 'Erro ao listar contratos.', 500);
+    return error(res, "Erro ao listar contratos.", 500);
   }
 };
 
@@ -1478,11 +2065,11 @@ const getInvestidorPerfil = async (req, res) => {
        FROM investor_profiles ip
        LEFT JOIN users u ON u.id = ip.user_id
        WHERE ip.user_id = ?`,
-      [req.user.id]
+      [req.user.id],
     );
     return success(res, { perfil: ip || null });
   } catch (err) {
-    return error(res, 'Erro ao obter perfil.', 500);
+    return error(res, "Erro ao obter perfil.", 500);
   }
 };
 
@@ -1492,26 +2079,42 @@ const getInvestidorPerfil = async (req, res) => {
  */
 const updateInvestidorPerfil = async (req, res) => {
   try {
-    const { areas_interesse, descricao, provincia, municipio, is_public } = req.body;
+    const { areas_interesse, descricao, provincia, municipio, is_public } =
+      req.body;
     const [[ip]] = await pool.execute(
-      'SELECT id FROM investor_profiles WHERE user_id = ?', [req.user.id]
+      "SELECT id FROM investor_profiles WHERE user_id = ?",
+      [req.user.id],
     );
     if (ip) {
       await pool.execute(
         `UPDATE investor_profiles SET areas_interesse=?, descricao=?, provincia=?, municipio=?, is_public=?
          WHERE user_id=?`,
-        [areas_interesse, descricao, provincia, municipio, is_public ? 1 : 0, req.user.id]
+        [
+          areas_interesse,
+          descricao,
+          provincia,
+          municipio,
+          is_public ? 1 : 0,
+          req.user.id,
+        ],
       );
     } else {
       await pool.execute(
         `INSERT INTO investor_profiles (user_id, areas_interesse, descricao, provincia, municipio, is_public)
          VALUES (?,?,?,?,?,?)`,
-        [req.user.id, areas_interesse, descricao, provincia, municipio, is_public ? 1 : 0]
+        [
+          req.user.id,
+          areas_interesse,
+          descricao,
+          provincia,
+          municipio,
+          is_public ? 1 : 0,
+        ],
       );
     }
-    return success(res, {}, 'Perfil actualizado com sucesso.');
+    return success(res, {}, "Perfil actualizado com sucesso.");
   } catch (err) {
-    return error(res, 'Erro ao actualizar perfil.', 500);
+    return error(res, "Erro ao actualizar perfil.", 500);
   }
 };
 
@@ -1525,18 +2128,24 @@ const cancelarInteresse = async (req, res) => {
     const [result] = await pool.execute(
       `DELETE FROM investor_interests
        WHERE id = ? AND investor_id = ? AND status = 'pendente'`,
-      [id, req.user.id]
+      [id, req.user.id],
     );
     if (result.affectedRows === 0)
-      return error(res, 'Interesse nÃ£o encontrado ou nÃ£o pode ser cancelado.', 404);
-    return success(res, {}, 'Interesse cancelado.');
+      return error(
+        res,
+        "Interesse nÃ£o encontrado ou nÃ£o pode ser cancelado.",
+        404,
+      );
+    return success(res, {}, "Interesse cancelado.");
   } catch (err) {
-    return error(res, 'Erro ao cancelar interesse.', 500);
+    return error(res, "Erro ao cancelar interesse.", 500);
   }
 };
 
 Object.assign(module.exports, {
-  getInvestidorInteresses, getInvestidorContratos,
-  getInvestidorPerfil, updateInvestidorPerfil, cancelarInteresse,
+  getInvestidorInteresses,
+  getInvestidorContratos,
+  getInvestidorPerfil,
+  updateInvestidorPerfil,
+  cancelarInteresse,
 });
-

@@ -8,7 +8,11 @@ const { success, created, error, notFound, badRequest } = require('../utils/resp
 const { gerarReciboPDF } = require('../utils/pdf-modern');
 const { sendEnrollmentConfirmation } = require('../utils/email');
 const { sendWhatsApp } = require('../utils/whatsapp');
-const { createNotification } = require('../services/notification.service');
+const {
+  createNotification,
+  notificarNovaInscricao,
+  notificarPagamentoConfirmado,
+} = require('../services/notification.service');
 const { log } = require('../utils/audit');
 
 const gerarNumeroInscricao = () => {
@@ -180,6 +184,20 @@ const createEnrollment = async (req, res) => {
       `A sua inscrição ${numeroInscricao} foi submetida e aguarda validação administrativa.`,
       '/dashboard/aluno'
     );
+
+    // Notificar aluno por email sobre a inscrição
+    const [[studentData]] = await pool.execute(
+      'SELECT email FROM users WHERE id = ?',
+      [studentId]
+    );
+    if (studentData) {
+      notificarNovaInscricao(
+        studentId,
+        studentData.email,
+        oferta.nome_curso,
+        oferta.nome_centro || 'Centro não especificado'
+      ).catch(e => console.error('[NOTIF_INSCRICAO]', e.message));
+    }
 
     await log(
       studentId,
