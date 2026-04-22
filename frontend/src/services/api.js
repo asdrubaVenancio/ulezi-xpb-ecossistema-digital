@@ -148,7 +148,8 @@ export const authAPI = {
       d,
       d instanceof FormData
         ? {
-            headers: { "Content-Type": "multipart/form-data" },
+            // Não definir Content-Type - Axios define automaticamente com boundary correto
+            headers: { "Content-Type": undefined },
           }
         : undefined,
     ),

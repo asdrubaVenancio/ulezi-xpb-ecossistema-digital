@@ -401,12 +401,12 @@ export function Registar() {
         }
 
         const { data } = await authAPI.registar(payload);
-        
+
         // Login automático após registro bem-sucedido
-        const dados = data.dados || data.data || {};
-        const token = dados.token;
-        const refreshToken = dados.refresh_token;
-        const user = dados.utilizador || dados.user;
+        const resposta = data.dados || data.data || {};
+        const token = resposta.token;
+        const refreshToken = resposta.refresh_token;
+        const user = resposta.utilizador || resposta.user;
         
         if (token && user) {
           loginComDados(token, refreshToken, user);

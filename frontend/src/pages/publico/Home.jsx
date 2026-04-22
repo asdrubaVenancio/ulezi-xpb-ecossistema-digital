@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import Navbar from '../../components/layout/Navbar';
 import Footer from '../../components/layout/Footer';
+import BannerCarrossel from '../../components/ui/BannerCarrossel';
 
 // ── Card de módulo da plataforma ────────────────────────────
 function ModuloCard({ icone, corIcone, titulo, desc, features, link }) {
@@ -48,6 +49,10 @@ export default function Home() {
   return (
     <div className="publico-layout">
       <Navbar />
+
+      {/* ── Banner Carrossel — logo após o menu ──────────── */}
+      <BannerCarrossel />
+
       <main className="brand-page">
 
         {/* ── Hero ───────────────────────────────────── */}

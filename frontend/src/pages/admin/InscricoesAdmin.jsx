@@ -58,6 +58,14 @@ export default function InscricoesAdmin() {
       const url = data.dados?.url;
       if (url) {
         window.open(`${BACKEND_BASE_URL}${url}`, '_blank', 'noopener,noreferrer');
+        // Atualiza o estado local da modal para refletir que o documento foi visualizado
+        setModal(prev => ({
+          ...prev,
+          documentos_visualizados: {
+            ...prev.documentos_visualizados,
+            [tipo]: true
+          }
+        }));
         await carregar();
       }
     } catch (e) {
