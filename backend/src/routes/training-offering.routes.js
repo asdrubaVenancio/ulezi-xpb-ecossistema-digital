@@ -4,7 +4,7 @@
  * Define todos os endpoints relacionados com a gestão de ofertas
  * específicas de cursos, incluindo preços, carga horária e exigências.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 1.0.0
  */
 

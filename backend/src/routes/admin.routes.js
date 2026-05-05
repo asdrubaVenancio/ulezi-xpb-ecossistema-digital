@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB - Rotas do painel administrativo
+ * ULEZI XPI - Rotas do painel administrativo
  * Mantidas em monólito modular com aliases em português e inglês.
  */
 const express = require("express");

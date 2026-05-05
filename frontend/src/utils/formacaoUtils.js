@@ -4,7 +4,7 @@
  * Funções auxiliares para formatação, validação e manipulação
  * de dados relacionados com centros de formação e cursos.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 1.0.0
  */
 

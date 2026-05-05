@@ -1,12 +1,12 @@
 #!/bin/bash
 # ============================================================
-# ULEZI XPB — Script de Instalação Automática
+# ULEZI XPI — Script de Instalação Automática
 # ============================================================
 set -e
 
 echo ""
 echo "╔══════════════════════════════════════════╗"
-echo "║     ULEZI XPB — Instalação Automática    ║"
+echo "║     ULEZI XPI — Instalação Automática    ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 
@@ -34,7 +34,7 @@ echo "📋 Próximos passos:"
 echo ""
 echo "  1. Configure a base de dados MySQL:"
 echo "     mysql -u root -p < database/schema.sql"
-echo "     mysql -u root -p ulezi_xpb < database/seed.sql"
+echo "     mysql -u root -p ulezi_xpI < database/seed.sql"
 echo ""
 echo "  2. Configure o backend:"
 echo "     cp backend/.env.example backend/.env"
@@ -52,5 +52,5 @@ echo ""
 echo "  🌐 App: http://localhost:3000"
 echo "  📡 API: http://localhost:5000"
 echo ""
-echo "  🔑 Login demo: admin@ulezixpb.com / Admin@123456"
+echo "  🔑 Login demo: admin@ulezixpI.com / Admin@123456"
 echo ""

@@ -1,5 +1,5 @@
 // ============================================================
-// ULEZI XPB — App.jsx — Roteamento principal
+// ULEZI XPI — App.jsx — Roteamento principal
 // Módulos separados por responsabilidade única (SRP)
 // ============================================================
 
@@ -28,6 +28,9 @@ const NovaPassword = lazy(() => import('./pages/publico/Paginas').then((m) => ({
 
 const Login = lazy(() => import('./pages/auth/Auth').then((m) => ({ default: m.Login })));
 const Registar = lazy(() => import('./pages/auth/Auth').then((m) => ({ default: m.Registar })));
+
+// Página de Notificações (reutilizável para Aluno e Empresa)
+const Notificacoes = lazy(() => import('./pages/Notificacoes'));
 
 import DashboardLayout from './components/layout/DashboardLayout';
 const DashboardAluno = lazy(() => import('./pages/aluno/Dashboards').then((m) => ({ default: m.DashboardAluno })));
@@ -91,6 +94,14 @@ export default function App() {
               }
             />
             <Route path="/aluno/dashboard" element={<Navigate to="/painel/aluno" replace />} />
+            <Route
+              path="/painel/aluno/notificacoes"
+              element={
+                <RotaPrivada papeis={['estudante', 'student']}>
+                  <ComLayout><Notificacoes /></ComLayout>
+                </RotaPrivada>
+              }
+            />
 
             {/* ── Painel da Empresa ─────────────────────────── */}
             <Route
@@ -111,6 +122,14 @@ export default function App() {
                 </RotaPrivada>
               }
             />
+            <Route
+              path="/empresa/notificacoes"
+              element={
+                <RotaPrivada papeis={['empresa', 'company']}>
+                  <ComLayout><Notificacoes /></ComLayout>
+                </RotaPrivada>
+              }
+            />
 
             {/* ── Painel do Investidor ──────────────────────── */}
             <Route
@@ -118,6 +137,14 @@ export default function App() {
               element={
                 <RotaPrivada papeis={['investidor', 'investor']}>
                   <ComLayout><DashboardInvestidor /></ComLayout>
+                </RotaPrivada>
+              }
+            />
+            <Route
+              path="/painel/investidor/notificacoes"
+              element={
+                <RotaPrivada papeis={['investidor', 'investor']}>
+                  <ComLayout><Notificacoes /></ComLayout>
                 </RotaPrivada>
               }
             />

@@ -134,7 +134,10 @@ const CoordenadaCard = ({ coordenada }) => {
             fontWeight: 500,
           }}
         >
-          Número
+          {coordenada.tipo === 'IBAN' && 'IBAN'}
+          {coordenada.tipo === 'MULTICAIXA_EXPRESS' && 'Número de Telefone'}
+          {coordenada.tipo === 'CONTA_BANCARIA' && 'Número da Conta'}
+          {coordenada.tipo === 'OUTRO' && 'Número / Referência'}
         </label>
         <div
           style={{
@@ -185,63 +188,65 @@ const CoordenadaCard = ({ coordenada }) => {
         </div>
       </div>
 
-      {/* Titular */}
-      <div style={{ marginBottom: '12px' }}>
-        <label
-          style={{
-            display: 'block',
-            fontSize: '0.75rem',
-            color: 'var(--txt-3)',
-            marginBottom: '6px',
-            fontWeight: 500,
-          }}
-        >
-          Titular
-        </label>
-        <div
-          style={{
-            display: 'flex',
-            gap: '8px',
-            alignItems: 'center',
-            background: 'var(--surface-1)',
-            borderRadius: '10px',
-            padding: '10px 16px',
-            border: '1px solid var(--border-1)',
-          }}
-        >
-          <span
+      {/* Titular - oculto para MULTICAIXA_EXPRESS */}
+      {coordenada.tipo !== 'MULTICAIXA_EXPRESS' && coordenada.titular && (
+        <div style={{ marginBottom: '12px' }}>
+          <label
             style={{
-              flex: 1,
-              fontSize: '0.9rem',
-              color: 'var(--txt-1)',
+              display: 'block',
+              fontSize: '0.75rem',
+              color: 'var(--txt-3)',
+              marginBottom: '6px',
               fontWeight: 500,
             }}
           >
-            {coordenada.titular}
-          </span>
-          <button
-            type="button"
-            onClick={() => copiarParaClipboard(coordenada.titular, 'titular')}
+            Titular
+          </label>
+          <div
             style={{
               display: 'flex',
+              gap: '8px',
               alignItems: 'center',
-              gap: '4px',
-              padding: '6px 10px',
-              borderRadius: '6px',
-              border: 'none',
-              background: copiado.titular ? 'var(--success-light)' : 'transparent',
-              color: copiado.titular ? 'var(--success)' : 'var(--txt-3)',
-              fontSize: '0.75rem',
-              fontWeight: 500,
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
+              background: 'var(--surface-1)',
+              borderRadius: '10px',
+              padding: '10px 16px',
+              border: '1px solid var(--border-1)',
             }}
-            aria-label={copiado.titular ? 'Copiado!' : 'Copiar titular'}
           >
-            {copiado.titular ? <Check size={14} /> : <Copy size={14} />}
-          </button>
+            <span
+              style={{
+                flex: 1,
+                fontSize: '0.9rem',
+                color: 'var(--txt-1)',
+                fontWeight: 500,
+              }}
+            >
+              {coordenada.titular}
+            </span>
+            <button
+              type="button"
+              onClick={() => copiarParaClipboard(coordenada.titular, 'titular')}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                border: 'none',
+                background: copiado.titular ? 'var(--success-light)' : 'transparent',
+                color: copiado.titular ? 'var(--success)' : 'var(--txt-3)',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
+              }}
+              aria-label={copiado.titular ? 'Copiado!' : 'Copiar titular'}
+            >
+              {copiado.titular ? <Check size={14} /> : <Copy size={14} />}
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Banco (opcional) */}
       {coordenada.banco && (

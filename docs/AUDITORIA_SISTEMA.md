@@ -1,8 +1,8 @@
-# ULEZI XPB - Auditoria Técnica do Sistema
+# ULEZI XPI - Auditoria Técnica do Sistema
 
 ## 1. Objectivo
 
-Este documento resume a auditoria técnica realizada sobre o repositório actual do ULEZI XPB, comparando:
+Este documento resume a auditoria técnica realizada sobre o repositório actual do ULEZI XPI, comparando:
 
 - o código realmente existente;
 - os requisitos funcionais descritos pelo cliente;

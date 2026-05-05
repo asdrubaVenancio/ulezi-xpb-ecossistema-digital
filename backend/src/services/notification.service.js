@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB — Serviço de Notificações
+ * ULEZI XPI — Serviço de Notificações
  * Notificações internas no sistema + envio de emails com nodemailer
  * Eventos cobertos: registo, aprovação, interesses, contratos, suporte, assinaturas
  */
@@ -59,7 +59,7 @@ const htmlEmailBase = (titulo, corpo, cta = null) => `
       ${corpo}
       ${cta ? `<a href="${cta.url}" class="cta">${cta.label}</a>` : ""}
     </div>
-    <div class="footer">ULEZI XPB · Plataforma de negócios e formação · Este é um email automático.</div>
+    <div class="footer">ULEZI XPI · Plataforma de negócios e formação · Este é um email automático.</div>
   </div>
 </body>
 </html>`;
@@ -78,7 +78,7 @@ const sendEmail = async ({ to, subject, html }) => {
 
   try {
     await transportador.sendMail({
-      from: process.env.EMAIL_FROM || "ULEZI XPB <noreply@ulezi.com>",
+      from: process.env.EMAIL_FROM || "ULEZI XPI <noreply@ulezi.com>",
       to,
       subject,
       html,
@@ -99,12 +99,17 @@ const createNotification = async (
   link = null,
 ) => {
   try {
-    await pool.execute(
+    console.log(`[CREATE_NOTIFICATION] Inserindo: userId=${userId}, tipo=${tipo}, titulo=${titulo}`);
+    const [result] = await pool.execute(
       "INSERT INTO notifications (user_id, tipo, titulo, mensagem, link) VALUES (?,?,?,?,?)",
       [userId, tipo, titulo, mensagem, link],
     );
+    console.log(`[CREATE_NOTIFICATION] Sucesso: insertId=${result.insertId}`);
+    return result;
   } catch (err) {
-    console.error("[NOTIF_ERRO]", err.message);
+    console.error("[CREATE_NOTIFICATION] ERRO:", err.message);
+    console.error("[CREATE_NOTIFICATION] Dados:", { userId, tipo, titulo, mensagem, link });
+    throw err;
   }
 };
 
@@ -143,7 +148,7 @@ const notificarBemVindo = async (userId, nome, email, role) => {
   const html = htmlEmailBase(
     titulo,
     `<p>Olá <strong>${nome}</strong>,</p>
-     <p>A sua conta de <strong>${papelLabel}</strong> na ULEZI XPB foi criada com sucesso.</p>
+     <p>A sua conta de <strong>${papelLabel}</strong> na ULEZI XPI foi criada com sucesso.</p>
      <p>Aceda à plataforma para explorar todas as funcionalidades disponíveis para o seu perfil.</p>`,
     {
       url: process.env.FRONTEND_URL || "http://localhost:3000",
@@ -181,7 +186,7 @@ const notificarDecisaoEmpresa = async (
     corpo,
     aprovada
       ? {
-          url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/empresa/dashboard`,
+          url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/empresa`,
           label: "Ir para o painel",
         }
       : null,
@@ -192,7 +197,7 @@ const notificarDecisaoEmpresa = async (
     aprovada ? "empresa_aprovada" : "empresa_rejeitada",
     titulo,
     mensagem,
-    "/empresa/dashboard",
+    "/painel/empresa",
     email,
     html,
   );
@@ -214,7 +219,7 @@ const notificarNovoInteresse = async (
   const html = htmlEmailBase(
     titulo,
     `<p>O investidor <strong>${nomeInvestidor}</strong> demonstrou interesse na sua oportunidade <strong>"${tituloOportunidade}"</strong>.</p>
-     <p>A equipa da ULEZI XPB iniciará o processo de mediação e entrará em contacto em breve.</p>`,
+     <p>A equipa da ULEZI XPI iniciará o processo de mediação e entrará em contacto em breve.</p>`,
   );
 
   await notificar(
@@ -222,7 +227,7 @@ const notificarNovoInteresse = async (
     "novo_interesse",
     titulo,
     mensagem,
-    "/empresa/dashboard",
+    "/painel/empresa",
     empresaEmail,
     html,
   );
@@ -328,7 +333,7 @@ const notificarNovaOportunidade = async (
     `<p>A sua oportunidade <strong>"${tituloOportunidade}"</strong> (${tipoOportunidade}) foi publicada com sucesso.</p>
      <p>Está agora visível para investidores na plataforma. Receberá notificações quando houver interessados.</p>`,
     {
-      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/empresa/dashboard`,
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/empresa`,
       label: "Ver minhas oportunidades",
     },
   );
@@ -338,7 +343,7 @@ const notificarNovaOportunidade = async (
     "oportunidade_criada",
     titulo,
     mensagem,
-    "/empresa/dashboard",
+    "/painel/empresa",
     email,
     html,
   );
@@ -360,7 +365,7 @@ const notificarNovaVaga = async (
     `<p>A vaga <strong>"${tituloVaga}"</strong> foi criada com sucesso.</p>
      <p>Está agora aguardando aprovação administrativa. Receberá notificação quando for aprovada.</p>`,
     {
-      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/empresa/dashboard`,
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/empresa`,
       label: "Ver minhas vagas",
     },
   );
@@ -370,7 +375,7 @@ const notificarNovaVaga = async (
     "vaga_criada",
     titulo,
     mensagem,
-    "/empresa/dashboard",
+    "/painel/empresa",
     email,
     html,
   );
@@ -392,7 +397,7 @@ const notificarVagaAprovada = async (
     `<p>A vaga <strong>"${tituloVaga}"</strong> foi aprovada pela equipa administrativa.</p>
      <p>Está agora visível para candidatos na plataforma.</p>`,
     {
-      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/empresa/dashboard`,
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/empresa`,
       label: "Ver vaga",
     },
   );
@@ -402,7 +407,7 @@ const notificarVagaAprovada = async (
     "vaga_aprovada",
     titulo,
     mensagem,
-    "/empresa/dashboard",
+    "/painel/empresa",
     email,
     html,
   );
@@ -493,7 +498,7 @@ const notificarConsultoriaAgendada = async (
     `<p>A sua consultoria <strong>"${tema}"</strong> foi agendada.</p>
      <p><strong>Data:</strong> ${data}<br><strong>Hora:</strong> ${hora}<br><strong>Consultoria:</strong> ${nomeConsultoria}</p>`,
     {
-      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/empresa/dashboard`,
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/empresa`,
       label: "Ver consultoria",
     },
   );
@@ -503,7 +508,7 @@ const notificarConsultoriaAgendada = async (
     "consultoria_agendada",
     titulo,
     mensagem,
-    "/empresa/dashboard",
+    "/painel/empresa",
     email,
     html,
   );
@@ -526,7 +531,7 @@ const notificarContratoGerado = async (
     `<p>O contrato <strong>${tipoContrato} #${numeroContrato}</strong> foi gerado com sucesso.</p>
      <p>Está disponível para download na sua área pessoal.</p>`,
     {
-      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/empresa/dashboard`,
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/empresa`,
       label: "Ver contrato",
     },
   );
@@ -536,10 +541,219 @@ const notificarContratoGerado = async (
     "contrato_gerado",
     titulo,
     mensagem,
-    "/empresa/dashboard",
+    "/painel/empresa",
     email,
     html,
   );
+};
+
+const notificarDocumentosReenviados = async (
+  adminEmail,
+  alunoNome,
+  cursoNome,
+  numeroInscricao,
+) => {
+  const titulo = "Documentos reenviados para análise";
+  const mensagem = `O aluno ${alunoNome} reenviou documentos para a inscrição no curso "${cursoNome}". Análise necessária.`;
+
+  const html = htmlEmailBase(
+    titulo,
+    `<p>O aluno <strong>${alunoNome}</strong> reenviou documentos para análise.</p>
+     <p><strong>Curso:</strong> ${cursoNome}</p>
+     <p><strong>Inscrição:</strong> ${numeroInscricao}</p>
+     <p>Os documentos foram actualizados e aguardam a sua revisão.</p>`,
+    {
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/admin/inscricoes`,
+      label: "Ver inscrição",
+    },
+  );
+
+  await sendEmail({
+    to: adminEmail,
+    subject: titulo,
+    html,
+  }).catch(() => null);
+};
+
+/**
+ * Notificacao de ativacao de conta (apos verificacao de email)
+ */
+const notificarContaAtivada = async (userId, email, nome) => {
+  const titulo = "Conta ativada com sucesso";
+  const mensagem = `Olá ${nome}, a sua conta foi ativada. Já pode aceder a todas as funcionalidades da plataforma.`;
+
+  const html = htmlEmailBase(
+    titulo,
+    `<p>Olá <strong>${nome}</strong>,</p>
+     <p>A sua conta na <strong>ULEZI XPB</strong> foi ativada com sucesso.</p>
+     <p>Já pode aceder a todas as funcionalidades da plataforma de acordo com o seu perfil.</p>`,
+    {
+      url: process.env.FRONTEND_URL || "http://localhost:3000",
+      label: "Aceder à plataforma",
+    },
+  );
+
+  await notificar(userId, "conta_ativada", titulo, mensagem, "/", email, html);
+};
+
+/**
+ * Notificacao de resultado de negociacao (para empresa e investidor)
+ */
+const notificarResultadoNegociacao = async (
+  userId,
+  email,
+  nome,
+  tipoResultado,
+  tituloOportunidade,
+  detalhes = null,
+) => {
+  const resultados = {
+    aprovada: { titulo: "Negociação aprovada", msg: `A negociação para "${tituloOportunidade}" foi aprovada.` },
+    rejeitada: { titulo: "Negociação não concretizada", msg: `A negociação para "${tituloOportunidade}" não foi concretizada.` },
+    pendente: { titulo: "Negociação em analise", msg: `A negociação para "${tituloOportunidade}" está em análise administrativa.` },
+    concluida: { titulo: "Negociação concluida", msg: `A negociação para "${tituloOportunidade}" foi concluída com sucesso.` },
+  };
+
+  const resultado = resultados[tipoResultado] || resultados.pendente;
+  const link = userId ? "/painel/empresa" : "/painel/investidor";
+
+  const html = htmlEmailBase(
+    resultado.titulo,
+    `<p>Olá <strong>${nome}</strong>,</p>
+     <p>${resultado.msg}</p>
+     ${detalhes ? `<p><strong>Detalhes:</strong> ${detalhes}</p>` : ""}
+     <p>Pode acompanhar o estado da negociação na sua área pessoal.</p>`,
+    {
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}${link}`,
+      label: "Ver negociações",
+    },
+  );
+
+  await notificar(userId, `negociacao_${tipoResultado}`, resultado.titulo, resultado.msg, link, email, html);
+};
+
+/**
+ * Notificacao de reuniao/agenda agendada
+ */
+const notificarReuniaoAgendada = async (
+  userId,
+  email,
+  nome,
+  tipoReuniao,
+  data,
+  hora,
+  local = null,
+  linkVideo = null,
+) => {
+  const titulo = `${tipoReuniao} agendada`;
+  const mensagem = `${tipoReuniao} agendada para ${data} às ${hora}.${local ? ` Local: ${local}` : ""}`;
+
+  const html = htmlEmailBase(
+    titulo,
+    `<p>Olá <strong>${nome}</strong>,</p>
+     <p>Uma <strong>${tipoReuniao}</strong> foi agendada.</p>
+     <p><strong>Data:</strong> ${data}<br><strong>Hora:</strong> ${hora}</p>
+     ${local ? `<p><strong>Local:</strong> ${local}</p>` : ""}
+     ${linkVideo ? `<p><strong>Link da reunião:</strong> <a href="${linkVideo}">${linkVideo}</a></p>` : ""}
+     <p>Por favor, confirme a sua presença na plataforma.</p>`,
+    {
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/agenda`,
+      label: "Ver agenda",
+    },
+  );
+
+  await notificar(userId, "reuniao_agendada", titulo, mensagem, "/agenda", email, html);
+};
+
+/**
+ * Notificacao de lembrete de reuniao (enviado 24h antes)
+ */
+const notificarLembreteReuniao = async (
+  userId,
+  email,
+  nome,
+  tipoReuniao,
+  data,
+  hora,
+) => {
+  const titulo = `Lembrete: ${tipoReuniao} amanhã`;
+  const mensagem = `Lembrete: Tem ${tipoReuniao} agendada para amanhã, ${data} às ${hora}.`;
+
+  const html = htmlEmailBase(
+    titulo,
+    `<p>Olá <strong>${nome}</strong>,</p>
+     <p>Este é um lembrete da sua <strong>${tipoReuniao}</strong> agendada.</p>
+     <p><strong>Data:</strong> ${data}<br><strong>Hora:</strong> ${hora}</p>
+     <p>Não se esqueça de participar!</p>`,
+    {
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/agenda`,
+      label: "Ver detalhes",
+    },
+  );
+
+  await notificar(userId, "lembrete_reuniao", titulo, mensagem, "/agenda", email, html);
+};
+
+/**
+ * Notificacao de novo candidato a vaga
+ */
+const notificarNovoCandidato = async (
+  userId,
+  email,
+  nomeEmpresa,
+  nomeCandidato,
+  tituloVaga,
+) => {
+  const titulo = "Novo candidato para a sua vaga";
+  const mensagem = `${nomeCandidato} candidatou-se à vaga "${tituloVaga}".`;
+
+  const html = htmlEmailBase(
+    titulo,
+    `<p>Olá <strong>${nomeEmpresa}</strong>,</p>
+     <p>O candidato <strong>${nomeCandidato}</strong> candidatou-se à vaga <strong>"${tituloVaga}"</strong>.</p>
+     <p>Aceda à plataforma para ver o CV e detalhes da candidatura.</p>`,
+    {
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/empresa`,
+      label: "Ver candidaturas",
+    },
+  );
+
+  await notificar(userId, "novo_candidato", titulo, mensagem, "/painel/empresa", email, html);
+};
+
+/**
+ * Notificacao de status de candidatura (para o candidato)
+ */
+const notificarStatusCandidatura = async (
+  userId,
+  email,
+  nomeCandidato,
+  tituloVaga,
+  status,
+  feedback = null,
+) => {
+  const statusLabels = {
+    em_analise: { titulo: "Candidatura em analise", msg: `A sua candidatura para "${tituloVaga}" está em análise.` },
+    aprovada: { titulo: "Candidatura aprovada", msg: `Parabéns! A sua candidatura para "${tituloVaga}" foi aprovada.` },
+    rejeitada: { titulo: "Candidatura nao selecionada", msg: `A sua candidatura para "${tituloVaga}" não foi selecionada nesta fase.` },
+    entrevista: { titulo: "Convite para entrevista", msg: `Foi convocado para uma entrevista para a vaga "${tituloVaga}".` },
+  };
+
+  const estado = statusLabels[status] || statusLabels.em_analise;
+
+  const html = htmlEmailBase(
+    estado.titulo,
+    `<p>Olá <strong>${nomeCandidato}</strong>,</p>
+     <p>${estado.msg}</p>
+     ${feedback ? `<p><strong>Feedback:</strong> ${feedback}</p>` : ""}
+     <p>Aceda à plataforma para mais detalhes.</p>`,
+    {
+      url: `${process.env.FRONTEND_URL || "http://localhost:3000"}/painel/aluno`,
+      label: "Ver candidaturas",
+    },
+  );
+
+  await notificar(userId, `candidatura_${status}`, estado.titulo, estado.msg, "/painel/aluno", email, html);
 };
 
 module.exports = {
@@ -547,16 +761,23 @@ module.exports = {
   sendEmail,
   notificar,
   notificarBemVindo,
+  notificarContaAtivada,
   notificarDecisaoEmpresa,
   notificarNovoInteresse,
+  notificarResultadoNegociacao,
+  notificarReuniaoAgendada,
+  notificarLembreteReuniao,
   notificarTicketAtualizado,
   notificarAssinaturaExpirar,
   notificarNovaOportunidade,
   notificarNovaVaga,
   notificarVagaAprovada,
+  notificarNovoCandidato,
+  notificarStatusCandidatura,
   notificarNovaInscricao,
   notificarPagamentoConfirmado,
   notificarConsultoriaAgendada,
   notificarContratoGerado,
+  notificarDocumentosReenviados,
   getWhatsAppLink,
 };

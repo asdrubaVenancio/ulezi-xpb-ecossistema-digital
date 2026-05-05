@@ -1322,7 +1322,7 @@ const generateSystemList = async (req, res) => {
     const rows = await obterDadosLista(tipo, req.query);
     const colunas = definirColunasPorTipo(tipo, rows);
 
-    const titulo = `ULEZI XPB — Lista de ${tipo}`;
+    const titulo = `ULEZI XPI — Lista de ${tipo}`;
     const subtitulo = `Total de registos: ${rows.length}`;
 
     await log(
@@ -1596,28 +1596,40 @@ const approveCompany = async (req, res) => {
     ]);
 
     // Notificar empresa (interna + email)
+    console.log('[APPROVE_COMPANY] Buscando email do usuário:', cp.user_id);
     const [[user]] = await pool.execute(
-      "SELECT email FROM users WHERE id = ?",
+      "SELECT email, nome FROM users WHERE id = ?",
       [cp.user_id],
     );
+    console.log('[APPROVE_COMPANY] Usuário encontrado:', user ? 'Sim' : 'Não', user?.email);
+
     if (user?.email) {
-      notificarDecisaoEmpresa(
-        cp.user_id,
-        user.email,
-        cp.nome_empresa,
-        true,
-        null,
-      ).catch((e) => console.error("[NOTIF_APROVACAO]", e.message));
-      
+      console.log('[APPROVE_COMPANY] Enviando notificação interna para user_id:', cp.user_id);
+      try {
+        await notificarDecisaoEmpresa(
+          cp.user_id,
+          user.email,
+          cp.nome_empresa,
+          true,
+          null,
+        );
+        console.log('[APPROVE_COMPANY] Notificação interna enviada com sucesso');
+      } catch (notifErr) {
+        console.error('[APPROVE_COMPANY] Erro na notificação interna:', notifErr.message);
+      }
+
       // Também enviar email tradicional
       try {
         await sendCompanyApprovalEmail(user.email, {
           nome_empresa: cp.nome_empresa,
           nif: cp.nif,
         });
+        console.log('[APPROVE_COMPANY] Email de aprovação enviado');
       } catch (emailErr) {
-        console.error("Erro ao enviar email de aprovação:", emailErr);
+        console.error('[APPROVE_COMPANY] Erro ao enviar email:', emailErr.message);
       }
+    } else {
+      console.log('[APPROVE_COMPANY] Não foi possível notificar: email não encontrado');
     }
 
     await log(adminId, "APPROVE_COMPANY", "company_profiles", id, {}, req);

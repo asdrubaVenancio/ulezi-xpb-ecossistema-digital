@@ -288,11 +288,11 @@ const createTicket = async (req, res) => {
 
     // Notificar admins
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        SELECT id, 'novo_ticket', 'Novo ticket de suporte',
-              CONCAT('Novo ticket #', ?, ': ', ?)
+              CONCAT('Novo ticket #', ?, ': ', ?), ?
        FROM users WHERE role IN ('admin', 'employee')`,
-      [ticketNumber, assunto],
+      [ticketNumber, assunto, '/painel/admin'],
     );
 
     await log(
@@ -384,28 +384,28 @@ const addMessage = async (req, res) => {
     if (isAdmin) {
       // Notificar usuário
       await pool.execute(
-        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
          VALUES (?, 'resposta_ticket', 'Nova resposta no seu ticket',
-                 CONCAT('O suporte respondeu ao ticket #', ?))`,
-        [tk.user_id, tk.ticket_number],
+                 CONCAT('O suporte respondeu ao ticket #', ?), ?)`,
+        [tk.user_id, tk.ticket_number, '/painel/aluno'],
       );
     } else {
       // Notificar funcionários
       if (tk.employee_id) {
         await pool.execute(
-          `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+          `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
            SELECT user_id, 'novo_comentario', 'Novo comentário no ticket',
-                  CONCAT('O usuário respondeu ao ticket #', ?)
+                  CONCAT('O usuário respondeu ao ticket #', ?), ?
            FROM employees WHERE id = ?`,
-          [tk.ticket_number, tk.employee_id],
+          [tk.ticket_number, '/painel/admin', tk.employee_id],
         );
       } else {
         await pool.execute(
-          `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+          `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
            SELECT id, 'novo_comentario', 'Novo comentário no ticket',
-                  CONCAT('O usuário respondeu ao ticket #', ?)
+                  CONCAT('O usuário respondeu ao ticket #', ?), ?
            FROM users WHERE role IN ('admin', 'employee')`,
-          [tk.ticket_number],
+          [tk.ticket_number, '/painel/admin'],
         );
       }
     }
@@ -454,11 +454,11 @@ const assignTicket = async (req, res) => {
 
     // Notificar funcionário
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        SELECT user_id, 'ticket_atribuido', 'Ticket atribuído a você',
-              CONCAT('Ticket #', ?, ' foi atribuído ao seu atendimento')
+              CONCAT('Ticket #', ?, ' foi atribuído ao seu atendimento'), ?
        FROM employees WHERE id = ?`,
-      [ticket[0].ticket_number, employee_id],
+      [ticket[0].ticket_number, '/painel/admin', employee_id],
     );
 
     await log(
@@ -539,10 +539,10 @@ const updateStatus = async (req, res) => {
     // Notificar usuário
     if (["resolvido", "fechado"].includes(status)) {
       await pool.execute(
-        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
          VALUES (?, 'ticket_resolvido', 'Seu ticket foi resolvido',
-                 CONCAT('O ticket #', ?, ' foi marcado como ', ?))`,
-        [ticket[0].user_id, ticket[0].ticket_number, status],
+                 CONCAT('O ticket #', ?, ' foi marcado como ', ?), ?)`,
+        [ticket[0].user_id, ticket[0].ticket_number, status, '/painel/aluno'],
       );
     }
 

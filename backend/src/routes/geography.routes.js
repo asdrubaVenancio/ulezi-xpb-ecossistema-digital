@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB — Rotas de Geografia
+ * ULEZI XPI — Rotas de Geografia
  * Fornece listas de províncias e municípios de Angola
  */
 const express = require('express');

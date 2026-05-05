@@ -4,7 +4,7 @@
  * Responsável pela gestão completa dos centros de formação,
  * incluindo CRUD, associação com cursos e gestão de ofertas.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 1.0.0
  */
 

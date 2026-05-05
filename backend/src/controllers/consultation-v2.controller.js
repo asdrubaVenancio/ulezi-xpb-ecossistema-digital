@@ -936,7 +936,8 @@ const listProviderConsultations = async (req, res) => {
     }
 
     const [rows] = await pool.execute(
-      `SELECT c.*, u.nome AS solicitante_nome, u.email AS solicitante_email, rc.nome_empresa AS empresa_solicitante
+      `SELECT c.*, u.nome AS solicitante_nome, u.email AS solicitante_email, u.telefone AS solicitante_telefone,
+              rc.nome_empresa AS empresa_solicitante, rc.sector AS empresa_setor, rc.descricao AS empresa_descricao
        FROM consultations c
        INNER JOIN users u ON u.id = c.user_id
        LEFT JOIN company_profiles rc ON rc.id = c.requester_company_id

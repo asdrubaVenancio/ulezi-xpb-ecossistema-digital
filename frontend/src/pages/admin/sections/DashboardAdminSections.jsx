@@ -400,6 +400,21 @@ export function PainelGeral({ navegarSecao }) {
 export function Utilizadores() {
   const toast = useToast();
 
+  // Mapeamento de papéis para português
+  const traduzirPapel = (role) => {
+    const mapa = {
+      'student': 'Estudante',
+      'admin': 'Administrador',
+      'funcionario': 'Funcionário',
+      'employee': 'Funcionário',
+      'empresa': 'Empresa',
+      'investidor': 'Investidor',
+      'company': 'Empresa',
+      'investor': 'Investidor',
+    };
+    return mapa[role] || role;
+  };
+
   const [utilizadores, setUtilizadores] = useState([]);
   const [total, setTotal] = useState(0);
   const [totalPaginas, setTotalPaginas] = useState(1);
@@ -737,17 +752,17 @@ export function Utilizadores() {
             </select>
 
             <input
+              type="date"
               className="form-input"
               style={{ width: 180 }}
-              placeholder="Data início (dd/mm/aaaa ou mm/aaaa)"
               value={dataInicioExportacao}
               onChange={(e) => setDataInicioExportacao(e.target.value)}
             />
 
             <input
+              type="date"
               className="form-input"
               style={{ width: 180 }}
-              placeholder="Data fim (dd/mm/aaaa ou mm/aaaa)"
               value={dataFimExportacao}
               onChange={(e) => setDataFimExportacao(e.target.value)}
             />
@@ -3965,7 +3980,7 @@ export function Configuracoes() {
   const { utilizador, ehAdmin } = useAuth();
 
   // Somente o admin pode aceder a esta página
-  if (!ehAdmin()) {
+  if (!ehAdmin) {
     return (
       <div style={{ textAlign: "center", padding: 48 }}>
         <Shield size={40} style={{ color: "var(--txt-4)", marginBottom: 16 }} />

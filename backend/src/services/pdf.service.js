@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB — Serviço de Geração de PDFs
+ * ULEZI XPI — Serviço de Geração de PDFs
  * Gera recibos de inscrição, recibos de assinatura e contratos de investimento
  */
 
@@ -44,7 +44,7 @@ const generateSubscriptionReceiptBuffer = async (data) => {
     doc.on('error', reject);
 
     doc.rect(0, 0, doc.page.width, 100).fill(AZUL);
-    doc.fillColor('white').fontSize(28).font('Helvetica-Bold').text('ULEZI XPB', 50, 30);
+    doc.fillColor('white').fontSize(28).font('Helvetica-Bold').text('ULEZI XPI', 50, 30);
     doc.fontSize(12).font('Helvetica').text('Recibo de Pagamento da Assinatura Empresarial', 50, 65);
     doc.fillColor(CINZA);
 
@@ -82,7 +82,7 @@ const generateSubscriptionReceiptBuffer = async (data) => {
         align: 'center',
         width: doc.page.width - 100,
       })
-      .text('ULEZI XPB — suporte@ulezixpb.com', 50, doc.page.height - 65, {
+      .text('ULEZI XPI — suporte@ulezixpI.com', 50, doc.page.height - 65, {
         align: 'center',
         width: doc.page.width - 100,
       });
@@ -108,7 +108,7 @@ const generateReceipt = async (data) => {
 
     // ── Cabeçalho ──
     doc.rect(0, 0, doc.page.width, 100).fill(AZUL);
-    doc.fillColor('white').fontSize(28).font('Helvetica-Bold').text('ULEZI XPB', 50, 30);
+    doc.fillColor('white').fontSize(28).font('Helvetica-Bold').text('ULEZI XPI', 50, 30);
     doc.fontSize(12).font('Helvetica').text('Ecossistema Digital Multifuncional', 50, 65);
     doc.fillColor(CINZA);
 
@@ -146,7 +146,7 @@ const generateReceipt = async (data) => {
     doc.moveTo(50, doc.page.height - 100).lineTo(doc.page.width - 50, doc.page.height - 100).stroke('#CCCCCC');
     doc.fillColor(CINZA).fontSize(9).font('Helvetica')
       .text('Este documento é válido como comprovativo de pagamento.', 50, doc.page.height - 85, { align: 'center', width: doc.page.width - 100 })
-      .text('Ulezi XPB — ulezixpb.com | suporte@ulezixpb.com', 50, doc.page.height - 65, { align: 'center', width: doc.page.width - 100 });
+      .text('Ulezi XPI — ulezixpI.com | suporte@ulezixpI.com', 50, doc.page.height - 65, { align: 'center', width: doc.page.width - 100 });
 
     doc.end();
 
@@ -193,7 +193,7 @@ const generateContract = async (data) => {
 
     // ── Cabeçalho ──
     doc.rect(0, 0, doc.page.width, 90).fill(AZUL);
-    doc.fillColor('white').fontSize(24).font('Helvetica-Bold').text('ULEZI XPB', 60, 25);
+    doc.fillColor('white').fontSize(24).font('Helvetica-Bold').text('ULEZI XPI', 60, 25);
     doc.fontSize(11).font('Helvetica').text('CONTRATO DE NEGÓCIO E INVESTIMENTO', 60, 58);
     doc.fillColor(CINZA);
 
@@ -237,7 +237,7 @@ const generateContract = async (data) => {
     doc.moveTo(60, y + 210).lineTo(doc.page.width - 60, y + 210).stroke('#CCCCCC');
     doc.fillColor(AZUL).fontSize(13).font('Helvetica-Bold').text('TERMOS E CONDIÇÕES', 60, y + 225);
     doc.fillColor(CINZA).fontSize(9).font('Helvetica').text(
-      'O presente contrato é celebrado entre as partes acima identificadas, mediado pela Ulezi XPB. Ambas as partes concordam com os termos descritos e comprometem-se a cumprir as obrigações assumidas. A Ulezi XPB actua como intermediária e garante da transparência do processo.',
+      'O presente contrato é celebrado entre as partes acima identificadas, mediado pela Ulezi XPI. Ambas as partes concordam com os termos descritos e comprometem-se a cumprir as obrigações assumidas. A Ulezi XPI actua como intermediária e garante da transparência do processo.',
       60, y + 248, { width: doc.page.width - 120 }
     );
 
@@ -252,7 +252,7 @@ const generateContract = async (data) => {
     doc.text('Investidor', 280, doc.page.height - 80);
 
     doc.moveTo(480, doc.page.height - 90).lineTo(doc.page.width - 60, doc.page.height - 90).stroke(CINZA);
-    doc.text('Ulezi XPB', 480, doc.page.height - 80);
+    doc.text('Ulezi XPI', 480, doc.page.height - 80);
 
     doc.end();
 

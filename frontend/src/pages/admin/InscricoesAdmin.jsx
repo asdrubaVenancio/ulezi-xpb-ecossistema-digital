@@ -59,14 +59,22 @@ export default function InscricoesAdmin() {
       if (url) {
         window.open(`${BACKEND_BASE_URL}${url}`, '_blank', 'noopener,noreferrer');
         // Atualiza o estado local da modal para refletir que o documento foi visualizado
-        setModal(prev => ({
-          ...prev,
-          documentos_visualizados: {
+        setModal(prev => {
+          const docsVisualizados = {
             ...prev.documentos_visualizados,
             [tipo]: true
-          }
-        }));
-        await carregar();
+          };
+          // Recalcular pode_decidir: precisa ter visualizado comprovativo e documento_requisito (se existir)
+          const precisaDocRequisito = !!prev.documento_requisito_url;
+          const comprovativoVisto = docsVisualizados.comprovativo || tipo === 'comprovativo';
+          const requisitoVisto = !precisaDocRequisito || docsVisualizados.requisito || docsVisualizados.documento || tipo === 'documento' || tipo === 'requisito';
+          const podeDecidir = comprovativoVisto && requisitoVisto;
+          return {
+            ...prev,
+            documentos_visualizados: docsVisualizados,
+            pode_decidir: podeDecidir
+          };
+        });
       }
     } catch (e) {
       toast.erro(extrairErro(e));
@@ -75,6 +83,11 @@ export default function InscricoesAdmin() {
 
   const decidir = async (aprovado) => {
     if (!modal) return;
+    // Verificar se pode decidir (documentos visualizados)
+    if (!modal.pode_decidir) {
+      toast.aviso('Visualize todos os documentos obrigatórios antes de tomar uma decisão.');
+      return;
+    }
     if (!aprovado && motivo.trim().length < 10) {
       toast.aviso('O motivo da rejeição deve ter pelo menos 10 caracteres.');
       return;
@@ -83,7 +96,7 @@ export default function InscricoesAdmin() {
     setSubmetendo(true);
     try {
       await adminAPI.reverInscricao(modal.id, aprovado ? { aprovado: true } : { aprovado: false, motivo_rejeicao: motivo });
-      toast.sucesso(aprovado ? 'Inscrição aprovada com sucesso.' : 'Inscrição rejeitada com sucesso.');
+      toast.sucesso(aprovado ? 'Inscrição aprovada com sucesso.' : 'Inscrição cancelada com sucesso.');
       setModal(null);
       setMotivo('');
       await carregar();
@@ -226,7 +239,7 @@ export default function InscricoesAdmin() {
         acoes={
           <>
             <button className="btn btn--secondary" onClick={() => { setModal(null); setMotivo(''); }}>Fechar</button>
-            <button className="btn btn--ghost" style={{ color: 'var(--vermelho)' }} onClick={() => decidir(false)} disabled={submetendo}>
+            <button className="btn btn--ghost" style={{ color: 'var(--vermelho)' }} onClick={() => decidir(false)} disabled={submetendo || !modal?.pode_decidir}>
               <XCircle size={14} /> Rejeitar
             </button>
             <button className={`btn btn--primary${submetendo ? ' btn--loading' : ''}`} onClick={() => decidir(true)} disabled={submetendo || !modal?.pode_decidir}>
@@ -286,7 +299,7 @@ export default function InscricoesAdmin() {
 
             <div className="form-group">
               <label className="form-label">Motivo da rejeição</label>
-              <textarea className="form-textarea" rows={4} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Preencha apenas se a inscrição for rejeitada." />
+              <textarea className="form-textarea" rows={4} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Preencha apenas se a inscrição for cancelada." />
             </div>
           </div>
         )}

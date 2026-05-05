@@ -61,11 +61,17 @@ export function BadgeStatus({ status }) {
     cancelado: { cor: 'vermelho', label: 'Cancelado' },
     expirada: { cor: 'vermelho', label: 'Expirada' },
     suspenso: { cor: 'roxo', label: 'Suspenso' },
+    // Papéis em português
     estudante: { cor: 'ciano', label: 'Estudante' },
     empresa: { cor: 'cinza', label: 'Empresa' },
     investidor: { cor: 'cinza', label: 'Investidor' },
     funcionario: { cor: 'roxo', label: 'Funcionário' },
-    admin: { cor: 'laranja', label: 'Admin' },
+    admin: { cor: 'laranja', label: 'Administrador' },
+    // Papéis em inglês (do banco de dados)
+    student: { cor: 'ciano', label: 'Estudante' },
+    employee: { cor: 'roxo', label: 'Funcionário' },
+    company: { cor: 'cinza', label: 'Empresa' },
+    investor: { cor: 'cinza', label: 'Investidor' },
   };
   const item = mapa[status?.toLowerCase()] || { cor: 'cinza', label: status || '—' };
   return <Badge cor={item.cor}>{item.label}</Badge>;

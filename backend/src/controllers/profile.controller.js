@@ -4,7 +4,7 @@
  * Responsável pela gestão e exibição de perfis detalhados
  * para alunos, empresas e investidores com design moderno.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 2.0.0
  */
 const { pool } = require('../config/database');
@@ -513,7 +513,7 @@ const getAdminProfile = async (userId) => {
     
     SELECT
       'enrollment' AS tipo,
-      CONCAT('Inscrição: ', e.numero_inscricao) AS descricao,
+      CONCAT('c', e.numero_inscricao) AS descricao,
       e.created_at AS data,
       'Nova inscrição' AS acao
     FROM enrollments e

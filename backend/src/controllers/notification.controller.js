@@ -7,6 +7,7 @@ const { success, error } = require('../utils/response');
 
 const listMyNotifications = async (req, res) => {
   try {
+    console.log('[LIST_NOTIFICATIONS] Buscando notificações para user_id:', req.user.id);
     const [rows] = await pool.execute(
       `SELECT id, tipo, titulo, mensagem, link, lida, lida_at, created_at
        FROM notifications
@@ -15,12 +16,14 @@ const listMyNotifications = async (req, res) => {
        LIMIT 100`,
       [req.user.id]
     );
+    console.log(`[LIST_NOTIFICATIONS] Encontradas ${rows.length} notificações`);
 
     return success(res, {
       notificacoes: rows,
       nao_lidas: rows.filter((item) => !item.lida).length,
     });
   } catch (err) {
+    console.error('[LIST_NOTIFICATIONS] ERRO:', err.message);
     return error(res, 'Erro ao listar notificações.', 500);
   }
 };
@@ -55,8 +58,30 @@ const markAllMyNotificationsRead = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/notificacoes/contagem-nao-lidas
+ * Retorna a contagem de notificacoes nao lidas do utilizador
+ */
+const countUnreadNotifications = async (req, res) => {
+  try {
+    const [rows] = await pool.execute(
+      `SELECT COUNT(*) as count
+       FROM notifications
+       WHERE user_id = ? AND (lida IS NULL OR lida = 0)`,
+      [req.user.id]
+    );
+
+    return success(res, {
+      count: rows[0]?.count || 0,
+    });
+  } catch (err) {
+    return error(res, 'Erro ao contar notificações.', 500);
+  }
+};
+
 module.exports = {
   listMyNotifications,
   markMyNotificationRead,
   markAllMyNotificationsRead,
+  countUnreadNotifications,
 };

@@ -4,7 +4,7 @@
  * Centraliza todas as chamadas à API relacionadas com centros de formação,
  * ofertas de cursos e gestão do módulo de formação profissional.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 1.0.0
  */
 

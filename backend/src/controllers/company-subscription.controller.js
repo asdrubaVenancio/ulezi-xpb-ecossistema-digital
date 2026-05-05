@@ -670,10 +670,10 @@ const approveSubscription = async (req, res) => {
     await allocateCreditsFromSubscription({ subscriptionId: id, createdBy: adminId });
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        VALUES (?, 'assinatura_aprovada', 'Assinatura activada',
-         CONCAT('O pacote ', ?, ' foi activado para a sua empresa. O acesso completo já está disponível.'))`,
-      [subscription.company_user_id, subscription.package_name || subscription.tipo_plano || 'selecionado']
+         CONCAT('O pacote ', ?, ' foi activado para a sua empresa. O acesso completo já está disponível.'), ?)`,
+      [subscription.company_user_id, subscription.package_name || subscription.tipo_plano || 'selecionado', '/painel/empresa']
     );
 
     const numeroRecibo = `SUB-${String(subscription.id).padStart(6, '0')}`;
@@ -764,10 +764,10 @@ const rejectSubscription = async (req, res) => {
     );
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        VALUES (?, 'assinatura_rejeitada', 'Assinatura rejeitada',
-         CONCAT('A solicitação do pacote ', ?, ' foi rejeitada. Motivo: ', ?))`,
-      [subscription.company_user_id, subscription.package_name || subscription.tipo_plano || 'selecionado', motivo.trim()]
+         CONCAT('A solicitação do pacote ', ?, ' foi rejeitada. Motivo: ', ?), ?)`,
+      [subscription.company_user_id, subscription.package_name || subscription.tipo_plano || 'selecionado', motivo.trim(), '/painel/empresa']
     );
 
     if (subscription.representante_email) {

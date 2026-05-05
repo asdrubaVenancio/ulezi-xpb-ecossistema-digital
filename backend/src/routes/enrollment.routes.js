@@ -15,6 +15,7 @@ const {
   viewEnrollmentDocument,
   reviewEnrollment,
   assignCenter,
+  substituirDocumentos,
 } = require('../controllers/enrollment.controller');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 const { validate, enrollmentSchema } = require('../validations/enrollment.validation');
@@ -58,6 +59,10 @@ router.get('/minhas', authenticate, authorize('student'), getMyEnrollments);
 router.get('/me', authenticate, authorize('student'), getMyEnrollments);
 router.post('/:id/payment', authenticate, authorize('student'), uploadInscricao, processPayment);
 router.get('/:id/receipt', authenticate, downloadReceipt);
+router.put('/:id/documentos', authenticate, authorize('student'), upload.fields([
+  { name: 'comprovativo', maxCount: 1 },
+  { name: 'documento_requisito', maxCount: 1 }
+]), substituirDocumentos);
 
 router.delete('/:id', authenticate, authorize('student'), async (req, res) => {
   const { pool } = require('../config/database');

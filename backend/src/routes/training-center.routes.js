@@ -4,7 +4,7 @@
  * Define todos os endpoints relacionados com a gestão de centros
  * de formação, incluindo CRUD, associações e consultas públicas.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 1.0.0
  */
 

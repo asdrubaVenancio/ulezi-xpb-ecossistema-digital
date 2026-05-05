@@ -1,8 +1,8 @@
-# ULEZI XPB — Documentação Técnica de Arquitectura
+# ULEZI XPI — Documentação Técnica de Arquitectura
 
 ## 1. Visão Geral da Arquitectura
 
-O sistema ULEZI XPB segue uma arquitectura **Cliente-Servidor Monolítica Modular** (Monolith Modular), onde o backend é organizado por domínio funcional mas permanece numa única aplicação. Esta escolha garante simplicidade operacional mantendo modularidade e escalabilidade interna.
+O sistema ULEZI XPI segue uma arquitectura **Cliente-Servidor Monolítica Modular** (Monolith Modular), onde o backend é organizado por domínio funcional mas permanece numa única aplicação. Esta escolha garante simplicidade operacional mantendo modularidade e escalabilidade interna.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -160,7 +160,7 @@ Todas as respostas seguem o mesmo formato:
 
 ## 6. Segurança — OWASP Top 10
 
-| Vulnerabilidade | Mitigação no ULEZI XPB |
+| Vulnerabilidade | Mitigação no ULEZI XPI |
 |----------------|------------------------|
 | A01 Broken Access Control | RBAC por papel, middleware authorize() |
 | A02 Cryptographic Failures | bcrypt rounds=12, HTTPS obrigatório em produção |

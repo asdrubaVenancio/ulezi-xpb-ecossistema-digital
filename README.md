@@ -1,4 +1,4 @@
-# ULEZI XPB
+# ULEZI XPI
 
 Plataforma web que integra tres areas principais:
 
@@ -57,7 +57,7 @@ O repositorio contem uma base funcional real para:
 ## Estrutura do projecto
 
 ```text
-ulezi-xpb/
+ulezi-xpI/
 |-- backend/
 |   |-- src/
 |   |   |-- config/
@@ -102,7 +102,7 @@ source database/schema.sql
 source database/seed.sql
 ```
 
-Para o deploy do estado real actual do sistema, prefira importar [bd.sql](/c:/projetos/ulezi-xpb-v2/ulezi-xpb%20-%20Cópia/database/bd.sql), pois ele reflecte a base local em uso e está mais alinhado com o código recente do que o `schema.sql`.
+Para o deploy do estado real actual do sistema, prefira importar [bd.sql](/c:/projetos/ulezi-xpI-v2/ulezi-xpI%20-%20Cópia/database/bd.sql), pois ele reflecte a base local em uso e está mais alinhado com o código recente do que o `schema.sql`.
 
 ### 2. Backend
 
@@ -138,7 +138,7 @@ DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
 DB_PASS=sua_password
-DB_NAME=ulezi2_xpb
+DB_NAME=ulezi2_xpI
 
 JWT_SECRET=uma_chave_longa_e_segura
 JWT_EXPIRES=24h
@@ -152,7 +152,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=seu_email@gmail.com
 SMTP_PASS=sua_password_de_aplicacao
-EMAIL_FROM=ULEZI XPB <noreply@ulezi.com>
+EMAIL_FROM=ULEZI XPI <noreply@ulezi.com>
 
 WHATSAPP_API_URL=
 WHATSAPP_API_KEY=
@@ -178,7 +178,7 @@ cd frontend
 npm run dev
 ```
 
-O frontend esta configurado em [vite.config.js](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\vite.config.js) para subir em:
+O frontend esta configurado em [vite.config.js](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\vite.config.js) para subir em:
 
 - `http://localhost:3000`
 
@@ -210,8 +210,8 @@ npm run build
 
 Conforme `database/seed.sql`, os utilizadores iniciais incluem:
 
-- Administrador: `admin@ulezixpb.com`
-- Funcionario: `funcionario@ulezixpb.com`
+- Administrador: `admin@ulezixpI.com`
+- Funcionario: `funcionario@ulezixpI.com`
 - Estudante: `joao@demo.com`
 - Investidora: `maria@demo.com`
 - Empresa: `techcorp@demo.com`
@@ -233,7 +233,7 @@ Observacao:
 
 ## Deploy
 
-Para deploy via Git + SSH na Hostinger, consulte [DEPLOY_HOSTINGER_SSH.md](/c:/projetos/ulezi-xpb-v2/ulezi-xpb%20-%20Cópia/docs/DEPLOY_HOSTINGER_SSH.md).
+Para deploy via Git + SSH na Hostinger, consulte [DEPLOY_HOSTINGER_SSH.md](/c:/projetos/ulezi-xpI-v2/ulezi-xpI%20-%20Cópia/docs/DEPLOY_HOSTINGER_SSH.md).
 
 ## Modulos do sistema
 

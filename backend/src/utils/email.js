@@ -397,11 +397,64 @@ const sendSubscriptionRejectionEmail = async (email, dados) => {
   });
 };
 
+/**
+ * Email de rejeicao de inscricao em curso
+ * Enviado quando uma inscricao e rejeitada com o motivo da rejeicao
+ */
+const sendEnrollmentRejectionEmail = async ({ email, nome, nomeCurso, motivoRejeicao }) => {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden">
+      <div style="background:#dc2626;padding:30px;text-align:center">
+        <h1 style="color:#fff;margin:0;font-size:28px">ULEZI XPB</h1>
+        <p style="color:rgba(255,255,255,0.9);margin:8px 0 0">Inscrição Rejeitada</p>
+      </div>
+      <div style="padding:30px">
+        <h2 style="color:#374151">Olá ${nome || 'Estudante'},</h2>
+        <p style="color:#6B7280;line-height:1.6">Lamentamos informar que a sua inscrição no curso <strong>${nomeCurso}</strong> foi rejeitada.</p>
+        
+        <div style="background:#FEF2F2;border-radius:8px;padding:20px;margin:20px 0;border-left:4px solid #dc2626">
+          <p style="margin:0 0 8px;color:#374151;font-weight:bold">Motivo da rejeição:</p>
+          <p style="margin:0;color:#6B7280;line-height:1.6">${motivoRejeicao}</p>
+        </div>
+        
+        <div style="background:#F8FAFC;border-radius:8px;padding:20px;margin:20px 0">
+          <p style="margin:0 0 12px;color:#374151;font-weight:bold">Como reenviar a sua inscrição:</p>
+          <ol style="color:#6B7280;line-height:1.6;margin:0;padding-left:20px">
+            <li>Aceda à sua área de estudante na plataforma ULEZI XPB</li>
+            <li>Navegue até à secção "Inscrições" ou "Cursos"</li>
+            <li>Localize a inscrição rejeitada e clique em "Ver detalhes"</li>
+            <li>Corrija o problema indicado acima</li>
+            <li>Clique em "Reenviar documentos" ou "Nova inscrição"</li>
+            <li>Aguarde nova análise pela nossa equipa</li>
+          </ol>
+        </div>
+        
+        <p style="color:#6B7280;line-height:1.6">Se tiver alguma dúvida ou precisar de assistência, por favor contacte o nosso suporte através da plataforma.</p>
+        
+        <a href="${process.env.FRONTEND_URL || 'http://localhost:3000'}/painel/aluno" style="display:inline-block;background:#1FA7C9;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold">
+          Aceder ao Painel do Aluno
+        </a>
+      </div>
+      <div style="background:#F8FAFC;padding:20px;text-align:center">
+        <p style="color:#9CA3AF;font-size:12px;margin:0">© 2026 Ulezi XPB. Todos os direitos reservados.</p>
+        <p style="color:#9CA3AF;font-size:12px;margin:8px 0 0">Este é um email automático, por favor não responda.</p>
+      </div>
+    </div>
+  `;
+
+  return sendEmail({
+    to: email,
+    subject: `Inscrição Rejeitada - ${nomeCurso}`,
+    html,
+  });
+};
+
 module.exports = {
   sendEmail,
   sendWelcomeEmail,
   sendEmployeeOnboardingEmail,
   sendEnrollmentConfirmation,
+  sendEnrollmentRejectionEmail,
   sendInvestorInterestNotification,
   sendContractEmail,
   sendMediationMeetingScheduledEmail,

@@ -230,19 +230,19 @@ const scheduleVisit = async (req, res) => {
     
     // Notificar funcionário
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        SELECT user_id, 'visita_agendada', 'Nova visita agendada',
-              CONCAT('Visita à empresa ', ?, ' agendada para ', ?, ' às ', ?)
+              CONCAT('Visita à empresa ', ?, ' agendada para ', ?, ' às ', ?), ?
        FROM employees WHERE id = ?`,
-      [company[0].nome_empresa, data_visita, hora_visita || 'a definir', employee_id]
+      [company[0].nome_empresa, data_visita, hora_visita || 'a definir', '/painel/admin', employee_id]
     );
     
     // Notificar empresa
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        VALUES (?, 'visita_agendada', 'Visita de verificação agendada',
-               CONCAT('Uma visita de verificação foi agendada para ', ?, '. O funcionário ', ?, ' será o responsável.'))`,
-      [company[0].user_id, data_visita, employee[0].nome]
+               CONCAT('Uma visita de verificação foi agendada para ', ?, '. O funcionário ', ?, ' será o responsável.'), ?)`,
+      [company[0].user_id, data_visita, employee[0].nome, '/painel/empresa']
     );
     
     // Enviar email para funcionário
@@ -411,11 +411,11 @@ const completeVisit = async (req, res) => {
       
       // Notificar admin para aprovação final
       await pool.execute(
-        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
          SELECT id, 'aprovacao_final', 'Empresa aprovada na visita',
-                CONCAT('A empresa ', ?, ' foi aprovada na visita de verificação. Aguardando aprovação final.')
+                CONCAT('A empresa ', ?, ' foi aprovada na visita de verificação. Aguardando aprovação final.'), ?
          FROM users WHERE role = 'admin'`,
-        [visit.nome_empresa]
+        [visit.nome_empresa, '/painel/admin']
       );
     }
     
@@ -428,10 +428,10 @@ const completeVisit = async (req, res) => {
       
       // Notificar empresa
       await pool.execute(
-        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
          VALUES (?, 'visita_reprovada', 'Visita de verificação não aprovada',
-                 CONCAT('A visita de verificação não foi aprovada. Motivo: ', ?))`,
-        [visit.user_id, motivo_rejeicao || 'Não atende aos requisitos da plataforma.']
+                 CONCAT('A visita de verificação não foi aprovada. Motivo: ', ?), ?)`,
+        [visit.user_id, motivo_rejeicao || 'Não atende aos requisitos da plataforma.', '/painel/empresa']
       );
     }
     

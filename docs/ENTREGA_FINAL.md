@@ -1,8 +1,8 @@
-# Entrega Final do Sistema ULEZI XPB
+# Entrega Final do Sistema ULEZI XPI
 
 ## Objectivo
 
-Este documento resume o estado de entrega do sistema ULEZI XPB após a fase de auditoria, correcções funcionais, reforço de segurança, testes e documentação.
+Este documento resume o estado de entrega do sistema ULEZI XPI após a fase de auditoria, correcções funcionais, reforço de segurança, testes e documentação.
 
 O sistema mantém a arquitectura acordada de **monólito modular**, com separação clara entre:
 

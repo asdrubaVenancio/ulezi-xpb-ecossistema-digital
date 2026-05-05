@@ -56,8 +56,8 @@ const generateSubscriptionReceiptBuffer = async (data) => new Promise((resolve, 
     margin: 50,
     info: {
       Title: `Recibo de assinatura - ${data.numero_recibo}`,
-      Author: 'ULEZI XPB',
-      Creator: 'ULEZI XPB Sistema',
+      Author: 'ULEZI XPI',
+      Creator: 'ULEZI XPI Sistema',
       Subject: 'Recibo de assinatura empresarial',
     },
   });

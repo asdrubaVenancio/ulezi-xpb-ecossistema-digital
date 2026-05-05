@@ -326,6 +326,6 @@ DELETE /api/admin/training-offerings/:id     // Desativar
 **Status:** ✅ **IMPLEMENTAÇÃO CONCLUÍDA**  
 **Versão Frontend:** 1.0.0  
 **Data:** 30/03/2026  
-**Desenvolvedor:** ULEZI XPB Team
+**Desenvolvedor:** Asdruba Developer
 
 O frontend do módulo de formação profissional está **100% funcional** e pronto para produção, com todas as funcionalidades solicitadas implementadas seguindo as melhores práticas de desenvolvimento!

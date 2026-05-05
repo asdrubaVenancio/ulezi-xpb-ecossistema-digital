@@ -1,6 +1,6 @@
-# ULEZI XPB - Frontend
+# ULEZI XPI - Frontend
 
-Aplicacao React do ecossistema ULEZI XPB.
+Aplicacao React do ecossistema ULEZI XPI.
 
 Este frontend atende os fluxos publicos e autenticados para estudantes, empresas, investidores, funcionarios e administradores, consumindo a API do backend monolitico modular do projeto.
 
@@ -14,7 +14,7 @@ Este frontend atende os fluxos publicos e autenticados para estudantes, empresas
 - Zod
 - Lucide React
 - CSS com variaveis globais
-- TailwindCSS presente nas dependencias de build, mas a interface atual usa principalmente CSS proprio em [global.css](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\styles\global.css)
+- TailwindCSS presente nas dependencias de build, mas a interface atual usa principalmente CSS proprio em [global.css](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\styles\global.css)
 
 ## Estado atual do frontend
 
@@ -40,7 +40,7 @@ O frontend ja cobre as principais areas do sistema:
 ## Instalacao
 
 ```powershell
-cd C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend
+cd C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend
 copy .env.example .env
 npm install
 ```
@@ -53,12 +53,12 @@ O ficheiro `.env` pode usar:
 VITE_API_URL=http://localhost:5000/api
 ```
 
-O projeto tambem aceita prefixo legacy `REACT_APP_` porque o Vite esta configurado com ambos os prefixos em [vite.config.js](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\vite.config.js).
+O projeto tambem aceita prefixo legacy `REACT_APP_` porque o Vite esta configurado com ambos os prefixos em [vite.config.js](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\vite.config.js).
 
 ## Execucao local
 
 ```powershell
-cd C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend
+cd C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend
 npm run dev
 ```
 
@@ -69,7 +69,7 @@ O Vite esta configurado para correr em:
 ## Build de producao
 
 ```powershell
-cd C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend
+cd C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend
 npm run build
 ```
 
@@ -104,20 +104,20 @@ frontend/
 
 ## Principais ficheiros
 
-- [App.jsx](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\App.jsx): roteamento principal
-- [AuthContext.jsx](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\context\AuthContext.jsx): sessao do utilizador e autenticacao
-- [api.js](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\services\api.js): cliente Axios e modulos da API
-- [DashboardAdmin.jsx](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\pages\admin\DashboardAdmin.jsx): painel administrativo
-- [Dashboards.jsx](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\pages\aluno\Dashboards.jsx): dashboards por papel
-- [Perfil.jsx](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\pages\perfil\Perfil.jsx): gestao de perfil
-- [global.css](C:\projetos\ulezi-xpb-v2\ulezi-xpb\frontend\src\styles\global.css): design system e tema
+- [App.jsx](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\App.jsx): roteamento principal
+- [AuthContext.jsx](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\context\AuthContext.jsx): sessao do utilizador e autenticacao
+- [api.js](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\services\api.js): cliente Axios e modulos da API
+- [DashboardAdmin.jsx](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\pages\admin\DashboardAdmin.jsx): painel administrativo
+- [Dashboards.jsx](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\pages\aluno\Dashboards.jsx): dashboards por papel
+- [Perfil.jsx](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\pages\perfil\Perfil.jsx): gestao de perfil
+- [global.css](C:\projetos\ulezi-xpI-v2\ulezi-xpI\frontend\src\styles\global.css): design system e tema
 
 ## Contas demo
 
-As credenciais iniciais sao carregadas por [seed.sql](C:\projetos\ulezi-xpb-v2\ulezi-xpb\database\seed.sql):
+As credenciais iniciais sao carregadas por [seed.sql](C:\projetos\ulezi-xpI-v2\ulezi-xpI\database\seed.sql):
 
-- Admin: `admin@ulezixpb.com`
-- Funcionario: `funcionario@ulezixpb.com`
+- Admin: `admin@ulezixpI.com`
+- Funcionario: `funcionario@ulezixpI.com`
 - Estudante: `joao@demo.com`
 - Investidora: `maria@demo.com`
 - Empresa: `techcorp@demo.com`

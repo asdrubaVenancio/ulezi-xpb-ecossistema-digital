@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB - Servidor Principal
+ * ULEZI XPI - Servidor Principal
  * Ponto de entrada da aplicação backend
  */
 require('dotenv').config();

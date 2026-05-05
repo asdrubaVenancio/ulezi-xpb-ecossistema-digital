@@ -184,6 +184,13 @@ export const cursosAPI = {
   avaliar: (id, d) => api.post(`/inscricoes/${id}/avaliar`, d),
   descarregarRecibo: (id) =>
     api.get(`/inscricoes/${id}/receipt`, { responseType: "blob" }),
+  // Substituir documentos de inscrição (reenvio após rejeição)
+  substituirDocumentos: (id, fd) =>
+    api.put(
+      `/inscricoes/${id}/documentos`,
+      fd,
+      { headers: { "Content-Type": undefined } },
+    ),
 };
 
 export const pagamentosAPI = {
@@ -239,9 +246,10 @@ export const coordenadasBancariasAPI = {
 };
 
 export const notifAPI = {
-  listar: () => api.get("/notificacoes"),
+  listar: () => api.get(`/notificacoes?_t=${Date.now()}`), // timestamp para evitar cache
   marcarLida: (id) => api.put(`/notificacoes/${id}/lida`),
   marcarTodas: () => api.put("/notificacoes/marcar-todas"),
+  contagemNaoLidas: () => api.get(`/notificacoes/contagem-nao-lidas?_t=${Date.now()}`),
 };
 
 export const investidorAPI = {

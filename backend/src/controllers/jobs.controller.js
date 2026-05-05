@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB - Controller de Vagas de Emprego
+ * ULEZI XPI - Controller de Vagas de Emprego
  * Fluxo empresarial com publicacao imediata para empresas aprovadas
  * e expiracao automatica baseada na data limite configurada.
  */

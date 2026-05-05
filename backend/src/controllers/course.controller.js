@@ -4,7 +4,7 @@
  * Responsável pela gestão de cursos base, sem informações específicas
  * de preços e centros que pertencem às ofertas dos centros.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 2.0.0
  */
 const { pool } = require('../config/database');

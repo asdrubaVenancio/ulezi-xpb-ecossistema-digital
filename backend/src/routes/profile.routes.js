@@ -4,7 +4,7 @@
  * Define todos os endpoints relacionados com a gestão e visualização
  * de perfis detalhados para alunos, empresas e investidores.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 2.0.0
  */
 

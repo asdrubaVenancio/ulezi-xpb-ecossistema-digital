@@ -31,7 +31,7 @@ test('deve responder no health check', async () => {
 
   assert.equal(response.status, 200);
   assert.equal(body.success, true);
-  assert.equal(body.message, 'Ulezi XPB API está operacional.');
+  assert.equal(body.message, 'Ulezi XPI API está operacional.');
   assert.equal(body.version, '1.0.0');
 });
 

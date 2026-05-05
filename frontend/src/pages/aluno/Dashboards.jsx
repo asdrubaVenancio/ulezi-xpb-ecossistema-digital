@@ -8,6 +8,7 @@
 
 import {
   AlertCircle,
+  Bell,
   BookOpen,
   Briefcase,
   Calendar,
@@ -16,7 +17,10 @@ import {
   CreditCard,
   Download,
   Edit,
+  Eye,
   FileText,
+  Folder,
+  Info,
   Mail,
   MapPin,
   MessageCircle,
@@ -29,6 +33,7 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useToast } from "../../components/ui/Toast";
 import {
   BadgeStatus,
@@ -44,8 +49,9 @@ import {
   empresaAPI,
   extrairErro,
   investidorAPI,
+  notifAPI,
 } from "../../services/api";
-import { formatAOA, formatData, formatDataHora } from "../../utils/constants";
+import { BACKEND_BASE_URL, formatAOA, formatData, formatDataHora } from "../../utils/constants";
 
 function DashboardTabLoading({ label }) {
   return (
@@ -190,9 +196,12 @@ function LinhaEstadoAssinatura({ contrato, papel }) {
 export function DashboardAluno() {
   const { utilizador } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
   const [inscricoes, setInscricoes] = useState([]);
   const [abaActiva, setAbaActiva] = useState("inscricoes");
   const [carregando, setCarregando] = useState(true);
+  // Estado para contagem de notificacoes nao lidas
+  const [contadorNotificacoes, setContadorNotificacoes] = useState(0);
   const [modalAvaliar, setModalAvaliar] = useState(null);
   const [avalForm, setAvalForm] = useState({ nota: 5, comentario: "" });
   const [enviando, setEnviando] = useState(false);
@@ -217,6 +226,23 @@ export function DashboardAluno() {
   useEffect(() => {
     const timer = window.setInterval(() => setAgora(Date.now()), 60000);
     return () => window.clearInterval(timer);
+  }, []);
+
+  // Busca contagem de notificacoes nao lidas
+  useEffect(() => {
+    const buscarContagemNotificacoes = async () => {
+      try {
+        const resposta = await notifAPI.contagemNaoLidas();
+        setContadorNotificacoes(resposta.data?.count || 0);
+      } catch (e) {
+        // Silencioso - nao bloqueia a UI se falhar
+        console.error("Erro ao buscar notificacoes:", e);
+      }
+    };
+    buscarContagemNotificacoes();
+    // Atualiza a cada 2 minutos
+    const timer = setInterval(buscarContagemNotificacoes, 120000);
+    return () => clearInterval(timer);
   }, []);
 
   // Calcula tempo restante até um deadline
@@ -399,6 +425,22 @@ export function DashboardAluno() {
             </button>
             <button
               type="button"
+              className={`tab-btn${abaActiva === "documentos" ? " active" : ""}`}
+              onClick={() => setAbaActiva("documentos")}
+              style={{
+                padding: "12px 20px",
+                borderRadius: "var(--r-md) var(--r-md) 0 0",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                fontWeight: 500,
+                transition: "all 0.2s ease",
+              }}
+            >
+              <Folder size={16} /> Documentos
+            </button>
+            <button
+              type="button"
               className={`tab-btn${abaActiva === "historico" ? " active" : ""}`}
               onClick={() => setAbaActiva("historico")}
               style={{
@@ -412,6 +454,43 @@ export function DashboardAluno() {
               }}
             >
               <FileText size={16} /> Histórico Completo
+            </button>
+
+            {/* Botao de Notificacoes */}
+            <button
+              type="button"
+              className="tab-btn tab-btn-notificacoes"
+              onClick={() => navigate("/painel/aluno/notificacoes")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontWeight: 500,
+                transition: "all 0.2s ease",
+                position: "relative",
+                marginLeft: "auto",
+              }}
+              title="Ver notificacoes"
+            >
+              <Bell size={16} />
+              <span>Notificacoes</span>
+              {contadorNotificacoes > 0 && (
+                <span
+                  className="badge-notificacoes"
+                  style={{
+                    background: "#ef4444",
+                    color: "white",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    minWidth: "18px",
+                    textAlign: "center",
+                  }}
+                >
+                  {contadorNotificacoes > 99 ? "99+" : contadorNotificacoes}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -696,6 +775,14 @@ export function DashboardAluno() {
                   </div>
                 ))}
 
+              {abaActiva === "documentos" && (
+                <DashboardDocumentos
+                  inscricoes={inscricoes}
+                  carregando={carregando}
+                  onRefresh={carregar}
+                />
+              )}
+
               {abaActiva === "historico" &&
                 (inscricoes.length === 0 ? (
                   <EmptyState
@@ -899,11 +986,408 @@ export function DashboardAluno() {
 }
 
 // —
+// COMPONENTE DOCUMENTOS (Aba Documentos do Dashboard Aluno)
+function DashboardDocumentos({ inscricoes, carregando, onRefresh }) {
+  const [inscricaoSelecionada, setInscricaoSelecionada] = useState(null);
+  const [tipoDocumento, setTipoDocumento] = useState(null); // 'comprovativo' ou 'requisito'
+  const [comprovativo, setComprovativo] = useState(null);
+  const [documentoRequisito, setDocumentoRequisito] = useState(null);
+  const [enviando, setEnviando] = useState(false);
+  const toast = useToast();
+
+  // Filtrar inscrições que têm documentos ou estão pendentes/análise/canceladas
+  const inscricoesComDocumentos = inscricoes.filter(
+    (i) =>
+      i.comprovativo_url ||
+      i.documento_requisito_url ||
+      ["pendente", "em_analise", "cancelada"].includes(
+        i.status_pagamento || i.payment_status
+      )
+  );
+
+  const handleFileChange = (tipo, file) => {
+    if (tipo === "comprovativo") setComprovativo(file);
+    if (tipo === "requisito") setDocumentoRequisito(file);
+  };
+
+  const abrirSubstituicao = (inscricao, tipo) => {
+    // Só permitir substituição se a inscrição foi cancelada/rejeitada
+    const pmtStatus = inscricao.status_pagamento || inscricao.payment_status;
+    if (pmtStatus !== "cancelada" && pmtStatus !== "reembolsado" && pmtStatus !== "rejeitado") {
+      toast.aviso("Só é possível substituir documentos quando a inscrição é cancelada");
+      return;
+    }
+    setInscricaoSelecionada(inscricao);
+    setTipoDocumento(tipo);
+    setComprovativo(null);
+    setDocumentoRequisito(null);
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!inscricaoSelecionada) return;
+    if (tipoDocumento === "comprovativo" && !comprovativo) {
+      toast.aviso("Selecione o novo comprovativo");
+      return;
+    }
+    if (tipoDocumento === "requisito" && !documentoRequisito) {
+      toast.aviso("Selecione o novo documento de requisito");
+      return;
+    }
+
+    setEnviando(true);
+    try {
+      const fd = new FormData();
+      if (comprovativo) fd.append("comprovativo", comprovativo);
+      if (documentoRequisito) fd.append("documento_requisito", documentoRequisito);
+
+      await cursosAPI.substituirDocumentos(inscricaoSelecionada.id, fd);
+      toast.sucesso("Documento enviado com sucesso! Aguarde análise.");
+      setInscricaoSelecionada(null);
+      setTipoDocumento(null);
+      setComprovativo(null);
+      setDocumentoRequisito(null);
+      onRefresh();
+    } catch (err) {
+      toast.erro(
+        err?.response?.data?.message || "Erro ao enviar documento"
+      );
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const getStatusDoc = (inscricao, tipo) => {
+    const status = inscricao.status_pagamento || inscricao.payment_status;
+    console.log('[DEBUG getStatusDoc]', { inscricaoId: inscricao.id, tipo, status });
+    if (status === "confirmada" || status === "aprovado") return "approved";
+    if (status === "cancelada" || status === "reembolsado" || status === "rejeitado") return "rejected";
+    if (tipo === "comprovativo" && inscricao.comprovativo_url) return "pending";
+    if (tipo === "requisito" && inscricao.documento_requisito_url)
+      return "pending";
+    return "missing";
+  };
+
+  if (carregando) {
+    return (
+      <div style={{ padding: 40, textAlign: "center" }}>
+        <Spinner />
+      </div>
+    );
+  }
+
+  if (inscricoesComDocumentos.length === 0) {
+    return (
+      <EmptyState
+        icone={<Folder size={28} />}
+        titulo="Sem documentos"
+        descricao="As suas inscrições com documentos aparecerão aqui."
+      />
+    );
+  }
+
+  return (
+    <div style={{ padding: "20px 0" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: 16,
+          gridTemplateColumns: "repeat(auto-fill, minmax(340px, 1fr))",
+        }}
+      >
+        {inscricoesComDocumentos.map((inscricao) => (
+          <div
+            key={inscricao.id}
+            className="card"
+            style={{
+              padding: 20,
+              borderRadius: "var(--r-lg)",
+              border: "1px solid var(--line)",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "flex-start",
+                marginBottom: 16,
+              }}
+            >
+              <div>
+                <h4 style={{ fontWeight: 600, marginBottom: 4 }}>
+                  {inscricao.curso_nome || inscricao.nome_curso || "Curso"}
+                </h4>
+                <span style={{ fontSize: "0.85rem", color: "var(--txt-3)" }}>
+                  Inscrição: {inscricao.numero_inscricao || inscricao.id}
+                </span>
+              </div>
+              <BadgeStatus
+                status={inscricao.status_pagamento || inscricao.payment_status}
+              />
+            </div>
+
+            {/* Lista de documentos */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <DocumentoItem
+                titulo="Comprovativo de Pagamento"
+                tipo="comprovativo"
+                inscricao={inscricao}
+                status={getStatusDoc(inscricao, "comprovativo")}
+                onSubstituir={(tipoDoc) => abrirSubstituicao(inscricao, tipoDoc)}
+              />
+              <DocumentoItem
+                titulo="Documento de Requisito"
+                tipo="requisito"
+                inscricao={inscricao}
+                status={getStatusDoc(inscricao, "requisito")}
+                onSubstituir={(tipoDoc) => abrirSubstituicao(inscricao, tipoDoc)}
+                exigido={!!inscricao.documento_requisito_url}
+              />
+            </div>
+
+            {inscricao.motivo_rejeicao && (
+              <div
+                style={{
+                  marginTop: 16,
+                  padding: 12,
+                  backgroundColor: "rgba(239, 68, 68, 0.1)",
+                  borderRadius: "var(--r-md)",
+                  fontSize: "0.85rem",
+                  color: "#dc2626",
+                }}
+              >
+                <strong>Motivo da rejeição:</strong> {inscricao.motivo_rejeicao}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Modal de substituição de documentos */}
+      <Modal
+        aberto={!!inscricaoSelecionada}
+        onFechar={() => {
+          setInscricaoSelecionada(null);
+          setTipoDocumento(null);
+          setComprovativo(null);
+          setDocumentoRequisito(null);
+        }}
+        titulo={`Substituir ${tipoDocumento === "comprovativo" ? "Comprovativo" : tipoDocumento === "requisito" ? "Documento de Requisito" : "Documento"}`}
+        acoes={
+          <>
+            <button
+              className="btn btn--secondary"
+              onClick={() => {
+                setInscricaoSelecionada(null);
+                setTipoDocumento(null);
+                setComprovativo(null);
+                setDocumentoRequisito(null);
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              className="btn btn--primary"
+              onClick={handleSubmit}
+              disabled={enviando || (tipoDocumento === "comprovativo" ? !comprovativo : !documentoRequisito)}
+            >
+              {enviando ? <Spinner size="sm" /> : "Enviar Documento"}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleSubmit}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            {tipoDocumento === "comprovativo" && (
+              <div>
+                <label className="form-label">Novo Comprovativo *</label>
+                <input
+                  type="file"
+                  onChange={(e) => handleFileChange("comprovativo", e.target.files?.[0])}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{
+                    padding: "10px 12px",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--r-md)",
+                    backgroundColor: "var(--surface-variant)",
+                    width: "100%",
+                    cursor: "pointer",
+                  }}
+                />
+                {comprovativo && (
+                  <p style={{ fontSize: "0.85rem", marginTop: 8 }}>
+                    <CheckCircle size={14} color="var(--succ)" />{" "}
+                    {comprovativo.name}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {tipoDocumento === "requisito" && (
+              <div>
+                <label className="form-label">
+                  Novo Documento de Requisito *
+                </label>
+                <input
+                  type="file"
+                  onChange={(e) => handleFileChange("requisito", e.target.files?.[0])}
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  style={{
+                    padding: "10px 12px",
+                    border: "1px solid var(--line)",
+                    borderRadius: "var(--r-md)",
+                    backgroundColor: "var(--surface-variant)",
+                    width: "100%",
+                    cursor: "pointer",
+                  }}
+                />
+                {documentoRequisito && (
+                  <p style={{ fontSize: "0.85rem", marginTop: 8 }}>
+                    <CheckCircle size={14} color="var(--succ)" />{" "}
+                    {documentoRequisito.name}
+                  </p>
+                )}
+              </div>
+            )}
+
+            <p
+              style={{
+                fontSize: "0.85rem",
+                color: "var(--txt-3)",
+                fontStyle: "italic",
+              }}
+            >
+              Este documento substituirá o anterior. Aguarde nova análise do administrador.
+            </p>
+          </div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
+// Componente auxiliar para cada documento
+function DocumentoItem({ titulo, tipo, inscricao, status, onSubstituir, exigido = true }) {
+  const url =
+    tipo === "comprovativo"
+      ? inscricao.comprovativo_url
+      : inscricao.documento_requisito_url;
+
+  // Se o documento não é exigido e não foi enviado, não mostrar
+  if (!exigido && !url) {
+    return null;
+  }
+
+  // Só permitir substituição quando o documento foi rejeitado
+  const podeSubstituir = status === "rejected" && url; // precisa ter URL e estar rejeitado
+  console.log('[DEBUG DocumentoItem]', { titulo, status, url: !!url, podeSubstituir });
+  const estaOculto = status === "approved";
+
+  if (estaOculto) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: 12,
+          backgroundColor: "rgba(34, 197, 94, 0.1)",
+          borderRadius: "var(--r-md)",
+        }}
+      >
+        <CheckCircle size={20} color="#16a34a" />
+        <span style={{ flex: 1, fontWeight: 500 }}>{titulo}</span>
+        <span
+          style={{
+            fontSize: "0.8rem",
+            color: "#16a34a",
+            backgroundColor: "rgba(34, 197, 94, 0.2)",
+            padding: "4px 10px",
+            borderRadius: "var(--r-sm)",
+          }}
+        >
+          Aprovado
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: 12,
+        backgroundColor:
+          status === "rejected"
+            ? "rgba(239, 68, 68, 0.1)"
+            : "var(--surface-variant)",
+        borderRadius: "var(--r-md)",
+        border:
+          status === "rejected"
+            ? "1px solid rgba(239, 68, 68, 0.3)"
+            : "1px solid var(--line)",
+      }}
+    >
+      <FileText
+        size={20}
+        color={
+          status === "rejected" ? "#dc2626" : status === "missing" ? "#9ca3af" : "#3b82f6"
+        }
+      />
+      <span style={{ flex: 1, fontWeight: 500 }}>{titulo}</span>
+
+      {url ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {status === "rejected" && (
+            <span
+              style={{
+                fontSize: "0.75rem",
+                color: "#dc2626",
+                backgroundColor: "rgba(239, 68, 68, 0.15)",
+                padding: "2px 8px",
+                borderRadius: "var(--r-sm)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Cancelado
+            </span>
+          )}
+          <a
+            href={`${BACKEND_BASE_URL}${url}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn--secondary btn--sm"
+          >
+            <Download size={14} /> Ver
+          </a>
+          {podeSubstituir && (
+            <button
+              className="btn btn--primary btn--sm"
+              onClick={() => onSubstituir(tipo)}
+              title="Substituir documento"
+            >
+              <Upload size={14} /> Substituir
+            </button>
+          )}
+        </div>
+      ) : (
+        <span style={{ fontSize: "0.8rem", color: "#9ca3af" }}>
+          Não enviado
+        </span>
+      )}
+    </div>
+  );
+}
+
+// —
 // DASHBOARD EMPRESA
 // —
 export function DashboardEmpresa() {
   const { utilizador } = useAuth();
   const toast = useToast();
+  const navigate = useNavigate();
   const toastRef = useRef(toast);
 
   // Manter ref atualizada
@@ -912,6 +1396,8 @@ export function DashboardEmpresa() {
   }, [toast]);
 
   const [oportunidades, setOportunidades] = useState([]);
+  // Estado para contagem de notificacoes nao lidas
+  const [contadorNotificacoes, setContadorNotificacoes] = useState(0);
   const [servicos, setServicos] = useState([]);
   const [contratos, setContratos] = useState([]);
   const [minhasVagas, setMinhasVagas] = useState([]);
@@ -1007,6 +1493,10 @@ export function DashboardEmpresa() {
   const [consultoriaParaRemarcar, setConsultoriaParaRemarcar] = useState(null);
   const [modalRemarcar, setModalRemarcar] = useState(false);
 
+  // Estados para modal de informações do cliente (consultoria provider)
+  const [modalInfoCliente, setModalInfoCliente] = useState(false);
+  const [clienteSelecionado, setClienteSelecionado] = useState(null);
+
   // Estados para consultoria (empresas de consultoria - provider)
   const [consultoriaSolicitacoes, setConsultoriaSolicitacoes] = useState([]);
   const [consultoriaDisponibilidade, setConsultoriaDisponibilidade] = useState(
@@ -1091,6 +1581,23 @@ export function DashboardEmpresa() {
     setVagasConsultoria([]);
     setSugestoesConsultoria([]);
   };
+
+  // Busca contagem de notificacoes nao lidas
+  useEffect(() => {
+    const buscarContagemNotificacoes = async () => {
+      try {
+        const resposta = await notifAPI.contagemNaoLidas();
+        setContadorNotificacoes(resposta.data?.count || 0);
+      } catch (e) {
+        // Silencioso - nao bloqueia a UI se falhar
+        console.error("Erro ao buscar notificacoes:", e);
+      }
+    };
+    buscarContagemNotificacoes();
+    // Atualiza a cada 2 minutos
+    const timer = setInterval(buscarContagemNotificacoes, 120000);
+    return () => clearInterval(timer);
+  }, []);
 
   const carregar = useCallback(async () => {
     try {
@@ -1269,6 +1776,28 @@ export function DashboardEmpresa() {
     }
   };
 
+  // Carregar solicitações de consultoria (para empresas de consultoria)
+  const carregarSolicitacoesConsultoria = async () => {
+    try {
+      const resp = await consultoriaAPI.providerSolicitacoes();
+      setConsultoriaSolicitacoes(resp.data?.consultas || []);
+    } catch (e) {
+      console.log("Erro ao carregar solicitações:", e);
+      setConsultoriaSolicitacoes([]);
+    }
+  };
+
+  // Carregar minhas consultorias agendadas
+  const carregarMinhasConsultorias = async () => {
+    try {
+      const resp = await consultoriaAPI.listarMinhas();
+      setMinhasConsultorias(resp.data?.consultas || []);
+    } catch (e) {
+      console.log("Erro ao carregar consultorias:", e);
+      setMinhasConsultorias([]);
+    }
+  };
+
   const selecionarConsultoria = async (consultoria) => {
     setConsultoriaSelecionada(consultoria);
     setVagasConsultoria([]);
@@ -1339,7 +1868,7 @@ export function DashboardEmpresa() {
     }
   };
 
-  const abrirModalRemarcar = (consultoria) => {
+  const abrirModalRemarcar = async (consultoria) => {
     setConsultoriaParaRemarcar(consultoria);
     setConsultoriaSelecionada({
       id: consultoria.consultancy_company_id,
@@ -1354,6 +1883,14 @@ export function DashboardEmpresa() {
       slot_date: "",
       hora_inicio: "",
     });
+    // Carregar disponibilidade semanal da consultoria
+    try {
+      const resp = await consultoriaAPI.obterDisponibilidade(consultoria.consultancy_company_id);
+      setDisponibilidadeConsultoria(resp.data?.dados || null);
+    } catch (e) {
+      console.log("Erro ao carregar disponibilidade:", e);
+      setDisponibilidadeConsultoria(null);
+    }
     setModalRemarcar(true);
   };
 
@@ -1383,6 +1920,29 @@ export function DashboardEmpresa() {
       toast.erro("Erro ao remarcar consultoria: " + extrairErro(e));
     } finally {
       setSolicitandoConsultoria(false);
+    }
+  };
+
+  // Funções para modal de informações do cliente
+  const abrirModalInfoCliente = (cliente) => {
+    setClienteSelecionado(cliente);
+    setModalInfoCliente(true);
+  };
+
+  const fecharModalInfoCliente = () => {
+    setModalInfoCliente(false);
+    setClienteSelecionado(null);
+  };
+
+  // Confirmar consultoria (provider)
+  const confirmarConsultoria = async (id) => {
+    try {
+      await consultoriaAPI.confirmar(id);
+      toast.sucesso("Consultoria confirmada com sucesso!");
+      carregarMinhasConsultorias();
+      carregarSolicitacoesConsultoria();
+    } catch (e) {
+      toast.erro("Erro ao confirmar consultoria: " + extrairErro(e));
     }
   };
 
@@ -2129,6 +2689,43 @@ export function DashboardEmpresa() {
                 >
                   <Calendar size={14} /> Minhas Consultorias
                 </button>
+
+                {/* Botao de Notificacoes */}
+                <button
+                  type="button"
+                  className="tab-btn tab-btn-notificacoes"
+                  onClick={() => navigate("/empresa/notificacoes")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontWeight: 500,
+                    transition: "all 0.2s ease",
+                    position: "relative",
+                    marginLeft: "auto",
+                  }}
+                  title="Ver notificacoes"
+                >
+                  <Bell size={14} />
+                  <span>Notificacoes</span>
+                  {contadorNotificacoes > 0 && (
+                    <span
+                      className="badge-notificacoes"
+                      style={{
+                        background: "#ef4444",
+                        color: "white",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        padding: "2px 6px",
+                        borderRadius: "10px",
+                        minWidth: "18px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {contadorNotificacoes > 99 ? "99+" : contadorNotificacoes}
+                    </span>
+                  )}
+                </button>
               </>
             ) : (
               <>
@@ -2145,6 +2742,43 @@ export function DashboardEmpresa() {
                   onClick={() => setAbaActiva("consultoria")}
                 >
                   <MessageCircle size={14} /> Gestão de Consultoria
+                </button>
+
+                {/* Botao de Notificacoes */}
+                <button
+                  type="button"
+                  className="tab-btn tab-btn-notificacoes"
+                  onClick={() => navigate("/empresa/notificacoes")}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px",
+                    fontWeight: 500,
+                    transition: "all 0.2s ease",
+                    position: "relative",
+                    marginLeft: "auto",
+                  }}
+                  title="Ver notificacoes"
+                >
+                  <Bell size={14} />
+                  <span>Notificacoes</span>
+                  {contadorNotificacoes > 0 && (
+                    <span
+                      className="badge-notificacoes"
+                      style={{
+                        background: "#ef4444",
+                        color: "white",
+                        fontSize: "11px",
+                        fontWeight: "600",
+                        padding: "2px 6px",
+                        borderRadius: "10px",
+                        minWidth: "18px",
+                        textAlign: "center",
+                      }}
+                    >
+                      {contadorNotificacoes > 99 ? "99+" : contadorNotificacoes}
+                    </span>
+                  )}
                 </button>
               </>
             )}
@@ -3756,30 +4390,32 @@ export function DashboardEmpresa() {
                                 <BadgeStatus status={consulta.status} />
                               </td>
                               <td>
-                                <div style={{ display: "flex", gap: 8 }}>
-                                  {["pendente", "confirmada"].includes(
+                                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                  {["pendente", "agendada", "confirmada"].includes(
                                     consulta.status,
                                   ) && (
                                     <>
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm"
+                                        className="btn btn--sm btn--secondary"
                                         onClick={() =>
                                           abrirModalRemarcar(consulta)
                                         }
-                                        title="Remarcar"
+                                        title="Remarcar consultoria"
                                       >
-                                        <Edit size={14} />
+                                        <Calendar size={14} />
+                                        <span style={{ marginLeft: 4 }}>Remarcar</span>
                                       </button>
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm"
+                                        className="btn btn--sm btn--danger"
                                         onClick={() =>
                                           cancelarConsultoria(consulta.id)
                                         }
-                                        title="Cancelar"
+                                        title="Cancelar consultoria"
                                       >
-                                        <Trash2 size={14} />
+                                        <X size={14} />
+                                        <span style={{ marginLeft: 4 }}>Cancelar</span>
                                       </button>
                                     </>
                                   )}
@@ -4089,6 +4725,7 @@ export function DashboardEmpresa() {
                               <th>Data</th>
                               <th>Horário</th>
                               <th>Status</th>
+                              <th>Ações</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -4123,6 +4760,60 @@ export function DashboardEmpresa() {
                                 </td>
                                 <td>
                                   <BadgeStatus status={solicitacao.status} />
+                                </td>
+                                <td>
+                                  <div
+                                    style={{
+                                      display: "flex",
+                                      gap: 8,
+                                      flexWrap: "wrap",
+                                    }}
+                                  >
+                                    <button
+                                      className="btn btn--sm btn--secondary"
+                                      onClick={() =>
+                                        abrirModalInfoCliente(solicitacao)
+                                      }
+                                      title="Ver informações do cliente"
+                                    >
+                                      <Eye size={16} />
+                                    </button>
+                                    {solicitacao.status === "pendente" && (
+                                      <button
+                                        className="btn btn--sm btn--primary"
+                                        onClick={() =>
+                                          confirmarConsultoria(solicitacao.id)
+                                        }
+                                        title="Confirmar consultoria"
+                                      >
+                                        <CheckCircle size={16} />
+                                      </button>
+                                    )}
+                                    {["pendente", "agendada", "confirmada"].includes(
+                                      solicitacao.status
+                                    ) && (
+                                      <>
+                                        <button
+                                          className="btn btn--sm btn--secondary"
+                                          onClick={() =>
+                                            abrirModalRemarcar(solicitacao)
+                                          }
+                                          title="Remarcar"
+                                        >
+                                          <Calendar size={16} />
+                                        </button>
+                                        <button
+                                          className="btn btn--sm btn--danger"
+                                          onClick={() =>
+                                            cancelarConsultoria(solicitacao.id)
+                                          }
+                                          title="Cancelar"
+                                        >
+                                          <X size={16} />
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
                                 </td>
                               </tr>
                             ))}
@@ -4700,6 +5391,98 @@ export function DashboardEmpresa() {
         </p>
       </Modal>
 
+      {/* Modal: informações do cliente */}
+      <Modal
+        aberto={modalInfoCliente}
+        onFechar={fecharModalInfoCliente}
+        titulo="Informações do Cliente"
+        acoes={
+          <button className="btn btn--secondary" onClick={fecharModalInfoCliente}>
+            Fechar
+          </button>
+        }
+      >
+        {clienteSelecionado && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Seção 1: Dados do Cliente (Empresa ou Investidor) */}
+            <div>
+              <h4 style={{ margin: "0 0 12px 0", fontSize: "1rem", color: "var(--txt-1)", borderBottom: "2px solid var(--primary)", paddingBottom: 8 }}>
+                Dados do Cliente
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Se for empresa, mostrar nome da empresa e representante */}
+                {clienteSelecionado.requester_company_id ? (
+                  <>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Empresa:</strong>
+                      <p>{clienteSelecionado.empresa_solicitante || "Não informado"}</p>
+                    </div>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Representante:</strong>
+                      <p>{clienteSelecionado.solicitante_nome}</p>
+                    </div>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Setor/Área de Atuação:</strong>
+                      <p>{clienteSelecionado.empresa_setor || "Não informado"}</p>
+                    </div>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Descrição da Empresa:</strong>
+                      <p>{clienteSelecionado.empresa_descricao || "Sem descrição"}</p>
+                    </div>
+                  </>
+                ) : (
+                  /* Se for investidor individual, mostrar nome pessoal */
+                  <div>
+                    <strong style={{ color: "var(--txt-2)" }}>Nome:</strong>
+                    <p>{clienteSelecionado.solicitante_nome}</p>
+                  </div>
+                )}
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Email:</strong>
+                  <p>{clienteSelecionado.solicitante_email || "Não informado"}</p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Telefone:</strong>
+                  <p>{clienteSelecionado.solicitante_telefone || "Não informado"}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Seção 2: Dados da Consultoria */}
+            <div>
+              <h4 style={{ margin: "0 0 12px 0", fontSize: "1rem", color: "var(--txt-1)", borderBottom: "2px solid var(--accent)", paddingBottom: 8 }}>
+                Dados da Consultoria
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Tema:</strong>
+                  <p>{clienteSelecionado.tema}</p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Descrição:</strong>
+                  <p>{clienteSelecionado.descricao || "Sem descrição"}</p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Data Agendada:</strong>
+                  <p>
+                    {clienteSelecionado.slot_date
+                      ? formatData(clienteSelecionado.slot_date)
+                      : "Não agendado"}{" "}
+                    às {clienteSelecionado.hora_inicio?.slice(0, 5) || "--:--"}
+              </p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Status:</strong>
+                  <div style={{ marginTop: 4 }}>
+                    <BadgeStatus status={clienteSelecionado.status} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
       {/* Modal: remarcar consultoria */}
       <Modal
         aberto={modalRemarcar}
@@ -4739,6 +5522,36 @@ export function DashboardEmpresa() {
             {consultoriaSelecionada?.nome_empresa ||
               consultoriaParaRemarcar?.consultoria_nome}
           </div>
+
+          {/* Dias da semana disponíveis */}
+          {disponibilidadeConsultoria && disponibilidadeConsultoria.length > 0 && (
+            <div style={{ marginBottom: 16, padding: 12, background: "var(--bg-2)", borderRadius: 8 }}>
+              <strong style={{ color: "var(--txt-2)", fontSize: "0.875rem" }}>
+                Dias disponíveis para atendimento:
+              </strong>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                {disponibilidadeConsultoria.map((disp, idx) => {
+                  const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+                  return (
+                    <span
+                      key={idx}
+                      style={{
+                        padding: "4px 8px",
+                        background: "var(--surface-1)",
+                        borderRadius: 4,
+                        fontSize: "0.8rem",
+                        color: "var(--txt-2)",
+                        border: "1px solid var(--border-light)",
+                      }}
+                    >
+                      {dias[disp.dia_semana]}: {disp.hora_inicio?.slice(0, 5)} - {disp.hora_fim?.slice(0, 5)}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
@@ -4751,6 +5564,16 @@ export function DashboardEmpresa() {
                 min={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => {
                   const data = e.target.value;
+                  // Validar se o dia da semana está disponível
+                  if (disponibilidadeConsultoria && disponibilidadeConsultoria.length > 0) {
+                    const diaSelecionado = new Date(data).getDay();
+                    const diasDisponiveis = disponibilidadeConsultoria.map(d => d.dia_semana);
+                    if (!diasDisponiveis.includes(diaSelecionado)) {
+                      const nomesDias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+                      toast.aviso(`Esta consultoria não atende aos ${nomesDias[diaSelecionado]}s. Selecione um dia disponível.`);
+                      return;
+                    }
+                  }
                   setFormConsultoria((p) => ({
                     ...p,
                     slot_date: data,
@@ -4842,10 +5665,13 @@ export function DashboardEmpresa() {
 // —
 export function DashboardInvestidor() {
   const toast = useToast();
+  const navigate = useNavigate();
   const [interesses, setInteresses] = useState([]);
   const [contratos, setContratos] = useState([]);
   const [abaActiva, setAbaActiva] = useState("interesses");
   const [carregando, setCarregando] = useState(true);
+  // Estado para contagem de notificacoes nao lidas
+  const [contadorNotificacoes, setContadorNotificacoes] = useState(0);
   const [assinandoContratoId, setAssinandoContratoId] = useState(null);
   const [baixandoContratoId, setBaixandoContratoId] = useState(null);
 
@@ -4869,6 +5695,11 @@ export function DashboardInvestidor() {
   const [solicitandoConsultoria, setSolicitandoConsultoria] = useState(false);
   const [consultoriaParaRemarcar, setConsultoriaParaRemarcar] = useState(null);
   const [modalRemarcar, setModalRemarcar] = useState(false);
+
+  // Estados para modal de informações do cliente (consultoria provider)
+  const [modalInfoCliente, setModalInfoCliente] = useState(false);
+  const [clienteSelecionado, setClienteSelecionado] = useState(null);
+
   const resetFormConsultoria = () => {
     setFormConsultoria({
       tipo_consultoria: "geral",
@@ -4882,6 +5713,23 @@ export function DashboardInvestidor() {
     setVagasConsultoria([]);
     setSugestoesConsultoria([]);
   };
+
+  // Busca contagem de notificacoes nao lidas
+  useEffect(() => {
+    const buscarContagemNotificacoes = async () => {
+      try {
+        const resposta = await notifAPI.contagemNaoLidas();
+        setContadorNotificacoes(resposta.data?.count || 0);
+      } catch (e) {
+        // Silencioso - nao bloqueia a UI se falhar
+        console.error("Erro ao buscar notificacoes:", e);
+      }
+    };
+    buscarContagemNotificacoes();
+    // Atualiza a cada 2 minutos
+    const timer = setInterval(buscarContagemNotificacoes, 120000);
+    return () => clearInterval(timer);
+  }, []);
 
   const carregar = useCallback(async () => {
     try {
@@ -5038,7 +5886,7 @@ export function DashboardInvestidor() {
     }
   };
 
-  const abrirModalRemarcar = (consultoria) => {
+  const abrirModalRemarcar = async (consultoria) => {
     setConsultoriaParaRemarcar(consultoria);
     setConsultoriaSelecionada({
       id: consultoria.consultancy_company_id,
@@ -5053,6 +5901,14 @@ export function DashboardInvestidor() {
       slot_date: "",
       hora_inicio: "",
     });
+    // Carregar disponibilidade semanal da consultoria
+    try {
+      const resp = await consultoriaAPI.obterDisponibilidade(consultoria.consultancy_company_id);
+      setDisponibilidadeConsultoria(resp.data?.dados || null);
+    } catch (e) {
+      console.log("Erro ao carregar disponibilidade:", e);
+      setDisponibilidadeConsultoria(null);
+    }
     setModalRemarcar(true);
   };
 
@@ -5082,6 +5938,27 @@ export function DashboardInvestidor() {
       toast.erro("Erro ao remarcar consultoria: " + extrairErro(e));
     } finally {
       setSolicitandoConsultoria(false);
+    }
+  };
+
+  // Funções para modal de informações do cliente
+  const abrirModalInfoCliente = (cliente) => {
+    setClienteSelecionado(cliente);
+    setModalInfoCliente(true);
+  };
+
+  const fecharModalInfoCliente = () => {
+    setModalInfoCliente(false);
+    setClienteSelecionado(null);
+  };
+
+  const confirmarConsultoria = async (id) => {
+    try {
+      await consultoriaAPI.confirmar(id);
+      toast.sucesso("Consultoria confirmada com sucesso!");
+      carregar();
+    } catch (e) {
+      toast.erro("Erro ao confirmar consultoria: " + extrairErro(e));
     }
   };
 
@@ -5225,6 +6102,43 @@ export function DashboardInvestidor() {
               onClick={() => setAbaActiva("minhas-consultorias")}
             >
               <Calendar size={14} /> Minhas Consultorias
+            </button>
+
+            {/* Botao de Notificacoes */}
+            <button
+              type="button"
+              className="tab-btn tab-btn-notificacoes"
+              onClick={() => navigate("/painel/investidor/notificacoes")}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                fontWeight: 500,
+                transition: "all 0.2s ease",
+                position: "relative",
+                marginLeft: "auto",
+              }}
+              title="Ver notificacoes"
+            >
+              <Bell size={14} />
+              <span>Notificacoes</span>
+              {contadorNotificacoes > 0 && (
+                <span
+                  className="badge-notificacoes"
+                  style={{
+                    background: "#ef4444",
+                    color: "white",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    padding: "2px 6px",
+                    borderRadius: "10px",
+                    minWidth: "18px",
+                    textAlign: "center",
+                  }}
+                >
+                  {contadorNotificacoes > 99 ? "99+" : contadorNotificacoes}
+                </span>
+              )}
             </button>
           </div>
         </div>
@@ -6243,30 +7157,32 @@ export function DashboardInvestidor() {
                                 <BadgeStatus status={consulta.status} />
                               </td>
                               <td>
-                                <div style={{ display: "flex", gap: 8 }}>
-                                  {["pendente", "confirmada"].includes(
+                                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                                  {["pendente", "agendada", "confirmada"].includes(
                                     consulta.status,
                                   ) && (
                                     <>
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm"
+                                        className="btn btn--sm btn--secondary"
                                         onClick={() =>
                                           abrirModalRemarcar(consulta)
                                         }
-                                        title="Remarcar"
+                                        title="Remarcar consultoria"
                                       >
-                                        <Edit size={14} />
+                                        <Calendar size={14} />
+                                        <span style={{ marginLeft: 4 }}>Remarcar</span>
                                       </button>
                                       <button
                                         type="button"
-                                        className="btn btn--ghost btn--sm"
+                                        className="btn btn--sm btn--danger"
                                         onClick={() =>
                                           cancelarConsultoria(consulta.id)
                                         }
-                                        title="Cancelar"
+                                        title="Cancelar consultoria"
                                       >
-                                        <Trash2 size={14} />
+                                        <X size={14} />
+                                        <span style={{ marginLeft: 4 }}>Cancelar</span>
                                       </button>
                                     </>
                                   )}
@@ -6284,6 +7200,98 @@ export function DashboardInvestidor() {
           )}
         </div>
       </div>
+
+      {/* Modal: informações do cliente */}
+      <Modal
+        aberto={modalInfoCliente}
+        onFechar={fecharModalInfoCliente}
+        titulo="Informações do Cliente"
+        acoes={
+          <button className="btn btn--secondary" onClick={fecharModalInfoCliente}>
+            Fechar
+          </button>
+        }
+      >
+        {clienteSelecionado && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+            {/* Seção 1: Dados do Cliente (Empresa ou Investidor) */}
+            <div>
+              <h4 style={{ margin: "0 0 12px 0", fontSize: "1rem", color: "var(--txt-1)", borderBottom: "2px solid var(--primary)", paddingBottom: 8 }}>
+                Dados do Cliente
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Se for empresa, mostrar nome da empresa e representante */}
+                {clienteSelecionado.requester_company_id ? (
+                  <>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Empresa:</strong>
+                      <p>{clienteSelecionado.empresa_solicitante || "Não informado"}</p>
+                    </div>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Representante:</strong>
+                      <p>{clienteSelecionado.solicitante_nome}</p>
+                    </div>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Setor/Área de Atuação:</strong>
+                      <p>{clienteSelecionado.empresa_setor || "Não informado"}</p>
+                    </div>
+                    <div>
+                      <strong style={{ color: "var(--txt-2)" }}>Descrição da Empresa:</strong>
+                      <p>{clienteSelecionado.empresa_descricao || "Sem descrição"}</p>
+                    </div>
+                  </>
+                ) : (
+                  /* Se for investidor individual, mostrar nome pessoal */
+                  <div>
+                    <strong style={{ color: "var(--txt-2)" }}>Nome:</strong>
+                    <p>{clienteSelecionado.solicitante_nome}</p>
+                  </div>
+                )}
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Email:</strong>
+                  <p>{clienteSelecionado.solicitante_email || "Não informado"}</p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Telefone:</strong>
+                  <p>{clienteSelecionado.solicitante_telefone || "Não informado"}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Seção 2: Dados da Consultoria */}
+            <div>
+              <h4 style={{ margin: "0 0 12px 0", fontSize: "1rem", color: "var(--txt-1)", borderBottom: "2px solid var(--accent)", paddingBottom: 8 }}>
+                Dados da Consultoria
+              </h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Tema:</strong>
+                  <p>{clienteSelecionado.tema}</p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Descrição:</strong>
+                  <p>{clienteSelecionado.descricao || "Sem descrição"}</p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Data Agendada:</strong>
+                  <p>
+                    {clienteSelecionado.slot_date
+                      ? formatData(clienteSelecionado.slot_date)
+                      : "Não agendado"}{" "}
+                    às {clienteSelecionado.hora_inicio?.slice(0, 5) || "--:--"}
+                  </p>
+                </div>
+                <div>
+                  <strong style={{ color: "var(--txt-2)" }}>Status:</strong>
+                  <div style={{ marginTop: 4 }}>
+                    <BadgeStatus status={clienteSelecionado.status} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Modal: remarcar consultoria */}
       <Modal
@@ -6306,7 +7314,7 @@ export function DashboardInvestidor() {
             </button>
             <button
               className={`btn btn--primary${solicitandoConsultoria ? " btn--loading" : ""}`}
-              onClick={remarcarConsultoria}
+              onClick={remmarcarConsultoria}
               disabled={solicitandoConsultoria || !formConsultoria.hora_inicio}
             >
               {!solicitandoConsultoria && (
@@ -6324,6 +7332,36 @@ export function DashboardInvestidor() {
             {consultoriaSelecionada?.nome_empresa ||
               consultoriaParaRemarcar?.consultoria_nome}
           </div>
+
+          {/* Dias da semana disponíveis */}
+          {disponibilidadeConsultoria && disponibilidadeConsultoria.length > 0 && (
+            <div style={{ marginBottom: 16, padding: 12, background: "var(--bg-2)", borderRadius: 8 }}>
+              <strong style={{ color: "var(--txt-2)", fontSize: "0.875rem" }}>
+                Dias disponíveis para atendimento:
+              </strong>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+                {disponibilidadeConsultoria.map((disp, idx) => {
+                  const dias = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+                  return (
+                    <span
+                      key={idx}
+                      style={{
+                        padding: "4px 8px",
+                        background: "var(--surface-1)",
+                        borderRadius: 4,
+                        fontSize: "0.8rem",
+                        color: "var(--txt-2)",
+                        border: "1px solid var(--border-light)",
+                      }}
+                    >
+                      {dias[disp.dia_semana]}: {disp.hora_inicio?.slice(0, 5)} - {disp.hora_fim?.slice(0, 5)}
+                    </span>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           <div
             style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}
           >
@@ -6336,6 +7374,16 @@ export function DashboardInvestidor() {
                 min={new Date().toISOString().slice(0, 10)}
                 onChange={(e) => {
                   const data = e.target.value;
+                  // Validar se o dia da semana está disponível
+                  if (disponibilidadeConsultoria && disponibilidadeConsultoria.length > 0) {
+                    const diaSelecionado = new Date(data).getDay();
+                    const diasDisponiveis = disponibilidadeConsultoria.map(d => d.dia_semana);
+                    if (!diasDisponiveis.includes(diaSelecionado)) {
+                      const nomesDias = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"];
+                      toast.aviso(`Esta consultoria não atende aos ${nomesDias[diaSelecionado]}s. Selecione um dia disponível.`);
+                      return;
+                    }
+                  }
                   setFormConsultoria((p) => ({
                     ...p,
                     slot_date: data,

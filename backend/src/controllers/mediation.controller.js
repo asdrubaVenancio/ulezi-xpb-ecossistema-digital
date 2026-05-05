@@ -10,6 +10,7 @@ const { success, created, error, notFound, badRequest } = require('../utils/resp
 const { log } = require('../utils/audit');
 const { sendEmail, sendContractEmail } = require('../utils/email');
 const { gerarContratoPDF } = require('../utils/pdf-modern');
+const { notificarReuniaoAgendada } = require('../services/notification.service');
 
 const ensureMediationRuntimeSchema = async () => {
   const allowedTables = new Set(['mediations', 'scheduled_meetings']);
@@ -249,15 +250,15 @@ const scheduleMeetingWithEmailStatus = async (req, res) => {
       : `Foi agendada uma reuniao da mediacao com o investidor ${med.nome_investidor}.`;
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, ?, ?, CONCAT('Reuniao marcada para ', ?, ' as ', ?, '.'))`,
-      [med.investor_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio]
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, ?, ?, CONCAT('Reuniao marcada para ', ?, ' as ', ?, '.'), ?)`,
+      [med.investor_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio, '/painel/investidor']
     );
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, ?, ?, CONCAT('Reuniao marcada para ', ?, ' as ', ?, '.'))`,
-      [med.company_user_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio]
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, ?, ?, CONCAT('Reuniao marcada para ', ?, ' as ', ?, '.'), ?)`,
+      [med.company_user_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio, '/painel/empresa']
     );
 
     const emailResults = await Promise.all([
@@ -302,9 +303,9 @@ const scheduleMeetingWithEmailStatus = async (req, res) => {
 
     if (avisosEmail.length > 0 && med.mediator_user_id) {
       await pool.execute(
-        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-         VALUES (?, 'email_reuniao_falhou', 'Falha no envio do aviso de reuniao', ?)`,
-        [med.mediator_user_id, avisosEmail.join(' ')]
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+         VALUES (?, 'email_reuniao_falhou', 'Falha no envio do aviso de reuniao', ?, ?)`,
+        [med.mediator_user_id, avisosEmail.join(' '), '/painel/admin']
       );
     }
 
@@ -609,23 +610,23 @@ const createMediation = async (req, res) => {
     );
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, 'nova_mediacao', 'Nova mediação atribuída', ?)`,
-      [mediatorUserId, `Você foi designado para mediar o negócio: ${interesse.titulo_oportunidade} entre ${interesse.nome_investidor} e a empresa ${interesse.nome_empresa}.`]
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, 'nova_mediacao', 'Nova mediação atribuída', ?, ?)`,
+      [mediatorUserId, `Você foi designado para mediar o negócio: ${interesse.titulo_oportunidade} entre ${interesse.nome_investidor} e a empresa ${interesse.nome_empresa}.`, '/painel/admin']
     );
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        VALUES (?, 'mediacao_iniciada', 'Processo de mediação iniciado',
-               CONCAT('O processo de mediação para "', ?, '" foi iniciado. O mediador responsável será ', ?, '.'))`,
-      [interesse.investor_id, interesse.titulo_oportunidade, mediatorNome]
+               CONCAT('O processo de mediação para "', ?, '" foi iniciado. O mediador responsável será ', ?, '.'), ?)`,
+      [interesse.investor_id, interesse.titulo_oportunidade, mediatorNome, '/painel/investidor']
     );
 
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
        VALUES (?, 'novo_interesse', 'Novo interesse em sua oportunidade',
-               CONCAT('O investidor ', ?, ' demonstrou interesse em "', ?, '". O processo de mediação foi iniciado.'))`,
-      [interesse.company_user_id, interesse.nome_investidor, interesse.titulo_oportunidade]
+               CONCAT('O investidor ', ?, ' demonstrou interesse em "', ?, '". O processo de mediação foi iniciado.'), ?)`,
+      [interesse.company_user_id, interesse.nome_investidor, interesse.titulo_oportunidade, '/painel/empresa']
     );
 
     await log(req.user.id, 'CREATE_MEDIATION', 'mediations', result.insertId, { interest_id, employee_id: employeeIdValue, mediator_user_id: mediatorUserId }, req);
@@ -738,9 +739,9 @@ const updateMediation = async (req, res) => {
     
     if (novoMediatorUserId !== existing.mediator_user_id) {
       await pool.execute(
-        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-         VALUES (?, 'mediacao_transferida', 'Mediação atribuída', 'Uma mediação foi atribuída a si.')`,
-        [novoMediatorUserId]
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+         VALUES (?, 'mediacao_transferida', 'Mediação atribuída', 'Uma mediação foi atribuída a si.', ?)`,
+        [novoMediatorUserId, '/painel/admin']
       );
     }
     
@@ -828,15 +829,15 @@ const completeMediation = async (req, res) => {
       : `A mediação foi cancelada. ${motivo_cancelamento || ''}`;
     
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, 'mediacao_concluida', ?, ?)`,
-      [mediation.investor_id, `Mediação: ${resultado_final}`, mensagem]
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, 'mediacao_concluida', ?, ?, ?)`,
+      [mediation.investor_id, `Mediação: ${resultado_final}`, mensagem, '/painel/investidor']
     );
     
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, 'mediacao_concluida', ?, ?)`,
-      [mediation.company_user_id, `Mediação: ${resultado_final}`, mensagem]
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, 'mediacao_concluida', ?, ?, ?)`,
+      [mediation.company_user_id, `Mediação: ${resultado_final}`, mensagem, '/painel/empresa']
     );
     
     await log(req.user.id, 'COMPLETE_MEDIATION', 'mediations', id, { resultado_final }, req);
@@ -963,15 +964,15 @@ const scheduleMeeting = async (req, res) => {
       : `Foi agendada uma reunião da mediação com o investidor ${med.nome_investidor}.`;
     
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, ?, ?, CONCAT('Reunião marcada para ', ?, ' às ', ?, '.'))`,
-      [med.investor_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio]
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, ?, ?, CONCAT('Reunião marcada para ', ?, ' às ', ?, '.'), ?)`,
+      [med.investor_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio, '/painel/investidor']
     );
     
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, ?, ?, CONCAT('Reunião marcada para ', ?, ' às ', ?, '.'))`,
-      [med.company_user_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio]
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, ?, ?, CONCAT('Reunião marcada para ', ?, ' às ', ?, '.'), ?)`,
+      [med.company_user_id, tipoNotificacao, tituloNotificacao, data_reuniao, hora_inicio, '/painel/empresa']
     );
     
     const emailResults = await Promise.all([
@@ -1016,9 +1017,9 @@ const scheduleMeeting = async (req, res) => {
 
     if (avisosEmail.length > 0 && med.mediator_user_id) {
       await pool.execute(
-        `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-         VALUES (?, 'email_reuniao_falhou', 'Falha no envio do aviso de reuniao', ?)`,
-        [med.mediator_user_id, avisosEmail.join(' ')]
+        `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+         VALUES (?, 'email_reuniao_falhou', 'Falha no envio do aviso de reuniao', ?, ?)`,
+        [med.mediator_user_id, avisosEmail.join(' '), '/painel/admin']
       );
     }
     
@@ -1089,8 +1090,8 @@ const cancelMeeting = async (req, res) => {
     );
 
     await Promise.all([
-      pool.execute(`INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES ((SELECT investor_id FROM mediations WHERE id = ?), 'reuniao_cancelada', 'Reunião cancelada', ?)`, [id, motivo || 'A reunião foi cancelada.']),
-      pool.execute(`INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES ((SELECT cp.user_id FROM mediations m INNER JOIN company_profiles cp ON cp.id = m.company_id WHERE m.id = ?), 'reuniao_cancelada', 'Reunião cancelada', ?)`, [id, motivo || 'A reunião foi cancelada.'])
+      pool.execute(`INSERT INTO notifications (user_id, tipo, titulo, mensagem, link) VALUES ((SELECT investor_id FROM mediations WHERE id = ?), 'reuniao_cancelada', 'Reunião cancelada', ?, ?)`, [id, motivo || 'A reunião foi cancelada.', '/painel/investidor']),
+      pool.execute(`INSERT INTO notifications (user_id, tipo, titulo, mensagem, link) VALUES ((SELECT cp.user_id FROM mediations m INNER JOIN company_profiles cp ON cp.id = m.company_id WHERE m.id = ?), 'reuniao_cancelada', 'Reunião cancelada', ?, ?)`, [id, motivo || 'A reunião foi cancelada.', '/painel/empresa'])
     ]);
 
     await Promise.all([

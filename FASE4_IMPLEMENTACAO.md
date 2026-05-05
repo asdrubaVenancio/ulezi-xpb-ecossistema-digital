@@ -97,7 +97,7 @@ SMTP_HOST=smtp.gmail.com
 SMTP_PORT=587
 SMTP_USER=seu-email@gmail.com
 SMTP_PASS=sua-senha-app
-EMAIL_FROM="ULEZI XPB <noreply@ulezi.com>"
+EMAIL_FROM="ULEZI XPI <noreply@ulezi.com>"
 FRONTEND_URL=http://localhost:3000
 ```
 

@@ -6,12 +6,13 @@ const path = require('path');
 const { pool } = require('../config/database');
 const { success, created, error, notFound, badRequest } = require('../utils/response');
 const { gerarReciboPDF } = require('../utils/pdf-modern');
-const { sendEnrollmentConfirmation } = require('../utils/email');
+const { sendEnrollmentConfirmation, sendEnrollmentRejectionEmail } = require('../utils/email');
 const { sendWhatsApp } = require('../utils/whatsapp');
 const {
   createNotification,
   notificarNovaInscricao,
   notificarPagamentoConfirmado,
+  notificarDocumentosReenviados,
 } = require('../services/notification.service');
 const { log } = require('../utils/audit');
 
@@ -182,7 +183,7 @@ const createEnrollment = async (req, res) => {
       'inscricao',
       'Inscrição submetida',
       `A sua inscrição ${numeroInscricao} foi submetida e aguarda validação administrativa.`,
-      '/dashboard/aluno'
+      '/painel/aluno'
     );
 
     // Notificar aluno por email sobre a inscrição
@@ -405,9 +406,9 @@ const adminListEnrollments = async (req, res) => {
       query += ' AND e.status = ?';
       params.push(status);
     } else {
-      // Por padrão, mostrar inscrições pendentes - usar valores válidos do ENUM
-      query += ' AND e.status IN (?, ?, ?)';
-      params.push('pendente', 'confirmada', 'concluida');
+      // Por padrão, mostrar inscrições ativas e canceladas - usar valores válidos do ENUM
+      query += ' AND e.status IN (?, ?, ?, ?)';
+      params.push('pendente', 'confirmada', 'concluida', 'cancelada');
     }
 
     query += ' ORDER BY e.created_at DESC LIMIT ? OFFSET ?';
@@ -501,6 +502,134 @@ const viewEnrollmentDocument = async (req, res) => {
   } catch (err) {
     console.error('[ENROLLMENT_VIEW_DOC]', err);
     return error(res, 'Erro ao obter documento.', 500);
+  }
+};
+
+/**
+ * PUT /api/enrollments/:id/documentos - Aluno substitui documentos de inscrição
+ * Permite reenviar comprovativo e/ou documento requisito quando rejeitados
+ */
+const substituirDocumentos = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const enrollmentId = req.params.id;
+    const { files } = req;
+
+    // Buscar inscrição e verificar permissões
+    const [[inscricao]] = await pool.execute(
+      `SELECT
+        e.*,
+        c.nome AS curso_nome,
+        u.nome AS aluno_nome,
+        u.email AS aluno_email
+       FROM enrollments e
+       JOIN courses c ON e.course_id = c.id
+       JOIN users u ON e.student_id = u.id
+       WHERE e.id = ? AND e.student_id = ?`,
+      [enrollmentId, userId],
+    );
+
+    if (!inscricao) {
+      return notFound(res, 'Inscrição não encontrada.');
+    }
+
+    // Verificar se está aprovada (não pode substituir)
+    if (inscricao.status === 'confirmada') {
+      return badRequest(res, 'Inscrições aprovadas não podem ter documentos alterados.');
+    }
+
+    const atualizacoes = [];
+    const valores = [];
+
+    const atualizacoesEnrollments = [];
+    const valoresEnrollments = [];
+    let comprovativoPath = null;
+
+    // Processar comprovativo (vai para payments, não enrollments)
+    if (files?.comprovativo?.[0]) {
+      comprovativoPath = normalizarCaminhoUpload(files.comprovativo[0]);
+    }
+
+    // Processar documento requisito (vai para enrollments)
+    if (files?.documento_requisito?.[0]) {
+      const file = files.documento_requisito[0];
+      const caminho = normalizarCaminhoUpload(file);
+      atualizacoesEnrollments.push('documento_requisito_url = ?');
+      valoresEnrollments.push(caminho);
+    }
+
+    if (!comprovativoPath && atualizacoesEnrollments.length === 0) {
+      return badRequest(res, 'Nenhum documento fornecido para substituição.');
+    }
+
+    // Adicionar reset de status para análise pendente
+    atualizacoesEnrollments.push('status = ?');
+    valoresEnrollments.push('pendente');
+    atualizacoesEnrollments.push('payment_status = ?');
+    valoresEnrollments.push('pendente');
+    atualizacoesEnrollments.push('motivo_rejeicao = NULL');
+    atualizacoesEnrollments.push('comprovativo_visualizado_em = NULL');
+    atualizacoesEnrollments.push('documento_visualizado_em = NULL');
+
+    // Actualizar inscrição
+    valoresEnrollments.push(enrollmentId);
+    await pool.execute(
+      `UPDATE enrollments SET ${atualizacoesEnrollments.join(', ')} WHERE id = ?`,
+      valoresEnrollments,
+    );
+
+    // Actualizar comprovativo na tabela payments se existir
+    if (comprovativoPath) {
+      await pool.execute(
+        'UPDATE payments SET comprovativo_url = ? WHERE enrollment_id = ?',
+        [comprovativoPath, enrollmentId]
+      );
+    }
+
+    // Notificar admin por email
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@ulezi.com';
+    await notificarDocumentosReenviados(
+      adminEmail,
+      inscricao.aluno_nome,
+      inscricao.curso_nome,
+      inscricao.numero_inscricao,
+    );
+
+    // Criar notificação no sistema para admins
+    try {
+      const [admins] = await pool.execute(
+        "SELECT user_id FROM employees WHERE cargo LIKE '%admin%' OR departamento LIKE '%admin%' LIMIT 10"
+      );
+      for (const admin of admins) {
+        await createNotification(
+          admin.user_id,
+          'inscricao',
+          'Documentos reenviados para análise',
+          `O aluno ${inscricao.aluno_nome} reenviou documentos da inscrição ${inscricao.numero_inscricao}.`,
+          '/admin/inscricoes'
+        );
+      }
+    } catch (notifErr) {
+      console.error('[SUBSTITUIR_DOCUMENTOS] Erro ao notificar admins:', notifErr);
+    }
+
+    await log(
+      userId,
+      'DOCUMENTOS_REENVIADOS',
+      'enrollments',
+      enrollmentId,
+      { documentos: atualizacoes.map(a => a.split(' = ')[0]) },
+      req,
+    );
+
+    return success(
+      res,
+      { documentos_atualizados: atualizacoes.length },
+      'Documentos actualizados com sucesso. Aguarde nova análise.',
+    );
+  } catch (err) {
+    console.error('[SUBSTITUIR_DOCUMENTOS]', err);
+    return error(res, 'Erro ao substituir documentos.', 500);
   }
 };
 
@@ -634,19 +763,32 @@ const reviewEnrollment = async (req, res) => {
 
       const { numeroRecibo } = await gerarReciboAprovacao(id);
 
-      await createNotification(
-        enrollment.student_id,
-        'inscricao',
-        'Inscrição aprovada',
-        `A sua inscrição foi aprovada. O recibo ${numeroRecibo} já está disponível no histórico.`,
-        '/dashboard/aluno'
-      );
+      console.log('[ENROLLMENT_APPROVE] Criando notificação para student_id:', enrollment.student_id);
+      try {
+        await createNotification(
+          enrollment.student_id,
+          'inscricao',
+          'Inscrição aprovada',
+          `A sua inscrição foi aprovada. O recibo ${numeroRecibo} já está disponível no histórico.`,
+          '/painel/aluno'
+        );
+        console.log('[ENROLLMENT_APPROVE] Notificação criada com sucesso');
+      } catch (notifErr) {
+        console.error('[ENROLLMENT_APPROVE] Erro ao criar notificação:', notifErr.message);
+      }
     } else {
-      await pool.execute(
+      console.log('[ENROLLMENT_REVIEW] Rejeitando inscrição:', id, 'motivo:', motivoRejeicao);
+      console.log('[ENROLLMENT_REVIEW] Dados enrollment:', {
+        student_id: enrollment.student_id,
+        status: enrollment.status,
+        pagamento_id: enrollment.pagamento_id
+      });
+
+      const [updateResult] = await pool.execute(
         `
         UPDATE enrollments
-        SET status = 'rejeitada',
-            payment_status = 'rejeitado',
+        SET status = 'cancelada',
+            payment_status = 'reembolsado',
             motivo_rejeicao = ?,
             aprovado_by = ?,
             aprovado_at = NOW()
@@ -654,19 +796,48 @@ const reviewEnrollment = async (req, res) => {
         `,
         [motivoRejeicao, req.user.id, id]
       );
+      console.log('[ENROLLMENT_REVIEW] Update enrollments result:', updateResult);
 
-      await pool.execute(
-        'UPDATE payments SET status = "rejeitado", confirmado_by = ?, confirmado_at = NOW() WHERE enrollment_id = ?',
-        [req.user.id, id]
-      );
+      // Só atualiza payments se existir pagamento
+      if (enrollment.pagamento_id) {
+        const [paymentResult] = await pool.execute(
+          'UPDATE payments SET status = "rejeitado", confirmado_by = ?, confirmado_at = NOW() WHERE enrollment_id = ?',
+          [req.user.id, id]
+        );
+        console.log('[ENROLLMENT_REVIEW] Update payments result:', paymentResult);
+      } else {
+        console.log('[ENROLLMENT_REVIEW] Sem pagamento para atualizar');
+      }
 
       await createNotification(
         enrollment.student_id,
         'inscricao',
-        'Inscrição rejeitada',
-        `A sua inscrição foi rejeitada. Motivo: ${motivoRejeicao}`,
-        '/dashboard/aluno'
+        'Inscrição cancelada',
+        `A sua inscrição foi cancelada. Motivo: ${motivoRejeicao}`,
+        '/painel/aluno'
       );
+      console.log('[ENROLLMENT_REVIEW] Notificação criada');
+
+      // Buscar email e nome do estudante para enviar email de rejeicao
+      try {
+        const [[student]] = await pool.execute(
+          'SELECT nome, email FROM users WHERE id = ?',
+          [enrollment.student_id]
+        );
+
+        if (student?.email) {
+          await sendEnrollmentRejectionEmail({
+            email: student.email,
+            nome: student.nome,
+            nomeCurso: enrollment.course_name || 'Curso',
+            motivoRejeicao: motivoRejeicao
+          });
+          console.log('[ENROLLMENT_REVIEW] Email de rejeição enviado para:', student.email);
+        }
+      } catch (emailErr) {
+        // Nao bloqueia o processo se falhar o envio de email
+        console.error('[ENROLLMENT_REVIEW] Erro ao enviar email de rejeição:', emailErr.message);
+      }
     }
 
     await log(
@@ -678,10 +849,11 @@ const reviewEnrollment = async (req, res) => {
       req
     );
 
-    return success(res, null, aprovado ? 'Inscrição aprovada com sucesso.' : 'Inscrição rejeitada com sucesso.');
+    return success(res, null, aprovado ? 'Inscrição aprovada com sucesso.' : 'Inscrição cancelada com sucesso.');
   } catch (err) {
-    console.error('[ENROLLMENT_REVIEW]', err);
-    return error(res, 'Erro ao validar inscrição.', 500);
+    console.error('[ENROLLMENT_REVIEW] Erro detalhado:', err);
+    console.error('[ENROLLMENT_REVIEW] Stack trace:', err.stack);
+    return error(res, 'Erro ao validar inscrição: ' + (err.message || 'Erro interno'), 500);
   }
 };
 
@@ -903,4 +1075,5 @@ module.exports = {
   assignCenter,
   adminListPayments,
   adminValidatePayment,
+  substituirDocumentos,
 };

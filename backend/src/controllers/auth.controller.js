@@ -76,7 +76,10 @@ const ensurePasswordChangeColumn = async () => {
  * Regista um novo utilizador
  */
 const register = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
+    await connection.beginTransaction();
+
     const {
       nome,
       email,
@@ -98,6 +101,8 @@ const register = async (req, res) => {
     const companyDocs = extractCompanyRegistrationDocs(req.files);
 
     if (role === "company" && companyDocs.length < 4) {
+      await connection.rollback();
+      connection.release();
       return badRequest(
         res,
         "No registo da empresa deve anexar alvara, NIF, certidao e documento de identificacao do responsavel.",
@@ -105,12 +110,27 @@ const register = async (req, res) => {
     }
 
     // Verificar se o email já existe
-    const [existing] = await pool.execute(
+    const [existing] = await connection.execute(
       "SELECT id FROM users WHERE email = ?",
       [normalizedEmail],
     );
     if (existing.length > 0) {
+      await connection.rollback();
+      connection.release();
       return badRequest(res, "Este email já está registado.");
+    }
+
+    // Verificar se o NIF já existe (apenas para empresas)
+    if (role === "company" && nif) {
+      const [existingNif] = await connection.execute(
+        "SELECT id FROM company_profiles WHERE nif = ?",
+        [nif],
+      );
+      if (existingNif.length > 0) {
+        await connection.rollback();
+        connection.release();
+        return badRequest(res, "Este NIF já está registado.");
+      }
     }
 
     // Encriptar a senha
@@ -118,7 +138,7 @@ const register = async (req, res) => {
     const password_hash = await bcrypt.hash(password, rounds);
 
     // Inserir utilizador
-    const [result] = await pool.execute(
+    const [result] = await connection.execute(
       "INSERT INTO users (nome, email, telefone, password_hash, role) VALUES (?,?,?,?,?)",
       [nome, normalizedEmail, telefone || null, password_hash, role],
     );
@@ -126,12 +146,12 @@ const register = async (req, res) => {
 
     // Criar perfil específico conforme o papel
     if (role === "student") {
-      await pool.execute(
+      await connection.execute(
         "INSERT INTO student_profiles (user_id, municipio, provincia, is_public) VALUES (?, ?, ?, ?)",
         [userId, municipio || null, provincia || null, is_public ? 1 : 0],
       );
     } else if (role === "investor") {
-      await pool.execute(
+      await connection.execute(
         "INSERT INTO investor_profiles (user_id, areas_interesse, descricao, provincia, municipio, is_public) VALUES (?, ?, ?, ?, ?, ?)",
         [
           userId,
@@ -149,7 +169,7 @@ const register = async (req, res) => {
       const sectorNormalizado =
         tipoEmpresaNormalizado === "consultoria" ? null : sector || null;
 
-      const [companyResult] = await pool.execute(
+      const [companyResult] = await connection.execute(
         `INSERT INTO company_profiles
          (user_id, nome_empresa, nif, descricao, consultoria_descricao, sector, provincia, municipio, tipo_empresa)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -169,7 +189,7 @@ const register = async (req, res) => {
 
       for (const documento of companyDocs) {
         const url = `/uploads/documents/${documento.ficheiro.filename}`;
-        await pool.execute(
+        await connection.execute(
           "INSERT INTO company_documents (company_id, tipo, nome_ficheiro, url_ficheiro) VALUES (?, ?, ?, ?)",
           [
             companyProfileId,
@@ -180,6 +200,9 @@ const register = async (req, res) => {
         );
       }
     }
+
+    await connection.commit();
+    connection.release();
 
     // Gerar token JWT
     const token = generateToken({ id: userId, email: normalizedEmail, role });
@@ -220,6 +243,8 @@ const register = async (req, res) => {
       "Conta criada com sucesso!",
     );
   } catch (err) {
+    await connection.rollback();
+    connection.release();
     console.error("[AUTH] Register error:", err);
     if (err.code === "ER_DUP_ENTRY")
       return badRequest(res, "Este email já está registado.");

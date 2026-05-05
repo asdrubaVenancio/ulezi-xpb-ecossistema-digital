@@ -771,3 +771,111 @@
   font-size: 0.75rem;
   color: var(--txt-4);
 }
+
+/* Lista de coordenadas bancárias em cards */
+.lista-coordenadas {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 20px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.coordenada-card {
+  background: var(--bg-2);
+  border: 2px solid var(--border);
+  border-radius: var(--r-md);
+  padding: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.coordenada-card:hover {
+  border-color: var(--ciano-200);
+  background: var(--ciano-50);
+}
+
+.coordenada-card.selecionada {
+  border-color: var(--ciano);
+  background: var(--ciano-50);
+  box-shadow: 0 0 0 3px var(--ciano-100);
+}
+
+.coordenada-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.coordenada-info-principal h5 {
+  margin: 0 0 4px 0;
+  font-size: 1rem;
+  color: var(--txt-1);
+}
+
+.coordenada-tipo {
+  font-size: 0.75rem;
+  color: var(--txt-3);
+  background: var(--bg-3);
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  text-transform: uppercase;
+}
+
+.selecionada-badge {
+  font-size: 0.7rem;
+  color: var(--ciano);
+  background: var(--ciano-100);
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  font-weight: 600;
+}
+
+.coordenada-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.coordenada-valor label {
+  font-size: 0.7rem;
+  color: var(--txt-3);
+  text-transform: uppercase;
+  margin-bottom: 4px;
+  display: block;
+}
+
+.coordenada-detalhe {
+  display: flex;
+  gap: 8px;
+  font-size: 0.875rem;
+}
+
+.coordenada-detalhe label {
+  color: var(--txt-3);
+}
+
+.coordenada-detalhe span {
+  color: var(--txt-1);
+  font-weight: 500;
+}
+
+.coordenada-card .coordenada-descricao {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 0.8rem;
+  color: var(--txt-3);
+}
+
+.sem-coordenadas {
+  text-align: center;
+  padding: 32px;
+  color: var(--txt-3);
+}
+
+.sem-coordenadas p {
+  margin-top: 12px;
+}

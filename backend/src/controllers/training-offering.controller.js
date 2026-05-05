@@ -4,7 +4,7 @@
  * Responsável pela gestão das ofertas específicas de cada centro,
  * incluindo preços, carga horária, exigências e especificações.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 1.0.0
  */
 
@@ -353,7 +353,7 @@ const getTrainingOffering = async (req, res) => {
         COUNT(CASE WHEN e.status = 'confirmada' THEN 1 END) AS confirmadas,
         COUNT(CASE WHEN e.status = 'em_analise' THEN 1 END) AND em_analise,
         COUNT(CASE WHEN e.status = 'pendente' THEN 1 END) AS pendentes,
-        COUNT(CASE WHEN e.status = 'rejeitada' THEN 1 END) AS rejeitadas,
+        COUNT(CASE WHEN e.status = 'cancelada' AND e.motivo_rejeicao IS NOT NULL THEN 1 END) AS rejeitadas,
         SUM(p.valor) AS valor_total_arrecadado
       FROM enrollments e
       LEFT JOIN payments p ON p.enrollment_id = e.id AND p.status = 'confirmado'

@@ -184,10 +184,10 @@ const createPackage = async (req, res) => {
       
       for (const admin of admins) {
         await pool.execute(
-          `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
+          `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
            VALUES (?, 'pacote_pendente', 'Pacote pendente de aprovação',
-                   CONCAT('O funcionário ', ?, ' criou o pacote "', ?, '" que aguarda sua aprovação.'))`,
-          [admin.id, req.user.nome, nome]
+                   CONCAT('O funcionário ', ?, ' criou o pacote "', ?, '" que aguarda sua aprovação.'), ?)`,
+          [admin.id, req.user.nome, nome, '/painel/admin']
         );
       }
     }
@@ -307,15 +307,16 @@ const approvePackage = async (req, res) => {
 
     // Notificar criador
     await pool.execute(
-      `INSERT INTO notifications (user_id, tipo, titulo, mensagem)
-       VALUES (?, ?, ?, ?)`,
+      `INSERT INTO notifications (user_id, tipo, titulo, mensagem, link)
+       VALUES (?, ?, ?, ?, ?)`,
       [
         existing[0].created_by,
         aprovado ? 'pacote_aprovado' : 'pacote_rejeitado',
         aprovado ? 'Pacote aprovado' : 'Pacote rejeitado',
         aprovado 
           ? `Seu pacote "${existing[0].nome}" foi aprovado e já está disponível para as empresas.`
-          : `Seu pacote "${existing[0].nome}" foi rejeitado. Motivo: ${motivo_rejeicao || 'Não especificado.'}`
+          : `Seu pacote "${existing[0].nome}" foi rejeitado. Motivo: ${motivo_rejeicao || 'Não especificado.'}`,
+        '/painel/admin'
       ]
     );
 

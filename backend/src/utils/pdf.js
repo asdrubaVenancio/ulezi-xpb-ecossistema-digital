@@ -4,7 +4,7 @@
  * Responsável pela geração de recibos de inscrição e contratos
  * com design profissional e informações dinâmicas.
  * 
- * @author ULEZI XPB Team
+ * @author Asdruba developer
  * @version 2.0.0
  */
 const PDFDocument = require('pdfkit');
@@ -36,7 +36,7 @@ const formatarData = (data) => {
  * @param {PDFDocument} doc - Documento PDF
  * @param {string} texto - Texto da marca d'água
  */
-const adicionarMarcaDagua = (doc, texto = 'ULEZI XPB') => {
+const adicionarMarcaDagua = (doc, texto = 'ULEZI XPI') => {
   doc.save();
   doc.fillOpacity(0.1);
   doc.fontSize(60).font('Helvetica-Bold').fillColor('#1FA7C9');
@@ -62,13 +62,13 @@ const adicionarCabecalho = (doc, titulo) => {
   
   // Logo e nome
   doc.fillColor('#FFFFFF');
-  doc.fontSize(32).font('Helvetica-Bold').text('ULEZI XPB', 50, 30);
+  doc.fontSize(32).font('Helvetica-Bold').text('ULEZI XPI', 50, 30);
   doc.fontSize(14).font('Helvetica').text('Plataforma de Formação Profissional', 50, 65);
   
   // Informações de contato no canto superior direito
   doc.fontSize(10).font('Helvetica');
-  doc.text('www.ulezixpb.com', doc.page.width - 150, 30, { align: 'right' });
-  doc.text('info@ulezixpb.com', doc.page.width - 150, 45, { align: 'right' });
+  doc.text('www.ulezixpI.com', doc.page.width - 150, 30, { align: 'right' });
+  doc.text('info@ulezixpI.com', doc.page.width - 150, 45, { align: 'right' });
   doc.text('+244 923 000 000', doc.page.width - 150, 60, { align: 'right' });
   
   // Título do documento
@@ -100,8 +100,8 @@ const adicionarRodape = (doc, tipoDocumento = 'Documento') => {
     `${tipoDocumento} gerado eletronicamente em ${formatarData(new Date())} às ${new Date().toLocaleTimeString('pt-PT')}`,
     { align: 'center' }
   );
-  doc.text('Documento válido sem assinatura digital - Sistema ULEZI XPB', { align: 'center' });
-  doc.text('Para verificar autenticidade, contacte: info@ulezixpb.com | +244 923 000 000', { align: 'center' });
+  doc.text('Documento válido sem assinatura digital - Sistema ULEZI XPI', { align: 'center' });
+  doc.text('Para verificar autenticidade, contacte: info@ulezixpI.com | +244 923 000 000', { align: 'center' });
 };
 
 /**
@@ -171,9 +171,9 @@ const gerarReciboPDF = (dados) => {
       size: 'A4',
       info: {
         Title: `Recibo de Inscrição - ${dados.numero_inscricao}`,
-        Author: 'ULEZI XPB',
+        Author: 'ULEZI XPI',
         Subject: 'Comprovante de Inscrição em Curso',
-        Creator: 'ULEZI XPB Sistema'
+        Creator: 'ULEZI XPI Sistema'
       }
     });
 
@@ -229,11 +229,11 @@ const gerarReciboPDF = (dados) => {
     doc.fontSize(10).font('Helvetica').fillColor('#374151');
     
     const termos = [
-      '1. Este recibo comprova a inscrição e pagamento efetuado no sistema ULEZI XPB.',
+      '1. Este recibo comprova a inscrição e pagamento efetuado no sistema ULEZI XPI.',
       '2. A inscrição está sujeita à confirmação do centro de formação e disponibilidade de vagas.',
       '3. O aluno deverá apresentar este documento no primeiro dia de aulas.',
       '4. Em caso de cancelamento, consulte nossa política de reembolso.',
-      '5. Dúvidas? Contacte-nos: info@ulezixpb.com | +244 923 000 000'
+      '5. Dúvidas? Contacte-nos: info@ulezixpI.com | +244 923 000 000'
     ];
     
     termos.forEach(termo => {
@@ -263,9 +263,9 @@ const gerarCertificadoPDF = (dados) => {
       layout: 'landscape',
       info: {
         Title: `Certificado - ${dados.nome_curso}`,
-        Author: 'ULEZI XPB',
+        Author: 'ULEZI XPI',
         Subject: 'Certificado de Conclusão de Curso',
-        Creator: 'ULEZI XPB Sistema'
+        Creator: 'ULEZI XPI Sistema'
       }
     });
 
@@ -339,7 +339,7 @@ const gerarCertificadoPDF = (dados) => {
     // Selo de autenticidade
     doc.fontSize(10).font('Helvetica').fillColor('#6B7280');
     doc.text(`Código de Autenticidade: ${dados.codigo_autenticidade}`, { align: 'center' });
-    doc.text('Verifique em: www.ulezixpb.com/validar', { align: 'center' });
+    doc.text('Verifique em: www.ulezixpI.com/validar', { align: 'center' });
 
     doc.end();
   });
@@ -358,9 +358,9 @@ const gerarContratoPDF = (dados) => {
       size: 'A4',
       info: {
         Title: `Contrato de Investimento - ${dados.id}`,
-        Author: 'ULEZI XPB',
+        Author: 'ULEZI XPI',
         Subject: 'Contrato de Investimento',
-        Creator: 'ULEZI XPB Sistema'
+        Creator: 'ULEZI XPI Sistema'
       }
     });
 
@@ -424,7 +424,7 @@ const gerarContratoPDF = (dados) => {
     
     const termos = [
       '1. As partes reconhecem e concordam com os termos estabelecidos neste contrato.',
-      '2. A ULEZI XPB atua exclusivamente como plataforma mediadora, não sendo responsável pelo cumprimento das obrigações.',
+      '2. A ULEZI XPI atua exclusivamente como plataforma mediadora, não sendo responsável pelo cumprimento das obrigações.',
       '3. O investidor declara ter conhecimento dos riscos associados ao investimento.',
       '4. As partes comprometem-se a manter sigilo sobre as informações confidenciais.',
       '5. Em caso de litígio, as partes concordam com a jurisdição dos tribunais de Luanda, Angola.',

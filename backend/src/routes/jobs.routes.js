@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB — Rotas de Vagas de Emprego
+ * ULEZI XPI — Rotas de Vagas de Emprego
  * Empresas publicam vagas; admins aprovam antes de ficarem visíveis
  */
 const express = require('express');

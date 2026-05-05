@@ -101,7 +101,7 @@ const ModalCoordenada = ({ coordenada, aberto, onFechar, onSalvar, carregando })
 
   return (
     <div className="modal-overlay" onClick={onFechar}>
-      <div className="modal" style={{ maxWidth: '500px', width: '95%' }} onClick={(e) => e.stopPropagation()}>
+      <div className="modal" style={{ maxWidth: '500px', width: '95%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }} onClick={(e) => e.stopPropagation()}>
         <div className="modal__header" style={{
           background: 'linear-gradient(135deg, var(--ciano) 0%, var(--ciano-600) 100%)',
           color: 'white',
@@ -132,7 +132,7 @@ const ModalCoordenada = ({ coordenada, aberto, onFechar, onSalvar, carregando })
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="modal__body" style={{ padding: '24px' }}>
+        <form onSubmit={handleSubmit} className="modal__body" style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
           <div style={{ display: 'grid', gap: '16px' }}>
             {/* Tipo */}
             <div>
@@ -150,59 +150,73 @@ const ModalCoordenada = ({ coordenada, aberto, onFechar, onSalvar, carregando })
               </select>
             </div>
 
-            {/* Título */}
+            {/* Título - sempre visível */}
             <div>
               <label style={labelStyle}>Título *</label>
               <input
                 type="text"
                 value={form.titulo}
                 onChange={(e) => setForm({ ...form, titulo: e.target.value })}
-                placeholder="Ex: Conta Principal BFA"
+                placeholder={form.tipo === 'MULTICAIXA_EXPRESS' ? 'Ex: Multicaixa Express' : 'Ex: Conta Principal BFA'}
                 style={inputStyle}
                 required
                 minLength={2}
               />
             </div>
 
-            {/* Número */}
+            {/* Número - visível para todos, com label e placeholder dinâmicos */}
             <div>
-              <label style={labelStyle}>Número / IBAN *</label>
+              <label style={labelStyle}>
+                {form.tipo === 'IBAN' && 'IBAN *'}
+                {form.tipo === 'MULTICAIXA_EXPRESS' && 'Número de Telefone *'}
+                {form.tipo === 'CONTA_BANCARIA' && 'Número da Conta *'}
+                {form.tipo === 'OUTRO' && 'Número / Referência *'}
+              </label>
               <input
                 type="text"
                 value={form.numero}
                 onChange={(e) => setForm({ ...form, numero: e.target.value })}
-                placeholder="Ex: AO06 0040 0000 1234 5678 9012 3"
+                placeholder={
+                  form.tipo === 'IBAN' ? 'Ex: AO06 0040 0000 1234 5678 9012 3' :
+                  form.tipo === 'MULTICAIXA_EXPRESS' ? 'Ex: 923456789' :
+                  form.tipo === 'CONTA_BANCARIA' ? 'Ex: 1234567890' :
+                  'Ex: Referência do pagamento'
+                }
                 style={inputStyle}
                 required
-                minLength={5}
+                minLength={form.tipo === 'MULTICAIXA_EXPRESS' ? 9 : 5}
               />
             </div>
 
-            {/* Titular */}
-            <div>
-              <label style={labelStyle}>Titular da Conta *</label>
-              <input
-                type="text"
-                value={form.titular}
-                onChange={(e) => setForm({ ...form, titular: e.target.value })}
-                placeholder="Ex: ULEZI XPB, LDA"
-                style={inputStyle}
-                required
-                minLength={2}
-              />
-            </div>
+            {/* Titular - oculto para MULTICAIXA_EXPRESS */}
+            {form.tipo !== 'MULTICAIXA_EXPRESS' && (
+              <div>
+                <label style={labelStyle}>Titular da Conta *</label>
+                <input
+                  type="text"
+                  value={form.titular}
+                  onChange={(e) => setForm({ ...form, titular: e.target.value })}
+                  placeholder="Ex: ULEZI XPB, LDA"
+                  style={inputStyle}
+                  required
+                  minLength={2}
+                />
+              </div>
+            )}
 
-            {/* Banco */}
-            <div>
-              <label style={labelStyle}>Banco (opcional)</label>
-              <input
-                type="text"
-                value={form.banco}
-                onChange={(e) => setForm({ ...form, banco: e.target.value })}
-                placeholder="Ex: BFA"
-                style={inputStyle}
-              />
-            </div>
+            {/* Banco - visível para IBAN e CONTA_BANCARIA */}
+            {(form.tipo === 'IBAN' || form.tipo === 'CONTA_BANCARIA') && (
+              <div>
+                <label style={labelStyle}>Banco (opcional)</label>
+                <input
+                  type="text"
+                  value={form.banco}
+                  onChange={(e) => setForm({ ...form, banco: e.target.value })}
+                  placeholder="Ex: BFA"
+                  style={inputStyle}
+                />
+              </div>
+            )}
 
             {/* Descrição */}
             <div>
@@ -254,12 +268,16 @@ const ModalCoordenada = ({ coordenada, aberto, onFechar, onSalvar, carregando })
                 padding: '10px 24px',
                 borderRadius: '8px',
                 border: 'none',
-                background: 'var(--primary)',
+                background: '#00AABE',
                 color: 'white',
                 fontWeight: 600,
                 cursor: carregando ? 'not-allowed' : 'pointer',
                 opacity: carregando ? 0.7 : 1,
                 transition: 'all 0.2s',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                minWidth: '100px',
               }}
             >
               {carregando ? 'Salvando...' : coordenada ? 'Atualizar' : 'Criar'}

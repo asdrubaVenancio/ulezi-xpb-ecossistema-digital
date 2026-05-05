@@ -24,12 +24,23 @@ const validarCoordenada = (dados) => {
     return { campo: 'titulo', mensagem: 'Título é obrigatório (mín. 2 caracteres).' };
   }
 
-  if (!numero || numero.trim().length < 5) {
-    return { campo: 'numero', mensagem: 'Número é obrigatório (mín. 5 caracteres).' };
-  }
-
-  if (!titular || titular.trim().length < 2) {
-    return { campo: 'titular', mensagem: 'Titular é obrigatório (mín. 2 caracteres).' };
+  // Validações específicas por tipo
+  if (tipo === 'MULTICAIXA_EXPRESS') {
+    // Multicaixa Express: número de telefone com 9 dígitos
+    const numLimpo = numero ? numero.replace(/\s/g, '') : '';
+    if (!numero || numLimpo.length !== 9) {
+      return { campo: 'numero', mensagem: 'Número de telefone deve ter 9 dígitos.' };
+    }
+    // Titular é opcional para Multicaixa Express
+  } else {
+    // IBAN, CONTA_BANCARIA, OUTRO: número mínimo de 5 caracteres
+    if (!numero || numero.trim().length < 5) {
+      return { campo: 'numero', mensagem: 'Número é obrigatório (mín. 5 caracteres).' };
+    }
+    // Titular é obrigatório para estes tipos
+    if (!titular || titular.trim().length < 2) {
+      return { campo: 'titular', mensagem: 'Titular é obrigatório (mín. 2 caracteres).' };
+    }
   }
 
   return null;

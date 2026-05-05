@@ -211,7 +211,8 @@ const notifyContractSignatureRequest = async ({
   investorId,
   titulo,
 }) => {
-  const link = `/contratos/${contractId}`;
+  const linkCompany = '/painel/empresa';
+  const linkInvestor = '/painel/investidor';
   await Promise.all([
     companyUserId
       ? createNotification(
@@ -219,7 +220,7 @@ const notifyContractSignatureRequest = async ({
           "assinatura_contrato",
           "Assinatura pendente de contrato",
           `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
-          link,
+          linkCompany,
         )
       : Promise.resolve(),
     investorId
@@ -228,7 +229,7 @@ const notifyContractSignatureRequest = async ({
           "assinatura_contrato",
           "Assinatura pendente de contrato",
           `O contrato da oportunidade "${titulo}" aguarda a confirmacao da sua assinatura digital no sistema.`,
-          link,
+          linkInvestor,
         )
       : Promise.resolve(),
   ]);
@@ -728,12 +729,13 @@ const expressInterest = async (req, res) => {
       await Promise.all(
         usersToNotify.map((userId) =>
           connection.execute(
-            "INSERT INTO notifications (user_id, tipo, titulo, mensagem) VALUES (?,?,?,?)",
+            "INSERT INTO notifications (user_id, tipo, titulo, mensagem, link) VALUES (?,?,?,?,?)",
             [
               userId,
               "interest",
               "Novo interesse de investidor",
               `${investor[0].nome} manifestou interesse em "${opp[0].titulo}". Faca a triagem e inicie a mediacao antes de qualquer contacto com a empresa.`,
+              '/painel/admin',
             ],
           ),
         ),
@@ -1253,7 +1255,7 @@ const signContract = async (req, res) => {
               "contrato_assinado",
               "Contrato validado",
               `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
-              `/contratos/${id}`,
+              '/painel/empresa',
             )
           : Promise.resolve(),
         contract.investor_id
@@ -1262,7 +1264,7 @@ const signContract = async (req, res) => {
               "contrato_assinado",
               "Contrato validado",
               `O contrato #${id} foi assinado por ambas as partes e o PDF final ja esta disponivel no sistema.`,
-              `/contratos/${id}`,
+              '/painel/investidor',
             )
           : Promise.resolve(),
       ]);
@@ -1322,12 +1324,13 @@ const signContract = async (req, res) => {
         ? contract.investor_id
         : contract.company_user_id;
     if (targetUserId) {
+      const isCompany = signerRoleLabel === "investidor";
       await createNotification(
         targetUserId,
         "assinatura_contrato",
         "Assinatura pendente de contrato",
         `A contraparte ja confirmou a assinatura do contrato #${id}. Falta agora a sua confirmacao digital para concluir o documento.`,
-        `/contratos/${id}`,
+        isCompany ? '/painel/empresa' : '/painel/investidor',
       );
     }
 

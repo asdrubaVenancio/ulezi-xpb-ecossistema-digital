@@ -1,8 +1,9 @@
-import { AlertCircle, Briefcase, Calendar, Check, Copy, Crown, FileText, Landmark, Upload, Users, X } from 'lucide-react';
+import { AlertCircle, Briefcase, Calendar, Check, Copy, Crown, FileText, Landmark, Lock, Upload, Users, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Alert, Badge, Spinner } from '../../components/ui/index.jsx';
 import { useToast } from '../../components/ui/Toast';
 import { coordenadasBancariasAPI, empresaAPI, extrairErro } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 import './Assinatura.css';
 
 // Coordenadas bancárias para pagamento
@@ -26,8 +27,18 @@ export function AssinaturaPage() {
   const [passoPagamento, setPassoPagamento] = useState(1); // 1: Coordenadas, 2: Upload
   const [comprovativo, setComprovativo] = useState(null);
   const [referencia, setReferencia] = useState('');
+  const [coordenadaSelecionada, setCoordenadaSelecionada] = useState(null);
   
   const toast = useToast();
+
+  const { utilizador } = useAuth();
+  // Verifica se a empresa está aprovada (is_approved = true na company_profile)
+  // O backend retorna os dados da empresa em 'profile' (company_profiles)
+  const empresaAprovada = utilizador?.profile?.is_approved === 1 ||
+                          utilizador?.profile?.is_approved === true ||
+                          utilizador?.empresa?.is_approved === true ||
+                          minhaAssinatura?.empresa?.is_approved === true ||
+                          minhaAssinatura?.empresa?.is_approved === 1;
 
   useEffect(() => {
     carregarDados();
@@ -68,6 +79,7 @@ export function AssinaturaPage() {
     setPassoPagamento(1);
     setComprovativo(null);
     setReferencia(`ASS-${Date.now()}`);
+    setCoordenadaSelecionada(coordenadas[0] || null); // Selecionar a primeira por padrão
     setModalPagamento(true);
   };
 
@@ -149,7 +161,7 @@ export function AssinaturaPage() {
 
   const temAssinaturaAtiva = Boolean(minhaAssinatura?.tem_assinatura_ativa);
   const assinaturaAtual = minhaAssinatura?.assinatura || null;
-  const coordenadaPrincipal = coordenadas[0] || null;
+  const coordenadaPrincipal = coordenadaSelecionada || coordenadas[0] || null;
   const solicitacaoPendente = !temAssinaturaAtiva && minhaAssinatura?.ultima_solicitacao?.status === 'pendente'
     ? minhaAssinatura.ultima_solicitacao
     : null;
@@ -326,24 +338,33 @@ export function AssinaturaPage() {
               </div>
 
               <div className="pacote-acoes">
-                {temAssinaturaAtiva ? (
-                  <button type="button" className="btn-assinar" disabled>
-                    Já possui assinatura
-                  </button>
-                ) : solicitacaoPendente ? (
-                  <button type="button" className="btn-assinar" disabled>
-                    Solicitação em análise
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn-assinar"
-                    onClick={() => handleAssinar(pacote)}
-                    disabled={assinando}
-                  >
-                    {assinando && pacoteSelecionado?.id === pacote.id ? 'Processando...' : 'Solicitar assinatura'}
-                  </button>
-                )}
+                <div style={{ textAlign: 'center', marginTop: 24 }}>
+                  {!empresaAprovada ? (
+                    <button className="btn btn-secondary" disabled>
+                      <X size={18} style={{ marginRight: 8 }} />
+                      Aguardando aprovação da conta
+                    </button>
+                  ) : temAssinaturaAtiva ? (
+                    <button className="btn btn-success" disabled>
+                      <Check size={18} style={{ marginRight: 8 }} />
+                      Já possui assinatura
+                    </button>
+                  ) : solicitacaoPendente ? (
+                    <button className="btn btn-warning" disabled>
+                      <AlertCircle size={18} style={{ marginRight: 8 }} />
+                      Solicitação em análise
+                    </button>
+                  ) : (
+                    <button
+                      className="btn btn-primary btn-assinar"
+                      onClick={() => handleAssinar(pacote)}
+                      disabled={carregando}
+                    >
+                      <Briefcase size={18} style={{ marginRight: 8 }} />
+                      {carregando ? 'Processando...' : 'Solicitar assinatura'}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -396,37 +417,70 @@ export function AssinaturaPage() {
                     <div className="banco-header">
                       <Landmark size={32} />
                       <div>
-                        <h4>{coordenadaPrincipal?.banco || coordenadaPrincipal?.titulo || 'Coordenadas bancárias indisponíveis'}</h4>
-                        <p>{coordenadaPrincipal?.tipo === 'IBAN' ? 'Transferência Bancária' : (coordenadaPrincipal?.tipo || 'Pagamento bancário')}</p>
+                        <h4>Coordenadas Bancárias</h4>
+                        <p>Escolha uma opção para pagamento</p>
                       </div>
                     </div>
 
-                    <div className="coordenadas-grid">
-                      <div className="coordenada-item">
-                        <label>{coordenadaPrincipal?.tipo || 'Coordenada'}</label>
-                        <div className="valor-com-copiar">
-                          <code>{coordenadaPrincipal?.numero_formatado || coordenadaPrincipal?.numero || 'Não configurado'}</code>
-                          <button 
-                            type="button"
-                            onClick={() => handleCopiar(coordenadaPrincipal?.numero_formatado || coordenadaPrincipal?.numero || '', coordenadaPrincipal?.tipo || 'Coordenada')}
-                            className="btn-copiar"
-                            disabled={!coordenadaPrincipal?.numero}
+                    {/* Lista de coordenadas bancárias */}
+                    {coordenadas.length > 0 ? (
+                      <div className="lista-coordenadas">
+                        {coordenadas.map((coord) => (
+                          <div 
+                            key={coord.id} 
+                            className={`coordenada-card ${coordenadaPrincipal?.id === coord.id ? 'selecionada' : ''}`}
+                            onClick={() => setCoordenadaSelecionada(coord)}
                           >
-                            <Copy size={14} /> Copiar
-                          </button>
-                        </div>
+                            <div className="coordenada-card-header">
+                              <div className="coordenada-info-principal">
+                                <h5>{coord.banco || coord.titulo}</h5>
+                                <span className="coordenada-tipo">{coord.tipo}</span>
+                              </div>
+                              {coordenadaPrincipal?.id === coord.id && (
+                                <span className="selecionada-badge">Selecionada</span>
+                              )}
+                            </div>
+                            
+                            <div className="coordenada-card-body">
+                              <div className="coordenada-valor">
+                                <label>{coord.tipo}</label>
+                                <div className="valor-com-copiar">
+                                  <code>{coord.numero_formatado || coord.numero}</code>
+                                  <button 
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleCopiar(coord.numero_formatado || coord.numero, coord.tipo);
+                                    }}
+                                    className="btn-copiar"
+                                  >
+                                    <Copy size={14} /> Copiar
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              {coord.titular && (
+                                <div className="coordenada-detalhe">
+                                  <label>Titular:</label>
+                                  <span>{coord.titular}</span>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {coord.descricao && (
+                              <div className="coordenada-descricao">{coord.descricao}</div>
+                            )}
+                          </div>
+                        ))}
                       </div>
-
-                      <div className="coordenada-item">
-                        <label>Titular da Conta</label>
-                        <p>{coordenadaPrincipal?.titular || 'Não configurado'}</p>
+                    ) : (
+                      <div className="sem-coordenadas">
+                        <AlertCircle size={32} />
+                        <p>Nenhuma coordenada bancária disponível.</p>
                       </div>
+                    )}
 
-                      <div className="coordenada-item">
-                        <label>Banco</label>
-                        <p>{coordenadaPrincipal?.banco || 'Não configurado'}</p>
-                      </div>
-
+                    <div className="coordenadas-grid">
                       <div className="coordenada-item destaque">
                         <label>Valor a Transferir</label>
                         <p className="valor-final">
@@ -442,12 +496,6 @@ export function AssinaturaPage() {
                         Você precisará dele no próximo passo.
                       </p>
                     </div>
-
-                    {!!coordenadaPrincipal?.descricao && (
-                      <div className="assinatura-coordenada-descricao">
-                        {coordenadaPrincipal.descricao}
-                      </div>
-                    )}
 
                     <div className="modal-acoes">
                       <button 

@@ -3,20 +3,22 @@
 // Sidebar + topbar para aluno, empresa e investidor
 // ============================================================
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard, BookOpen, CreditCard, User, LogOut,
-  Sun, Moon, Menu, TrendingUp, Users, Globe,
+  Sun, Moon, Menu, TrendingUp, Users, Globe, Bell,
 } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { iniciais, ROLE_LABELS, BACKEND_BASE_URL } from '../../utils/constants';
+import { notifAPI } from '../../services/api';
 
 /** Itens de navegação por papel */
 const NAV_POR_PAPEL = {
   estudante: [
     { path: '/painel/aluno',    icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/cursos',          icon: BookOpen,        label: 'Cursos' },
+    { path: '/painel/aluno/notificacoes', icon: Bell,  label: 'Notificações', badge: true },
     { path: '/perfil',          icon: User,            label: 'Perfil' },
   ],
   empresa: [
@@ -24,16 +26,19 @@ const NAV_POR_PAPEL = {
     { path: '/negocios',            icon: TrendingUp,      label: 'Negócios' },
     { path: '/comunidade',          icon: Users,           label: 'Comunidade' },
     { path: '/empresa/assinatura',  icon: CreditCard,  label: 'Assinatura' },
+    { path: '/empresa/notificacoes', icon: Bell,         label: 'Notificações', badge: true },
     { path: '/perfil',              icon: User,        label: 'Perfil' },
   ],
   investidor: [
     { path: '/painel/investidor',    icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/negocios',             icon: TrendingUp,       label: 'Oportunidades' },
+    { path: '/painel/investidor/notificacoes', icon: Bell,   label: 'Notificações', badge: true },
     { path: '/perfil',               icon: User,             label: 'Perfil' },
   ],
   student: [
     { path: '/painel/aluno',    icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/cursos',          icon: BookOpen,        label: 'Cursos' },
+    { path: '/painel/aluno/notificacoes', icon: Bell,  label: 'Notificações', badge: true },
     { path: '/perfil',          icon: User,            label: 'Perfil' },
   ],
   company: [
@@ -41,11 +46,13 @@ const NAV_POR_PAPEL = {
     { path: '/negocios',            icon: TrendingUp,      label: 'Negócios' },
     { path: '/comunidade',          icon: Users,           label: 'Comunidade' },
     { path: '/empresa/assinatura',  icon: CreditCard,  label: 'Assinatura' },
+    { path: '/empresa/notificacoes', icon: Bell,         label: 'Notificações', badge: true },
     { path: '/perfil',              icon: User,        label: 'Perfil' },
   ],
   investor: [
     { path: '/painel/investidor',    icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/negocios',             icon: TrendingUp,       label: 'Oportunidades' },
+    { path: '/painel/investidor/notificacoes', icon: Bell,   label: 'Notificações', badge: true },
     { path: '/perfil',               icon: User,             label: 'Perfil' },
   ],
 };
@@ -92,8 +99,26 @@ export default function DashboardLayout({ children }) {
   const location  = useLocation();
   const navigate  = useNavigate();
   const [sidebarAberta, setSidebarAberta] = useState(false);
+  const [contadorNotificacoes, setContadorNotificacoes] = useState(0);
 
   const itens = NAV_POR_PAPEL[utilizador?.role] || [];
+
+  // Busca contagem de notificacoes nao lidas
+  useEffect(() => {
+    const buscarContagem = async () => {
+      try {
+        const resposta = await notifAPI.contagemNaoLidas();
+        setContadorNotificacoes(resposta.data?.count || 0);
+      } catch (e) {
+        // Silencioso - nao bloqueia a UI se falhar
+        console.error('Erro ao buscar notificacoes:', e);
+      }
+    };
+    buscarContagem();
+    // Atualiza a cada 2 minutos
+    const timer = setInterval(buscarContagem, 120000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLogout = async () => {
     await logout();
@@ -119,7 +144,7 @@ export default function DashboardLayout({ children }) {
 
         {/* Navegação */}
         <nav className="sidebar__nav">
-          {itens.map(({ path, icon: Icon, label }) => {
+          {itens.map(({ path, icon: Icon, label, badge }) => {
             const activo = location.pathname === path;
             return (
               <Link
@@ -130,6 +155,23 @@ export default function DashboardLayout({ children }) {
               >
                 <Icon size={16} />
                 <span>{label}</span>
+                {badge && contadorNotificacoes > 0 && (
+                  <span
+                    style={{
+                      background: '#ef4444',
+                      color: 'white',
+                      fontSize: '11px',
+                      fontWeight: '600',
+                      padding: '2px 6px',
+                      borderRadius: '10px',
+                      minWidth: '18px',
+                      textAlign: 'center',
+                      marginLeft: 'auto',
+                    }}
+                  >
+                    {contadorNotificacoes > 99 ? '99+' : contadorNotificacoes}
+                  </span>
+                )}
               </Link>
             );
           })}

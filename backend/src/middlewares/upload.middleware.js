@@ -1,5 +1,5 @@
 /**
- * ULEZI XPB — Middleware de Upload de Ficheiros
+ * ULEZI XPI — Middleware de Upload de Ficheiros
  * Configuração do Multer para documentos, logos e comprovativos
  */
 
